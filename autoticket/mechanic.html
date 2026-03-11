@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mechanic - Auto Repair Ticket System</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <a href="index.html">Auto Repair Ticket System</a>
+    <p class="tagline">Mechanic View - Create & Edit Tickets</p>
+  </header>
+
+  <main class="main-content">
+    <a href="index.html" class="back-link">&larr; Back to Home</a>
+
+    <!-- Repair Order Section -->
+    <section class="section">
+      <h2>Repair Order</h2>
+      <form class="repair-order-form" onsubmit="return false;">
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="ro-number">Repair Order or Task Number #</label>
+            <input type="text" id="ro-number" placeholder="Enter RO number">
+          </div>
+          <div class="form-group">
+            <label for="ro-date">Date</label>
+            <input type="date" id="ro-date">
+          </div>
+          <div class="form-group">
+            <label for="technician">Technician Name(s)</label>
+            <input type="text" id="technician" placeholder="Enter technician name">
+          </div>
+        </div>
+
+        <h3>Time Information</h3>
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="time-in">Time In</label>
+            <input type="text" id="time-in" placeholder="e.g. 9:00 AM">
+          </div>
+          <div class="form-group">
+            <label for="time-out">Time Out</label>
+            <input type="text" id="time-out" placeholder="e.g. 11:30 AM">
+          </div>
+          <div class="form-group">
+            <label for="total-time">Total Time</label>
+            <input type="text" id="total-time" placeholder="e.g. 2.5 hrs">
+          </div>
+        </div>
+
+        <h3>Customer Information</h3>
+        <div class="form-grid">
+          <div class="form-group full-width">
+            <label for="customer-name">Name</label>
+            <input type="text" id="customer-name" placeholder="Customer name">
+          </div>
+          <div class="form-group full-width">
+            <label for="customer-address">Address</label>
+            <input type="text" id="customer-address" placeholder="Address">
+          </div>
+          <div class="form-group">
+            <label for="customer-phone">Phone</label>
+            <input type="tel" id="customer-phone" placeholder="Phone">
+          </div>
+          <div class="form-group">
+            <label for="customer-email">Email</label>
+            <input type="email" id="customer-email" placeholder="Email">
+          </div>
+        </div>
+
+        <h3>Vehicle Information</h3>
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="vehicle-ymm">Year/Make/Model</label>
+            <input type="text" id="vehicle-ymm" placeholder="e.g. 2018 Honda Accord">
+          </div>
+          <div class="form-group">
+            <label for="vin">VIN</label>
+            <input type="text" id="vin" placeholder="VIN">
+          </div>
+          <div class="form-group">
+            <label for="license-plate">License Plate</label>
+            <input type="text" id="license-plate" placeholder="License plate">
+          </div>
+          <div class="form-group">
+            <label for="mileage-in">Mileage In</label>
+            <input type="text" id="mileage-in" placeholder="Mileage">
+          </div>
+          <div class="form-group">
+            <label for="mileage-out">Mileage Out</label>
+            <input type="text" id="mileage-out" placeholder="Mileage">
+          </div>
+        </div>
+
+        <h3>Concern</h3>
+        <div class="form-group full-width">
+          <textarea id="concern" placeholder="Customer concern or service requested"></textarea>
+        </div>
+
+        <h3>Diagnosis / Cause / Correction</h3>
+        <div class="form-group full-width">
+          <textarea id="diagnosis" placeholder="Diagnosis and correction details"></textarea>
+        </div>
+
+        <h3>Recommended Repairs</h3>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Description of Work</th>
+                <th>Qty</th>
+                <th>Parts #</th>
+                <th>Part Price $</th>
+                <th>Parts Total $</th>
+                <th>Labor/$100hr.</th>
+                <th>Labor Total $</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><input type="text" placeholder="Description"></td>
+                <td><input type="number" placeholder="1" style="width:4em"></td>
+                <td><input type="text" placeholder="Part #"></td>
+                <td><input type="text" placeholder="0.00"></td>
+                <td><input type="text" placeholder="0.00"></td>
+                <td><input type="text" placeholder="0.00"></td>
+                <td><input type="text" placeholder="0.00"></td>
+              </tr>
+              <tr>
+                <td><input type="text" placeholder="Description"></td>
+                <td><input type="number" placeholder="1" style="width:4em"></td>
+                <td><input type="text" placeholder="Part #"></td>
+                <td><input type="text" placeholder="0.00"></td>
+                <td><input type="text" placeholder="0.00"></td>
+                <td><input type="text" placeholder="0.00"></td>
+                <td><input type="text" placeholder="0.00"></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <button type="button" class="btn btn-secondary add-repair-line">Add Repair Line</button>
+
+        <h3>Totals</h3>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Subtotal (Parts) $</label>
+            <input type="text" placeholder="0.00">
+          </div>
+          <div class="form-group">
+            <label>Subtotal (Labor) $</label>
+            <input type="text" placeholder="0.00">
+          </div>
+          <div class="form-group">
+            <label>Tax $</label>
+            <input type="text" placeholder="0.00">
+          </div>
+          <div class="form-group">
+            <label>Total Estimate $</label>
+            <input type="text" placeholder="0.00">
+          </div>
+        </div>
+
+        <h3>Authorization</h3>
+        <div class="auth-block">
+          YORK COUNTY SCHOOL OF TECHNOLOGY TRANSPORTATION DEPARTMENT LIABILITY RELEASE<br><br>
+          TERMS AND CONDITIONS: It is to be understood and agreed that all work submitted shall be subject to a minimum shop/lab charge...<br><br>
+          [Full terms displayed - Customer must sign to authorize]
+        </div>
+        <div class="form-grid" style="margin-top:1rem">
+          <div class="form-group">
+            <label>Date</label>
+            <input type="date" placeholder="Date">
+          </div>
+          <div class="form-group full-width">
+            <label>Customer Signature</label>
+            <input type="text" placeholder="Signature on file" readonly>
+          </div>
+        </div>
+
+        <button type="button" class="btn btn-primary save-ticket">Save Ticket</button>
+      </form>
+    </section>
+
+    <!-- Vehicle Inspection Section (Accordion) -->
+    <section class="section">
+      <h2>Vehicle Inspection - Digital Courtesy Check</h2>
+      <p class="form-group">
+        <strong>Status colors:</strong>
+        <span class="status-badge status-red">Red - Needs Service</span>
+        <span class="status-badge status-yellow">Yellow - Monitor Soon</span>
+        <span class="status-badge status-green">Green - OK</span>
+      </p>
+
+      <div class="accordion">
+        <div class="accordion-item">
+          <div class="accordion-header" data-accordion="vehicle-info">Vehicle Info</div>
+          <div class="accordion-content" id="vehicle-info" style="display:block">
+            <div class="form-grid">
+              <div class="form-group"><label>Year</label><input type="text" placeholder="Year"></div>
+              <div class="form-group"><label>Make</label><input type="text" placeholder="Make"></div>
+              <div class="form-group"><label>Model</label><input type="text" placeholder="Model"></div>
+              <div class="form-group"><label>Color</label><input type="text" placeholder="Color"></div>
+              <div class="form-group"><label>VIN</label><input type="text" placeholder="VIN"></div>
+              <div class="form-group"><label>MFG Date</label><input type="text" placeholder="MFG Date"></div>
+              <div class="form-group"><label>Engine Size</label><input type="text" placeholder="Engine Size"></div>
+              <div class="form-group"><label>Trans Type</label><select><option>Auto</option><option>Manual</option></select></div>
+              <div class="form-group"><label>Mileage (Current)</label><input type="text" placeholder="Mileage"></div>
+              <div class="form-group"><label>Mileage (Old)</label><input type="text" placeholder="Mileage"></div>
+              <div class="form-group"><label>Technician</label><input type="text" placeholder="Technician"></div>
+              <div class="form-group"><label>Date</label><input type="date"></div>
+              <div class="form-group"><label>Plate</label><input type="text" placeholder="Plate"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="accordion-item">
+          <div class="accordion-header" data-accordion="courtesy-check">Courtesy Check</div>
+          <div class="accordion-content collapsed-content" id="courtesy-check">
+            <div class="table-wrapper">
+              <table>
+                <thead>
+                  <tr><th>Item</th><th>Status</th><th>Notes</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>Wiper Blades</td><td><select><option>Red</option><option>Yellow</option><option>Green</option></select></td><td><input type="text" placeholder="Notes"></td></tr>
+                  <tr><td>Headlights</td><td><select><option>Red</option><option>Yellow</option><option>Green</option></select></td><td><input type="text" placeholder="Notes"></td></tr>
+                  <tr><td>Mini/Marker Lights</td><td><select><option>Red</option><option>Yellow</option><option>Green</option></select></td><td><input type="text" placeholder="Notes"></td></tr>
+                  <tr><td>Air Filter</td><td><select><option>Red</option><option>Yellow</option><option>Green</option></select></td><td><input type="text" placeholder="Notes"></td></tr>
+                  <tr><td>Cabin Air Filter</td><td><select><option>Red</option><option>Yellow</option><option>Green</option></select></td><td><input type="text" placeholder="Notes"></td></tr>
+                  <tr><td>PCV Valve</td><td><select><option>Red</option><option>Yellow</option><option>Green</option></select></td><td><input type="text" placeholder="Notes"></td></tr>
+                  <tr><td>Fuel Filter</td><td><select><option>Red</option><option>Yellow</option><option>Green</option></select></td><td><input type="text" placeholder="Notes"></td></tr>
+                  <tr><td>Drive Belts</td><td><select><option>Red</option><option>Yellow</option><option>Green</option></select></td><td><input type="text" placeholder="Notes"></td></tr>
+                  <tr><td>Hoses</td><td><select><option>Red</option><option>Yellow</option><option>Green</option></select></td><td><input type="text" placeholder="Notes"></td></tr>
+                  <tr><td>Battery</td><td><select><option>Red</option><option>Yellow</option><option>Green</option></select></td><td><input type="text" placeholder="Notes"></td></tr>
+                  <tr><td>Washer Fluid</td><td><select><option>Red</option><option>Yellow</option><option>Green</option></select></td><td><input type="text" placeholder="Notes"></td></tr>
+                  <tr><td>Engine Oil Level</td><td><select><option>Red</option><option>Yellow</option><option>Green</option></select></td><td><input type="text" placeholder="Notes"></td></tr>
+                  <tr><td>Coolant Level</td><td><select><option>Red</option><option>Yellow</option><option>Green</option></select></td><td><input type="text" placeholder="Notes"></td></tr>
+                  <tr><td>Brake Fluid</td><td><select><option>Red</option><option>Yellow</option><option>Green</option></select></td><td><input type="text" placeholder="Notes"></td></tr>
+                  <tr><td>Brake Lights</td><td><select><option>Red</option><option>Yellow</option><option>Green</option></select></td><td><input type="text" placeholder="Notes"></td></tr>
+                  <tr><td>Turn Signals</td><td><select><option>Red</option><option>Yellow</option><option>Green</option></select></td><td><input type="text" placeholder="Notes"></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="accordion-item">
+          <div class="accordion-header" data-accordion="tires">Tires</div>
+          <div class="accordion-content collapsed-content" id="tires">
+            <div class="form-grid">
+              <div class="form-group"><label>Size</label><input type="text" placeholder="Size"></div>
+              <div class="form-group"><label>Speed Rating</label><input type="text" placeholder="Speed Rating"></div>
+              <div class="form-group"><label>LF</label><input type="text" placeholder="Tread"></div>
+              <div class="form-group"><label>RF</label><input type="text" placeholder="Tread"></div>
+              <div class="form-group"><label>LR</label><input type="text" placeholder="Tread"></div>
+              <div class="form-group"><label>RR</label><input type="text" placeholder="Tread"></div>
+              <div class="form-group"><label>SP</label><input type="text" placeholder="Spare"></div>
+              <div class="form-group"><label>Tread Depth (32nds)</label><input type="text" placeholder="Depth"></div>
+              <div class="form-group"><label>Rotation Due?</label><select><option>Yes</option><option>No</option><option>N/A</option></select></div>
+              <div class="form-group"><label>Balance?</label><select><option>Yes</option><option>No</option><option>N/A</option></select></div>
+              <div class="form-group"><label>Alignment Check?</label><select><option>Yes</option><option>No</option><option>N/A</option></select></div>
+              <div class="form-group full-width"><label>Comments</label><input type="text" placeholder="Tire comments"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="accordion-item">
+          <div class="accordion-header" data-accordion="steering">Steering & Suspension / Driveline</div>
+          <div class="accordion-content collapsed-content" id="steering">
+            <div class="table-wrapper">
+              <table>
+                <thead>
+                  <tr><th>Item</th><th>Left</th><th>Right</th><th>Front</th><th>Rear</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>Ball Joints (Upper)</td><td><select><option>OK</option><option>Monitor</option><option>Replace</option></select></td><td><select><option>OK</option><option>Monitor</option><option>Replace</option></select></td><td>-</td><td>-</td></tr>
+                  <tr><td>Ball Joints (Lower)</td><td><select><option>OK</option><option>Monitor</option><option>Replace</option></select></td><td><select><option>OK</option><option>Monitor</option><option>Replace</option></select></td><td>-</td><td>-</td></tr>
+                  <tr><td>Tie Rod Ends (Inner)</td><td><select><option>OK</option><option>Monitor</option><option>Replace</option></select></td><td><select><option>OK</option><option>Monitor</option><option>Replace</option></select></td><td>-</td><td>-</td></tr>
+                  <tr><td>Tie Rod Ends (Outer)</td><td><select><option>OK</option><option>Monitor</option><option>Replace</option></select></td><td><select><option>OK</option><option>Monitor</option><option>Replace</option></select></td><td>-</td><td>-</td></tr>
+                  <tr><td>CV Boots</td><td><select><option>OK</option><option>Monitor</option><option>Replace</option></select></td><td><select><option>OK</option><option>Monitor</option><option>Replace</option></select></td><td>-</td><td>-</td></tr>
+                  <tr><td>Struts</td><td><select><option>OK</option><option>Monitor</option><option>Replace</option></select></td><td><select><option>OK</option><option>Monitor</option><option>Replace</option></select></td><td>-</td><td>-</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="accordion-item">
+          <div class="accordion-header" data-accordion="brakes">Brakes (Visual Inspection)</div>
+          <div class="accordion-content collapsed-content" id="brakes">
+            <div class="table-wrapper">
+              <table>
+                <thead>
+                  <tr><th></th><th>Spec</th><th>Actual</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>Pads/Shoes (in)</td><td><input type="text" placeholder="Spec"></td><td><input type="text" placeholder="Actual"></td></tr>
+                  <tr><td>Rotor/Drum (Thickness/Max Dia.)</td><td><input type="text" placeholder="Spec"></td><td><input type="text" placeholder="Actual"></td></tr>
+                  <tr><td>Wheel Bearings</td><td><select><option>OK</option><option>Replace</option></select></td><td>-</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="accordion-item">
+          <div class="accordion-header" data-accordion="emissions">Emissions / Electrical Lighting</div>
+          <div class="accordion-content collapsed-content" id="emissions">
+            <div class="form-grid">
+              <div class="form-group"><label>OBD/Emissions (Pass/Fail)</label><select><option>Pass</option><option>Fail</option><option>N/A</option></select></div>
+              <div class="form-group"><label>State Inspection Due (M/Y)</label><input type="text" placeholder="e.g. 03/2025"></div>
+              <div class="form-group"><label>Emission Due (M/Y)</label><input type="text" placeholder="e.g. 03/2025"></div>
+              <div class="form-group"><label>Next Oil Change Mileage</label><input type="text" placeholder="Mileage"></div>
+              <div class="form-group"><label>Inspected By</label><input type="text" placeholder="Name"></div>
+              <div class="form-group"><label>Re-Inspected By</label><input type="text" placeholder="Name"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Video Upload Section -->
+    <section class="section">
+      <h2>Upload Video</h2>
+      <div class="video-upload-zone" id="video-upload-zone">
+        <p>Drop video here or click to upload</p>
+        <input type="file" id="video-file" accept="video/*" style="display:none">
+        <button type="button" class="btn btn-secondary" id="upload-trigger">Choose File</button>
+      </div>
+      <button type="button" class="btn btn-primary" id="upload-btn" style="margin-top:1rem">Upload</button>
+    </section>
+  </main>
+
+  <script src="js/mockup.js"></script>
+</body>
+</html>
