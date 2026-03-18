@@ -27,6 +27,15 @@ app.get('/mechanic', (req, res) => {
 });
 app.post('/mechanic', (req, res) => {
 });
+//customer display
+app.get('/customerDis', (req, res) => {
+  res.render('customerDis');
+});
+//mechanic display
+app.get('/mechanicDis', (req, res) => {
+  res.render('mechanicDis');
+});
+//start server
 server.listen(PORT, () => {
     console.log(`Example app listening on port http://localhost:${PORT}`);
 });
