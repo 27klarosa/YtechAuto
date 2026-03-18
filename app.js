@@ -10,11 +10,9 @@ const http = require('http');
 const server = require('http').createServer(app);
 //middelware
 app.set('view engine', 'ejs');
+app.use(express.static('public'));
 
 
-app.get('/', (req, res) => {
-  res.render('index');
-});
 server.listen(PORT, () => {
     console.log(`Example app listening on port http://localhost:${PORT}`);
 });
