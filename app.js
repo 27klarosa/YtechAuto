@@ -14,14 +14,32 @@ app.set('view engine', 'ejs');
 app.get('/', (req, res) => {
   res.render('index');
 });
+
 //customer route
 app.get('/customer', (req, res) => {
   res.render('customer');
+});
+app.post('/customer', (req, res) => {
 });
 //mechanic route
 app.get('/mechanic', (req, res) => {
   res.render('mechanic');
 });
+app.post('/mechanic', (req, res) => {
+});
+//customer display
+app.get('/customerDis', (req, res) => {
+  res.render('customerDis');
+});
+app.post('/customerDis', (req, res) => {
+});
+//mechanic display
+app.get('/mechanicDis', (req, res) => {
+  res.render('mechanicDis');
+});
+app.post('/mechanicDis', (req, res) => {
+});
+//start server
 server.listen(PORT, () => {
     console.log(`Example app listening on port http://localhost:${PORT}`);
 });
