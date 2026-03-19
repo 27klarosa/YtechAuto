@@ -9,7 +9,7 @@ const multer = require('multer');
 const PORT = process.env.PORT || 3000;
 const http = require('http');
 const server = require('http').createServer(app);
-const sqlite3 = require('sqlite3');
+
 const fs = require('fs');
 
 const db = new sqlite3.Database('./database/database.sqlite', (err) => {
