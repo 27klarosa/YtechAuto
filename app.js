@@ -9,7 +9,8 @@ const multer = require('multer');
 const PORT = process.env.PORT || 3000;
 const http = require('http');
 const server = require('http').createServer(app);
-const sqlite3 = require('sqlite3');
+const sqlite3 = require('sqlite3').verbose();
+
 const fs = require('fs');
 
 const db = new sqlite3.Database('./database/database.sqlite', (err) => {
@@ -43,11 +44,13 @@ const mechanicRouter = require('./routes/mechanic');
 const customerRouter = require('./routes/customer');
 const customerDisRouter = require('./routes/customerDis');
 const mechanicDisRouter = require('./routes/mechanicDis');
+const authRouter = require('./views/auth');
 
 app.use('/', indexRouter);
 app.use('/', mechanicRouter);
 app.use('/', customerRouter);
 app.use('/', customerDisRouter);
+app.use('/', authRouter);
 app.use('/', mechanicDisRouter);
 
 
