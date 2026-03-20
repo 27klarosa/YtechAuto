@@ -18,7 +18,7 @@
     <!-- Repair Order Section -->
     <section class="section">
       <h2>Repair Order</h2>
-      <form class="repair-order-form" id="repForm" method="POST" action="/mechanic"></form>;">
+      <form class="repair-order-form">
         <div class="form-grid">
           <div class="form-group">
             <label for="ro-number">Repair Order or Task Number #</label>
@@ -179,7 +179,7 @@
           </div>
         </div>
 
-        <button type="button" class="btn btn-primary save-ticket">Save Ticket</button>
+        <button type="button" method="POST" action="/submit" class="btn btn-primary save-ticket">Save Ticket</button>
       </form>
     </section>
 
@@ -197,21 +197,24 @@
         <div class="accordion-item">
           <div class="accordion-header" data-accordion="vehicle-info">Vehicle Info</div>
           <div class="accordion-content" id="vehicle-info" style="display:block">
-            <div class="form-grid">
-              <div class="form-group"><label>Year</label><input type="text" placeholder="Year"></div>
-              <div class="form-group"><label>Make</label><input type="text" placeholder="Make"></div>
-              <div class="form-group"><label>Model</label><input type="text" placeholder="Model"></div>
-              <div class="form-group"><label>Color</label><input type="text" placeholder="Color"></div>
-              <div class="form-group"><label>VIN</label><input type="text" placeholder="VIN"></div>
-              <div class="form-group"><label>MFG Date</label><input type="text" placeholder="MFG Date"></div>
-              <div class="form-group"><label>Engine Size</label><input type="text" placeholder="Engine Size"></div>
-              <div class="form-group"><label>Trans Type</label><select><option>Auto</option><option>Manual</option></select></div>
-              <div class="form-group"><label>Mileage (Current)</label><input type="text" placeholder="Mileage"></div>
-              <div class="form-group"><label>Mileage (Old)</label><input type="text" placeholder="Mileage"></div>
-              <div class="form-group"><label>Technician</label><input type="text" placeholder="Technician"></div>
-              <div class="form-group"><label>Date</label><input type="date"></div>
-              <div class="form-group"><label>Plate</label><input type="text" placeholder="Plate"></div>
-            </div>
+            <form id="ticket-form" method="POST" action="/mechanic">
+              <div class="form-grid">
+                <div class="form-group"><label>Make</label><input type="text" placeholder="Make"></div>
+                <div class="form-group"><label>Model</label><input type="text" placeholder="Model"></div>
+                <div class="form-group"><label>Color</label><input type="text" placeholder="Color"></div>
+                <div class="form-group"><label>VIN</label><input type="text" placeholder="VIN"></div>
+                <div class="form-group"><label>MFG Date</label><input type="text" placeholder="MFG Date"></div>
+                <div class="form-group"><label>Engine Size</label><input type="text" placeholder="Engine Size"></div>
+                <div class="form-group"><label>Trans Type</label><select><option>Auto</option><option>Manual</option></select></div>
+                <div class="form-group"><label>Mileage (Current)</label><input type="text" placeholder="Mileage"></div>
+                <div class="form-group"><label>Mileage (Old)</label><input type="text" placeholder="Mileage"></div>
+                <div class="form-group"><label>Technician</label><input type="text" placeholder="Technician"></div>
+                <div class="form-group"><label>Date</label><input type="date"></div>
+                <div class="form-group"><label>Plate</label><input type="text" placeholder="Plate"></div>
+                <div class="form-group"><label for="year">Year</label><input id="year" type="text" placeholder="Year"></div>
+              </div>
+              <button type="submit">Submit</button>
+            </form>
           </div>
         </div>
 
@@ -334,5 +337,6 @@
   </main>
 
   <script src="js/mockup.js"></script>
+  <script src="js/form.js"></script>
 </body>
 </html>
