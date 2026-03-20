@@ -339,6 +339,25 @@
               <div class="form-group"><label>Next Oil Change Mileage</label><input type="text" placeholder="Mileage"></div>
               <div class="form-group"><label>Inspected By</label><input type="text" placeholder="Name"></div>
               <div class="form-group"><label>Re-Inspected By</label><input type="text" placeholder="Name"></div>
+              <!-- Tags input inserted by assistant: placed above Comments -->
+              <div class="form-group full-width">
+                <label>Warnings</label>
+                <div id="tags-root">
+                  <div id="tag-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px"></div>
+                  <div style="display:flex;gap:6px">
+                    <input id="tag-input" type="text" placeholder="Add a warning (e.g. Check Engine Light)" style="flex:1;padding:0.5rem;border-radius:8px;border:1px solid rgba(0,0,0,0.08)">
+                    <button id="add-tag" type="button" class="btn">Add</button>
+                  </div>
+                </div>
+                <input type="hidden" name="tags" id="tags-hidden" value="">
+              </div>
+
+              <!-- Comments field placed below Tags -->
+              <div class="form-group full-width">
+                <label>Comments</label>
+                <textarea name="emissionsComments" id="emissions-comments" placeholder="Additional notes or comments"></textarea>
+              </div>
+              
             </div>
             <div class="form-group full-width"><label>Comments</label><input type="text" placeholder="Emissions / Electrical Lighting comments"></div>
           </div>
