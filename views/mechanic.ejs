@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Mechanic - Auto Repair Ticket System</title>
+  <script src="js/column.js"></script>
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
@@ -18,90 +19,90 @@
     <!-- Repair Order Section -->
     <section class="section">
       <h2>Repair Order</h2>
-      <form class="repair-order-form">
+      <form class="repair-order-form" id="repForm" method="POST" action="/mechanic">
         <div class="form-grid">
           <div class="form-group">
-            <label for="ro-number">Repair Order or Task Number #</label>
-            <input type="text" id="ro-number" placeholder="Enter RO number">
+            <label for="roNum">Repair Order or Task Number #</label>
+            <input type="text"name="roNum" id="roNum" placeholder="Enter RO number">
           </div>
           <div class="form-group">
-            <label for="ro-date">Date</label>
-            <input type="date" id="ro-date">
+            <label for="roDate">Date</label>
+            <input type="date" name="roDate" id="roDate">
           </div>
           <div class="form-group">
             <label for="technician">Technician Name(s)</label>
-            <input type="text" id="technician" placeholder="Enter technician name">
+            <input type="text" name="technician" id="technician" placeholder="Enter technician name">
           </div>
         </div>
 
         <h3>Time Information</h3>
         <div class="form-grid">
           <div class="form-group">
-            <label for="time-in">Time In</label>
-            <input type="text" id="time-in" placeholder="e.g. 9:00 AM">
+            <label for="timeIn">Time In</label>
+            <input type="text" name="timeIn" id="timeIn" placeholder="e.g. 9:00 AM">
           </div>
           <div class="form-group">
-            <label for="time-out">Time Out</label>
-            <input type="text" id="time-out" placeholder="e.g. 11:30 AM">
+            <label for="timeOut">Time Out</label>
+            <input type="text"name="timeOut" id="timeOut" placeholder="e.g. 11:30 AM">
           </div>
           <div class="form-group">
-            <label for="total-time">Total Time</label>
-            <input type="text" id="total-time" placeholder="e.g. 2.5 hrs">
+            <label for="totTime">Total Time</label>
+            <input type="text" name="totTime" id="totTime" placeholder="e.g. 2.5 hrs">
           </div>
         </div>
 
         <h3>Customer Information</h3>
         <div class="form-grid">
           <div class="form-group full-width">
-            <label for="customer-name">Name</label>
-            <input type="text" id="customer-name" placeholder="Customer name">
+            <label for="custName">Name</label>
+            <input type="text" name="custName" id="custName" placeholder="Customer name">
           </div>
           <div class="form-group full-width">
-            <label for="customer-address">Address</label>
-            <input type="text" id="customer-address" placeholder="Address">
+            <label for="custAddress">Address</label>
+            <input type="text" name="custAddress" id="custAddress" placeholder="Address">
           </div>
           <div class="form-group">
-            <label for="customer-phone">Phone</label>
-            <input type="tel" id="customer-phone" placeholder="Phone">
+            <label for="custPhone">Phone</label>
+            <input type="tel" name="custPhone" id="custPhone" placeholder="Phone">
           </div>
           <div class="form-group">
-            <label for="customer-email">Email</label>
-            <input type="email" id="customer-email" placeholder="Email">
+            <label for="custEmail">Email</label>
+            <input type="email" name="custEmail" id="custEmail" placeholder="Email">
           </div>
         </div>
 
         <h3>Vehicle Information</h3>
         <div class="form-grid">
           <div class="form-group">
-            <label for="vehicle-ymm">Year/Make/Model</label>
-            <input type="text" id="vehicle-ymm" placeholder="e.g. 2018 Honda Accord">
+            <label for="vehicleymm">Year/Make/Model</label>
+            <input type="text" name="vehicleymm" id="vehicleymm" placeholder="e.g. 2018 Honda Accord">
           </div>
           <div class="form-group">
             <label for="vin">VIN</label>
-            <input type="text" id="vin" placeholder="VIN">
+            <input type="text" name="vin" id="vin" placeholder="VIN">
           </div>
           <div class="form-group">
-            <label for="license-plate">License Plate</label>
-            <input type="text" id="license-plate" placeholder="License plate">
+            <label for="licensePlate">License Plate</label>
+            <input type="text" name="licensePlate" id="licensePlate" placeholder="License plate">
           </div>
           <div class="form-group">
-            <label for="mileage-in">Mileage In</label>
-            <input type="text" id="mileage-in" placeholder="Mileage">
+            <label for="mileIn">Mileage In</label>
+            <input type="text" name="mileIn" id="mileIn" placeholder="Mileage">
           </div>
           <div class="form-group">
-            <label for="mileage-out">Mileage Out</label>
-            <input type="text" id="mileage-out" placeholder="Mileage">
+            <label for="mileOut">Mileage Out</label>
+            <input type="text" name="mileOut" id="mileOut" placeholder="Mileage">
           </div>
         </div>
 
         <h3>Concern</h3>
         <div class="form-group full-width">
-          <textarea id="concern" placeholder="Customer concern or service requested"></textarea>
+          <input type="textarea" name="concern" id="concern" placeholder="Customer concern or service requested"></input>
         </div>
 
         <h3>Diagnosis / Cause / Correction</h3>
         <div class="form-group full-width">
-          <textarea id="diagnosis" placeholder="Diagnosis and correction details"></textarea>
+          <input type="textarea" name="diagnosis" id="diagnosis" placeholder="Diagnosis and correction details"></input>
         </div>
 
         <h3>Recommended Repairs</h3>
@@ -146,19 +147,19 @@
         <div class="form-grid">
           <div class="form-group">
             <label>Subtotal (Parts) $</label>
-            <input type="text" placeholder="0.00">
+            <input type="text" id="subTotParts" name="subTotParts" placeholder="0.00">
           </div>
           <div class="form-group">
             <label>Subtotal (Labor) $</label>
-            <input type="text" placeholder="0.00">
+            <input type="text" id="subTotLabor" name="subTotLabor" placeholder="0.00">
           </div>
           <div class="form-group">
             <label>Tax $</label>
-            <input type="text" placeholder="0.00">
+            <input type="text" id="tax" name="tax" placeholder="0.00">
           </div>
           <div class="form-group">
             <label>Total Estimate $</label>
-            <input type="text" placeholder="0.00">
+            <input type="text" id="totEstimate" name="totEstimate" placeholder="0.00">
           </div>
         </div>
 
@@ -171,15 +172,15 @@
         <div class="form-grid" style="margin-top:1rem">
           <div class="form-group">
             <label>Date</label>
-            <input type="date" placeholder="Date">
+            <input type="date" name="sDate" id="sDate" placeholder="Date">
           </div>
           <div class="form-group full-width">
             <label>Customer Signature</label>
-            <input type="text" placeholder="Signature on file" readonly>
+            <input type="text" name="signature" id="signature" placeholder="Signature on file needs replacement with canvas thing">
           </div>
         </div>
 
-        <button type="button" method="POST" action="/submit" class="btn btn-primary save-ticket">Save Ticket</button>
+        <button id="firstSub" type="submit" class="btn btn-primary save-ticket">Save Ticket</button>
       </form>
     </section>
 
@@ -212,6 +213,7 @@
                 <div class="form-group"><label>Date</label><input type="date"></div>
                 <div class="form-group"><label>Plate</label><input type="text" placeholder="Plate"></div>
                 <div class="form-group"><label for="year">Year</label><input id="year" type="text" placeholder="Year"></div>
+                <div class="form-group full-width"><label>Comments</label><input type="text" placeholder="Vehicle comments"></div>
               </div>
               <button type="submit">Submit</button>
             </form>
@@ -243,9 +245,12 @@
                   <tr><td>Brake Fluid</td><td><select><option>Red</option><option>Yellow</option><option>Green</option></select></td><td><input type="text" placeholder="Notes"></td></tr>
                   <tr><td>Brake Lights</td><td><select><option>Red</option><option>Yellow</option><option>Green</option></select></td><td><input type="text" placeholder="Notes"></td></tr>
                   <tr><td>Turn Signals</td><td><select><option>Red</option><option>Yellow</option><option>Green</option></select></td><td><input type="text" placeholder="Notes"></td></tr>
-                </tbody>
+                  </tbody>
               </table>
             </div>
+
+            <div class="form-group full-width"><label>Comments</label><input type="text" placeholder="Comments"></div>
+
           </div>
         </div>
 
@@ -287,6 +292,9 @@
                 </tbody>
               </table>
             </div>
+
+            <div class="form-group full-width"><label>Comments</label><input type="text" placeholder="Steering & Suspension comments"></div>
+
           </div>
         </div>
 
@@ -299,12 +307,28 @@
                   <tr><th></th><th>Spec</th><th>Actual</th></tr>
                 </thead>
                 <tbody>
-                  <tr><td>Pads/Shoes (in)</td><td><input type="text" placeholder="Spec"></td><td><input type="text" placeholder="Actual"></td></tr>
-                  <tr><td>Rotor/Drum (Thickness/Max Dia.)</td><td><input type="text" placeholder="Spec"></td><td><input type="text" placeholder="Actual"></td></tr>
-                  <tr><td>Wheel Bearings</td><td><select><option>OK</option><option>Replace</option></select></td><td>-</td></tr>
+                  
+                  <tr><td>Pads/Shoes FL</td><td><input type="text" placeholder="Spec"></td><td><input type="text" placeholder="Actual"></td></tr>
+                  <tr><td>Pads/Shoes FR</td><td><input type="text" placeholder="Spec"></td><td><input type="text" placeholder="Actual"></td></tr>
+                  <tr><td>Pads/Shoes RL</td><td><input type="text" placeholder="Spec"></td><td><input type="text" placeholder="Actual"></td></tr>
+                  <tr><td>Pads/Shoes RR</td><td><input type="text" placeholder="Spec"></td><td><input type="text" placeholder="Actual"></td></tr>
+
+                  <tr><td>Rotor/Drum FL (Thickness/Max Dia.)</td><td><input type="text" placeholder="Spec"></td><td><input type="text" placeholder="Actual"></td></tr>
+                  <tr><td>Rotor/Drum FR (Thickness/Max Dia.)</td><td><input type="text" placeholder="Spec"></td><td><input type="text" placeholder="Actual"></td></tr>
+                  <tr><td>Rotor/Drum RL (Thickness/Max Dia.)</td><td><input type="text" placeholder="Spec"></td><td><input type="text" placeholder="Actual"></td></tr>
+                  <tr><td>Rotor/Drum RR (Thickness/Max Dia.)</td><td><input type="text" placeholder="Spec"></td><td><input type="text" placeholder="Actual"></td></tr>
+
+                  <tr><td>Wheel Bearings FL</td><td><select><option>OK</option><option>Replace</option></select></td><td>-</td></tr>
+                  <tr><td>Wheel Bearings FR</td><td><select><option>OK</option><option>Replace</option></select></td><td>-</td></tr>
+                  <tr><td>Wheel Bearings RL</td><td><select><option>OK</option><option>Replace</option></select></td><td>-</td></tr>
+                  <tr><td>Wheel Bearings RR</td><td><select><option>OK</option><option>Replace</option></select></td><td>-</td></tr>
+
                 </tbody>
               </table>
             </div>
+
+            <div class="form-group full-width"><label>Comments</label><input type="text" placeholder="Brake Comments"></div>
+
           </div>
         </div>
 
@@ -318,9 +342,30 @@
               <div class="form-group"><label>Next Oil Change Mileage</label><input type="text" placeholder="Mileage"></div>
               <div class="form-group"><label>Inspected By</label><input type="text" placeholder="Name"></div>
               <div class="form-group"><label>Re-Inspected By</label><input type="text" placeholder="Name"></div>
+              <!-- Tags input inserted by assistant: placed above Comments -->
+              <div class="form-group full-width">
+                <label>Warnings</label>
+                <div id="tags-root">
+                  <div id="tag-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px"></div>
+                  <div style="display:flex;gap:6px">
+                    <input id="tag-input" type="text" placeholder="Add a warning (e.g. Check Engine Light)" style="flex:1;padding:0.5rem;border-radius:8px;border:1px solid rgba(0,0,0,0.08)">
+                    <button id="add-tag" type="button" class="btn">Add</button>
+                  </div>
+                </div>
+                <input type="hidden" name="tags" id="tags-hidden" value="">
+              </div>
+
+              <!-- Comments field placed below Tags -->
+              <div class="form-group full-width">
+                <label>Comments</label>
+                <textarea name="emissionsComments" id="emissions-comments" placeholder="Additional notes or comments"></textarea>
+              </div>
+              
             </div>
+            <div class="form-group full-width"><label>Comments</label><input type="text" placeholder="Emissions / Electrical Lighting comments"></div>
           </div>
         </div>
+
       </div>
     </section>
 
@@ -338,5 +383,116 @@
 
   <script src="js/mockup.js"></script>
   <script src="js/form.js"></script>
+  <script>
+    document.getElementById('repForm').addEventListener('submit', function() {
+      event.preventDefault();
+    let roNum = document.getElementById('roNum').value;
+    let technician = document.getElementById('technician').value;
+    let custName = document.getElementById('custName').value;
+    let vehicleymm= document.getElementById('vehicleymm').value;
+    let vin = document.getElementById('vin').value;
+    let licensePlate = document.getElementById('licensePlate').value;
+    let mileIn = document.getElementById('mileIn').value;
+    let mileOut = document.getElementById('mileOut').value;
+    let concern = document.getElementById('concern').value;
+    let diagnosis = document.getElementById('diagnosis').value;
+    let tax = document.getElementById('tax').value;
+    let totEstimate = document.getElementById('totEstimate').value;
+    let custAddress = document.getElementById('custAddress').value;
+    let custPhone = document.getElementById('custPhone').value;
+    let custEmail = document.getElementById('custEmail').value;
+    // Validation logic
+    let errors = [];
+    
+   
+    
+    technician = technician.trim();
+    custName = custName.trim();
+    vehicleymm = vehicleymm.trim();
+    mileIn = parseInt(mileIn);
+    mileOut = parseInt(mileOut);
+    vin = vin.trim();
+    licensePlate = licensePlate.trim();
+    tax = parseFloat(tax);
+    totEstimate = parseFloat(totEstimate);
+    custAddress = custAddress.trim();
+    roNum = Number(roNum.trim());
+    if (isNaN(roNum)) {
+    errors.push('Repair Order number must be a valid number.');
+    }
+
+    if (licensePlate.length > 10) {
+    errors.push('License plate Number too long. Max 10 characters.');
+    }
+    if (vin.length > 17) {
+    errors.push('VIN too long. Max 17 characters.');
+    }
+    if (custName === '') {
+    errors.push('Customer name cannot be empty.');
+    }
+    if (vehicleymm === '') {
+    errors.push('Vehicle Year/Make/Model cannot be empty.');
+    }
+    if (isNaN(mileIn) || isNaN(mileOut)) {
+    errors.push('Mileage In and Out must be valid numbers.');
+    }
+    if (mileIn < 0 || mileOut < 0) {
+    errors.push('Mileage cannot be negative.');
+    }
+    if (mileOut < mileIn) {
+    errors.push('Mileage Out cannot be less than Mileage In.');
+    }
+    if (concern === '') {
+    errors.push('Customer concern cannot be empty.Put all good or no concern if no concern.');
+    }
+    if (diagnosis === '') {
+    errors.push('Diagnosis cannot be empty. Put N/A if no diagnosis.');
+    }
+    if (isNaN(tax)) {
+    errors.push('Tax must be a valid number.');
+    }
+    if (tax < 0) {
+    errors.push('Tax cannot be negative.');
+    }
+    if (isNaN(totEstimate)) {
+    errors.push('Total Estimate must be a valid number.');
+    }
+    if (totEstimate < 0) {
+    errors.push('Total Estimate cannot be negative.');
+    }
+    if (custEmail !== '' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(custEmail)) {
+    errors.push('Email must be in a valid format.');
+    }
+    if (technician === '') {
+    errors.push('Technician name cannot be empty.');
+    }
+    if (technician.length < 2) {
+    errors.push('Technician name must be at least 2 characters.');
+    }
+    if (!/^[a-zA-Z\s\-\.]+$/.test(technician)) {
+    errors.push('Technician name can only contain letters, spaces, hyphens, and periods.');
+    }
+   if (custPhone !== '' && !/^(\d{10}|\d{3}-\d{3}-\d{4})$/.test(custPhone)) {
+    errors.push('Phone number must be 10 digits or XXX-XXX-XXXX format.');
+}
+if (custAddress === '') {
+    errors.push('Customer address cannot be empty.');
+}
+if (custAddress.length < 5) {
+    errors.push('Customer address must be at least 5 characters.');
+}
+if (custAddress.length > 100) {
+    errors.push('Customer address cannot exceed 100 characters.');
+}
+
+    if (errors.length > 0) {
+        console.log('Errors found:', errors);
+         alert(errors.join('\n'));
+    } else {
+        console.log('Form is valid! Submitting to backend...');
+        document.getElementById('repForm').submit();
+    }
+    });
+  </script>
 </body>
 </html>
