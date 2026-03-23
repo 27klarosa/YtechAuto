@@ -179,11 +179,14 @@
             <label>Date</label>
             <input type="date" name="sDate" id="sDate" placeholder="Date">
           </div>
-          <div class="form-group full-width">
-            <label>Customer Signature</label>
-            <input type="text" name="signature" id="signature" placeholder="Signature on file needs replacement with canvas thing">
+        <div class="form-group full-width">
+          <label>Customer Signature</label>
+          <div class="signature-container">
+            <canvas id="signatureCanvas" width="400" height="200" style="border: 1px solid var(--border); cursor: crosshair; background: white;"></canvas>
+            <input type="hidden" name="signature" id="signatureData">
           </div>
         </div>
+
 
         <button id="firstSub" type="submit" class="btn btn-primary save-ticket">Save Ticket</button>
       </form>
@@ -430,7 +433,7 @@
     if (licensePlate.length > 10) {
     errors.push('License plate Number too long. Max 10 characters.');
     }
-    if (vin.length >= 17) {
+    if (vin.length > 17) {
     errors.push('VIN too long. Max 17 characters.');
     }
     if (custName === '') {
@@ -491,6 +494,10 @@ if (custAddress.length > 100) {
     errors.push('Customer address cannot exceed 100 characters.');
 }
 
+if (!hasSignature || document.getElementById('signatureData').value === '') {
+    errors.push('Customer signature is required.');
+}
+
 if (timeIn === '') {
     errors.push('Time In must be selected.');
 }
@@ -506,6 +513,42 @@ if (timeOut === '') {
         document.getElementById('repForm').submit();
     }
     });
+        // Signature canvas functionality
+      let canvas = document.getElementById('signatureCanvas');
+      let ctx = canvas.getContext('2d');
+      let isDrawing = false;
+      let hasSignature = false;
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 2;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      // Mouse events
+      canvas.addEventListener('mousedown', function(e) {
+    isDrawing = true;
+    hasSignature = true;
+    let rect = canvas.getBoundingClientRect();
+    ctx.beginPath();
+    ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+    });
+
+    canvas.addEventListener('mousemove', function(e) {
+    if (!isDrawing) return;
+    let rect = canvas.getBoundingClientRect();
+    ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+    ctx.stroke();
+    });
+
+    canvas.addEventListener('mouseup', function() {
+    isDrawing = false;
+    // Convert canvas to PNG data and store in hidden input
+    document.getElementById('signatureData').value = canvas.toDataURL('image/png');
+    });
+
+    canvas.addEventListener('mouseout', function() {
+      isDrawing = false;
+    });
+
         function populateTimeDropdowns() {
         let timeInSelect = document.getElementById('timeIn');
         let timeOutSelect = document.getElementById('timeOut');
