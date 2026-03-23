@@ -1,8 +1,7 @@
 CREATE TABLE users (  
     id INTEGER PRIMARY KEY AUTOINCREMENT,  
     username TEXT NOT NULL UNIQUE,  
-    password TEXT NOT NULL,  
-    role TEXT NOT NULL CHECK(role IN ('customer', 'mechanic'))  
+    password TEXT NOT NULL
 );
 
 CREATE TABLE tickets (
@@ -26,7 +25,7 @@ CREATE TABLE tickets (
     recommendedRepairs TEXT NOT NULL,
     dateSigned TEXT NOT NULL,
     customerSignature TEXT NOT NULL
-)
+);
 
 CREATE TABLE recRepairs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -37,5 +36,5 @@ CREATE TABLE recRepairs (
     partPrice REAL NOT NULL,
     partsTotal REAL NOT NULL,
     laborHours REAL NOT NULL,
-    laborTotal REAL NOT NULL,
-)
+    laborTotal REAL NOT NULL
+);
