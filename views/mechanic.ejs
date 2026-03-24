@@ -25,7 +25,7 @@
         <div class="form-grid">
           <div class="form-group">
             <label for="roNum">Repair Order or Task Number #</label>
-            <input type="text"name="roNum" id="roNum" placeholder="Enter RO number">
+            <input type="text" name="roNum" id="roNum" placeholder="Enter RO number">
           </div>
           <div class="form-group">
             <label for="roDate">Date</label>
@@ -78,30 +78,6 @@
           </div>
         </div>
 
-        <h3>Vehicle Information</h3>
-        <div class="form-grid">
-          <div class="form-group">
-            <label for="vehicleymm">Year/Make/Model</label>
-            <input type="text" name="vehicleymm" id="vehicleymm" placeholder="e.g. 2018 Honda Accord">
-          </div>
-          <div class="form-group">
-            <label for="vin">VIN</label>
-            <input type="text" name="vin" id="vin" placeholder="VIN">
-          </div>
-          <div class="form-group">
-            <label for="licensePlate">License Plate</label>
-            <input type="text" name="licensePlate" id="licensePlate" placeholder="License plate">
-          </div>
-          <div class="form-group">
-            <label for="mileIn">Mileage In</label>
-            <input type="text" name="mileIn" id="mileIn" placeholder="Mileage">
-          </div>
-          <div class="form-group">
-            <label for="mileOut">Mileage Out</label>
-            <input type="text" name="mileOut" id="mileOut" placeholder="Mileage">
-          </div>
-        </div>
-
         <h3>Concern</h3>
         <div class="form-group full-width">
           <input type="textarea" name="concern" id="concern" placeholder="Customer concern or service requested"></input>
@@ -114,7 +90,7 @@
 
         <h3>Recommended Repairs</h3>
         <div class="table-wrapper">
-          <table>
+          <table id="repairs-table">
             <thead>
               <tr>
                 <th>Description of Work</th>
@@ -159,6 +135,7 @@
           <div class="form-group">
             <label>Subtotal (Labor) $</label>
             <input type="text" id="subTotLabor" name="subTotLabor" placeholder="0.00">
+            <small style="display:block;color:var(--text-muted);margin-top:4px">(Labor not included in Total Estimate)</small>
           </div>
           <div class="form-group">
             <label>Tax $</label>
@@ -181,11 +158,17 @@
             <label>Date</label>
             <input type="date" name="sDate" id="sDate" placeholder="Date">
           </div>
-          <div class="form-group full-width">
-            <label>Customer Signature</label>
-            <input type="text" name="signature" id="signature" placeholder="Signature on file needs replacement with canvas thing">
+        <div class="form-group full-width">
+          <label>Customer Signature</label>
+          <div class="signature-container">
+            <canvas id="signatureCanvas" width="400" height="200" style="border: 1px solid var(--border); cursor: crosshair; background: white;"></canvas>
+            <input type="hidden" name="signature" id="signatureData">
+            <div style="margin-top: 5px;">
+            <button type="button" id="clearSignature" style="background-color: brown; color: white;" class="btn btn-secondary">Clear Signature</button>
+          </div>
           </div>
         </div>
+
 
         <button id="firstSub" type="submit" class="btn btn-primary save-ticket">Save Ticket</button>
       </form>
