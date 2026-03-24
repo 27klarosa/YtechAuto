@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Mechanic - Auto Repair Ticket System</title>
-  <script src="js/column.js"></script>
   <link rel="stylesheet" href="css/styles.css">
   <script src="js/mockup.js"></script>
   <script src="js/form.js"></script>
@@ -116,18 +115,18 @@
                 <td><input type="number" placeholder="1" style="width:4em"></td>
                 <td><input type="text" placeholder="Part #"></td>
                 <td><input type="text" placeholder="0.00"></td>
+                <td><input type="text" placeholder="0.00" readonly tabindex="-1"></td>
                 <td><input type="text" placeholder="0.00"></td>
-                <td><input type="text" placeholder="0.00"></td>
-                <td><input type="text" placeholder="0.00"></td>
+                <td><input type="text" placeholder="0.00" readonly tabindex="-1"></td>
               </tr>
               <tr>
                 <td><input type="text" placeholder="Description"></td>
                 <td><input type="number" placeholder="1" style="width:4em"></td>
                 <td><input type="text" placeholder="Part #"></td>
                 <td><input type="text" placeholder="0.00"></td>
+                <td><input type="text" placeholder="0.00" readonly tabindex="-1"></td>
                 <td><input type="text" placeholder="0.00"></td>
-                <td><input type="text" placeholder="0.00"></td>
-                <td><input type="text" placeholder="0.00"></td>
+                <td><input type="text" placeholder="0.00" readonly tabindex="-1"></td>
               </tr>
             </tbody>
           </table>
@@ -138,20 +137,20 @@
         <div class="form-grid">
           <div class="form-group">
             <label>Subtotal (Parts) $</label>
-            <input type="text" id="subTotParts" name="subTotParts" placeholder="0.00">
+            <input type="text" id="subTotParts" name="subTotParts" placeholder="0.00" readonly tabindex="-1" aria-readonly="true">
           </div>
           <div class="form-group">
             <label>Subtotal (Labor) $</label>
-            <input type="text" id="subTotLabor" name="subTotLabor" placeholder="0.00">
+            <input type="text" id="subTotLabor" name="subTotLabor" placeholder="0.00" readonly tabindex="-1" aria-readonly="true">
             <small style="display:block;color:var(--text-muted);margin-top:4px">(Labor not included in Total Estimate)</small>
           </div>
           <div class="form-group">
             <label>Tax $</label>
-            <input type="text" id="tax" name="tax" placeholder="0.00">
+            <input type="text" id="tax" name="tax" placeholder="0.00" readonly tabindex="-1" aria-readonly="true">
           </div>
           <div class="form-group">
             <label>Total Estimate $</label>
-            <input type="text" id="totEstimate" name="totEstimate" placeholder="0.00">
+            <input type="text" id="totEstimate" name="totEstimate" placeholder="0.00" readonly tabindex="-1" aria-readonly="true">
           </div>
         </div>
 
@@ -213,7 +212,7 @@
                 <div class="form-group"><label for="year">Year</label><input id="year" type="text" placeholder="Year"></div>
                 <div class="form-group full-width"><label>Comments</label><input type="text" placeholder="Vehicle comments"></div>
               </div>
-              <button type="submit">Submit</button>
+              <button type="button" class="section-save btn btn-secondary" data-section="vehicle-info">Save</button>
             </form>
           </div>
         </div>
@@ -249,6 +248,7 @@
 
             <div class="form-group full-width"><label>Comments</label><input type="text" placeholder="Comments"></div>
 
+            <button type="button" class="section-save btn btn-secondary" data-section="courtesy-check" style="margin-top:8px">Save</button>
           </div>
         </div>
 
@@ -269,6 +269,7 @@
               <div class="form-group"><label>Alignment Check?</label><select><option>Yes</option><option>No</option><option>N/A</option></select></div>
               <div class="form-group full-width"><label>Comments</label><input type="text" placeholder="Tire comments"></div>
             </div>
+            <button type="button" class="section-save btn btn-secondary" data-section="tires" style="margin-top:8px">Save</button>
           </div>
         </div>
 
@@ -293,6 +294,7 @@
 
             <div class="form-group full-width"><label>Comments</label><input type="text" placeholder="Steering & Suspension comments"></div>
 
+            <button type="button" class="section-save btn btn-secondary" data-section="steering" style="margin-top:8px">Save</button>
           </div>
         </div>
 
@@ -326,6 +328,8 @@
             </div>
 
             <div class="form-group full-width"><label>Comments</label><input type="text" placeholder="Brake Comments"></div>
+
+            <button type="button" class="section-save btn btn-secondary" data-section="brakes" style="margin-top:8px">Save</button>
 
           </div>
         </div>
@@ -361,6 +365,7 @@
               
             </div>
             <div class="form-group full-width"><label>Comments</label><input type="text" placeholder="Emissions / Electrical Lighting comments"></div>
+            <button type="button" class="section-save btn btn-secondary" data-section="emissions" style="margin-top:8px">Save</button>
           </div>
         </div>
 
