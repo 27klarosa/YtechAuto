@@ -277,6 +277,91 @@ document.addEventListener('DOMContentLoaded', function () {
         ampm.add(new Option('AM/PM', ''));
         ['AM','PM'].forEach(x => ampm.add(new Option(x, x)));
       });
+  populateTimePickers();
+
+// Video upload functionality
+(function setupVideoUpload() {
+    const uploadZone = document.getElementById('video-upload-zone');
+    const videoFileInput = document.getElementById('video-file');
+    const uploadTrigger = document.getElementById('upload-trigger');
+    const uploadBtn = document.getElementById('upload-btn');
+    
+    if (!uploadZone || !videoFileInput || !uploadBtn) return;
+    
+    let selectedFile = null;
+
+    if (uploadTrigger) {
+        uploadTrigger.addEventListener('click', function(e) {
+            e.preventDefault();
+            videoFileInput.click();
+        });
+    }
+    // File selection handling
+    videoFileInput.addEventListener('change', function(e) {
+        selectedFile = e.target.files[0];
+        if (selectedFile) {
+            uploadZone.querySelector('p').textContent = `Selected: ${selectedFile.name}`;
+            uploadBtn.disabled = false;
+            uploadBtn.style.opacity = '1';
+        }
+    });
+    
+    // Upload button click
+    uploadBtn.addEventListener('click', function() {
+        if (!selectedFile) {
+            alert('Please select a video file first.');
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('video', selectedFile);
+      
+        uploadBtn.textContent = 'Uploading...';
+        uploadBtn.disabled = true;
+        
+        fetch('/upload-video', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Video uploaded successfully!');
+                uploadZone.querySelector('p').textContent = 'Video uploaded successfully!';
+                uploadZone.style.backgroundColor = '#d4edda';
+                uploadZone.style.borderColor = '#c3e6cb';
+            } else {
+                alert('Upload failed: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Upload error:', error);
+            alert('Upload failed. Please try again.');
+        })
+        .finally(() => {
+            uploadBtn.textContent = 'Upload';
+            uploadBtn.disabled = false;
+        });
+    });
+    })();
+
+  // compute total time (hours) from composite pickers and write to #totTime
+  function computeTotalTime() {
+    const inHour = document.getElementById('timeInHour').value;
+    const inMin = document.getElementById('timeInMinute').value;
+    const inAmPm = document.getElementById('timeInAmPm').value;
+    const outHour = document.getElementById('timeOutHour').value;
+    const outMin = document.getElementById('timeOutMinute').value;
+    const outAmPm = document.getElementById('timeOutAmPm').value;
+    const totTimeField = document.getElementById('totTime');
+    const hiddenIn = document.getElementById('timeIn');
+    const hiddenOut = document.getElementById('timeOut');
+
+    if (!inHour || !inMin || !inAmPm || !outHour || !outMin || !outAmPm) {
+      if (totTimeField) totTimeField.value = '';
+      if (hiddenIn) hiddenIn.value = '';
+      if (hiddenOut) hiddenOut.value = '';
+      return;
     }
 
     function computeTotalTime() {

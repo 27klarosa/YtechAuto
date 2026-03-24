@@ -57,7 +57,7 @@
   }
 
   // Save Ticket and Upload - no-op (mockup). Do NOT intercept add-repair-line so real handler can run.
-  document.querySelectorAll('.save-ticket, #upload-btn').forEach(function (btn) {
+  document.querySelectorAll('.save-ticket').forEach(function (btn) {
     if (btn) {
       btn.addEventListener('click', function (e) {
         e.preventDefault();
