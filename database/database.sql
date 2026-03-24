@@ -39,3 +39,24 @@ CREATE TABLE recRepairs (
     laborTotal REAL NOT NULL
 );
 
+CREATE TABLE vechicleInfo (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    make TEXT NOT NULL,
+    model TEXT NOT NULL,
+    color TEXT NOT NULL,
+    Vin TEXT NOT NULL,
+    mfgDate TEXT NOT NULL,
+    engineSize TEXT NOT NULL,
+    transType TEXT NOT NULL,
+    currentMileage INTEGER NOT NULL,
+    oldMileage INTEGER NOT NULL,
+    technicain TEXT NOT NULL,
+    
+    plate TEXT NOT NULL,
+    year INTEGER NOT NULL
+);
+
+CREATE TABLE Courtesy (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    
+);
