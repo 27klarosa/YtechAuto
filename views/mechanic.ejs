@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Mechanic - Auto Repair Ticket System</title>
-  <script src="js/column.js"></script>
   <link rel="stylesheet" href="css/styles.css">
   <script src="js/mockup.js"></script>
   <script src="js/form.js"></script>
@@ -17,6 +16,8 @@
 
   <main class="main-content">
     <a href="/" class="back-link">&larr; Back to Home</a>
+    <a href="/mechanicDis" class="btn btn-secondary" style="margin-left:1rem">View your page</a>
+    
 
     <!-- Repair Order Section -->
     <section class="section">
@@ -114,18 +115,18 @@
                 <td><input type="number" placeholder="1" style="width:4em"></td>
                 <td><input type="text" placeholder="Part #"></td>
                 <td><input type="text" placeholder="0.00"></td>
+                <td><input type="text" placeholder="0.00" readonly tabindex="-1"></td>
                 <td><input type="text" placeholder="0.00"></td>
-                <td><input type="text" placeholder="0.00"></td>
-                <td><input type="text" placeholder="0.00"></td>
+                <td><input type="text" placeholder="0.00" readonly tabindex="-1"></td>
               </tr>
               <tr>
                 <td><input type="text" placeholder="Description"></td>
                 <td><input type="number" placeholder="1" style="width:4em"></td>
                 <td><input type="text" placeholder="Part #"></td>
                 <td><input type="text" placeholder="0.00"></td>
+                <td><input type="text" placeholder="0.00" readonly tabindex="-1"></td>
                 <td><input type="text" placeholder="0.00"></td>
-                <td><input type="text" placeholder="0.00"></td>
-                <td><input type="text" placeholder="0.00"></td>
+                <td><input type="text" placeholder="0.00" readonly tabindex="-1"></td>
               </tr>
             </tbody>
           </table>
@@ -136,28 +137,35 @@
         <div class="form-grid">
           <div class="form-group">
             <label>Subtotal (Parts) $</label>
-            <input type="text" id="subTotParts" name="subTotParts" placeholder="0.00">
+            <input type="text" id="subTotParts" name="subTotParts" placeholder="0.00" readonly tabindex="-1" aria-readonly="true">
           </div>
           <div class="form-group">
             <label>Subtotal (Labor) $</label>
-            <input type="text" id="subTotLabor" name="subTotLabor" placeholder="0.00">
+            <input type="text" id="subTotLabor" name="subTotLabor" placeholder="0.00" readonly tabindex="-1" aria-readonly="true">
             <small style="display:block;color:var(--text-muted);margin-top:4px">(Labor not included in Total Estimate)</small>
           </div>
           <div class="form-group">
             <label>Tax $</label>
-            <input type="text" id="tax" name="tax" placeholder="0.00">
+            <input type="text" id="tax" name="tax" placeholder="0.00" readonly tabindex="-1" aria-readonly="true">
           </div>
           <div class="form-group">
             <label>Total Estimate $</label>
-            <input type="text" id="totEstimate" name="totEstimate" placeholder="0.00">
+            <input type="text" id="totEstimate" name="totEstimate" placeholder="0.00" readonly tabindex="-1" aria-readonly="true">
           </div>
         </div>
 
         <h3>Authorization</h3>
         <div class="auth-block">
           YORK COUNTY SCHOOL OF TECHNOLOGY TRANSPORTATION DEPARTMENT LIABILITY RELEASE<br><br>
-          TERMS AND CONDITIONS: It is to be understood and agreed that all work submitted shall be subject to a minimum shop/lab charge...<br><br>
-          [Full terms displayed - Customer must sign to authorize]
+          TERMS AND CONDITIONS: It is to be understood and agreed that all work submitted shall be subject to a minimum shop/lab charge to cover lab utilities and such expendable materials as waste cloths, cleaning materials, and all other items. This charge shall be determined by the department.
+          It shall be further understood that inasmuch as all work performed by students is done under a learning situation in a public school, no form of guarantee or warranty whether of fitness for any particular purpose or merchantability, and whether express or implied, is extended by the York County School of Technology, nor can the students, the instructor, or the school authorities be held responsible for the quality of work performed by learners. It is expressly understood and agreed that none of the parties may be held liable in any manner in damages for any claims whether due to negligence, delay, or otherwise, and all such claims are hereby released.
+          No work will be accepted by the shop and/or department unless the specific task is immediately related to the course outline at that point in the program, and no shop and/or department is to be given a guarantee of a definite completion date.
+          I agree that all work will be removed from the premises within seven (7) days after notification that work is completed or cannot be repaired. All costs for materials must be paid to the Business Office before released.
+          I hereby authorize the work to be done along with the necessary material, and hereby grant you and/or your students permission to operate the car or truck herein described on streets, highways, or elsewhere for the purpose of testing and/or inspection. An expressed mechanic’s lien is hereby acknowledged on the above car or truck to secure the amount of repairs thereto.
+          In addition, you should understand that your vehicle/unit may be out service for an extended period of time. The instructor will not speculate, guess, or try to give you any idea of the amount of down time for your vehicle/unit. If you need your vehicle/unit in a certain time period, we suggest you seek a professional repair shop. To enable our students the opportunity to develop customer relation skills, you will be dealing directly with the students after the initial contact with the instructor.
+          My signature indicates that I have read and agree to the foregoing terms.
+          I hereby authorize the above repair work to be done along with the necessary materials. You and your employees may operate the vehicle for the purpose of testing, inspection, or delivery. 
+
         </div>
         <div class="form-grid" style="margin-top:1rem">
           <div class="form-group">
@@ -211,7 +219,7 @@
                 <div class="form-group"><label>Plate</label><input type="text" placeholder="Plate"></div>
                 <div class="form-group full-width"><label>Comments</label><input type="text" placeholder="Vehicle comments"></div>
               </div>
-              <button type="submit">Submit</button>
+              <button type="button" class="section-save btn btn-secondary" data-section="vehicle-info">Save</button>
             </form>
           </div>
         </div>
@@ -253,6 +261,7 @@
 
             <div class="form-group full-width"><label>Comments</label><input type="text" placeholder="Comments"></div>
 
+            <button type="button" class="section-save btn btn-secondary" data-section="courtesy-check" style="margin-top:8px">Save</button>
           </div>
         </div>
 
@@ -273,6 +282,7 @@
               <div class="form-group"><label>Alignment Check?</label><select><option>Yes</option><option>No</option><option>N/A</option></select></div>
               <div class="form-group full-width"><label>Comments</label><input type="text" placeholder="Tire comments"></div>
             </div>
+            <button type="button" class="section-save btn btn-secondary" data-section="tires" style="margin-top:8px">Save</button>
           </div>
         </div>
 
@@ -309,6 +319,7 @@
 
             <div class="form-group full-width"><label>Comments</label><input type="text" placeholder="Steering & Suspension comments"></div>
 
+            <button type="button" class="section-save btn btn-secondary" data-section="steering" style="margin-top:8px">Save</button>
           </div>
         </div>
 
@@ -342,6 +353,8 @@
             </div>
 
             <div class="form-group full-width"><label>Comments</label><input type="text" placeholder="Brake Comments"></div>
+
+            <button type="button" class="section-save btn btn-secondary" data-section="brakes" style="margin-top:8px">Save</button>
 
           </div>
         </div>
@@ -391,6 +404,7 @@
               
             </div>
             <div class="form-group full-width"><label>Comments</label><input type="text" placeholder="Emissions / Electrical Lighting comments"></div>
+            <button type="button" class="section-save btn btn-secondary" data-section="emissions" style="margin-top:8px">Save</button>
           </div>
         </div>
 
