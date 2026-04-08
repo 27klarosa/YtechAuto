@@ -18,8 +18,7 @@ CREATE TABLE tickets (
     concern TEXT NOT NULL,
     diagnosis TEXT NOT NULL,
     recommendedRepairs TEXT NOT NULL,
-    dateSigned TEXT NOT NULL,
-    customerSignature TEXT NOT NULL
+    dateSigned TEXT NOT NULL
 );
 
 CREATE TABLE recRepairs (
@@ -45,6 +44,13 @@ CREATE TABLE courtesyTable (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ticketID INTEGER NOT NULL,
     item TEXT NOT NULL,
+    comments TEXT
+);
+
+CREATE TABLE courtesyTableItems (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tableID INTEGER NOT NULL,
+    item TEXT NOT NULL,
     status TEXT NOT NULL,
     notes TEXT
 );
@@ -52,8 +58,18 @@ CREATE TABLE courtesyTable (
 CREATE TABLE tires (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ticketID INTEGER NOT NULL,
-    item TEXT NOT NULL,
-    input TEXT NOT NULL
+    size TEXT NOT NULL,
+    speedRating TEXT NOT NULL,
+    LF TEXT NOT NULL,
+    RF TEXT NOT NULL,
+    LR TEXT NOT NULL,
+    RR TEXT NOT NULL,
+    SP TEXT NOT NULL,
+    treadDepth32 TEXT NOT NULL,
+    rotationDue TEXT NOT NULL,
+    balance TEXT NOT NULL,
+    alignment TEXT NOT NULL,
+    comments TEXT
 );
 
 CREATE TABLE steeringSupensionTable (
@@ -92,11 +108,8 @@ CREATE TABLE emissions (
     input TEXT NOT NULL
 );
 
-CREATE TABLE signitures (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    ticketID INTEGER NOT NULL,
 
-);
+
 
 -- "uploads/ filenamefromdb" + ".png"
 
