@@ -90,12 +90,6 @@ CREATE TABLE emissions (
     ticketID INTEGER NOT NULL,
     item TEXT NOT NULL,
     input TEXT NOT NULL
-);
-
-CREATE TABLE signitures (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    ticketID INTEGER NOT NULL,
-
 )
 
 -- "uploads/ filenamefromdb" + ".png"
