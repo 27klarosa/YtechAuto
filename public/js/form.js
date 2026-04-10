@@ -1,3 +1,4 @@
+console.log('form.js loaded');
 document.addEventListener('DOMContentLoaded', function () {
   // guard to avoid double initialization if other scripts also run
   if (window.customAccordionInitialized) {
@@ -1023,3 +1024,78 @@ document.addEventListener('DOMContentLoaded', function () {
   })();
 
 });
+
+// --- Populate form from server-provided ticket JSON (if present) ---
+(function populateFromServerTicket() {
+  try {
+    // attempt to read hidden input first
+    var serverEl = document.getElementById('server-ticket');
+    var raw = serverEl ? serverEl.value : null;
+    if (!raw && window.__SERVER_TICKET__) raw = JSON.stringify(window.__SERVER_TICKET__);
+    if (!raw) return;
+    var ticket = JSON.parse(raw);
+    if (!ticket) return;
+
+    // run when DOM is ready
+    function applyTicket() {
+      try {
+        if (ticket.date) document.getElementById('roDate') && (document.getElementById('roDate').value = ticket.date || '');
+        if (ticket.techName) document.getElementById('technician') && (document.getElementById('technician').value = ticket.techName || '');
+        if (ticket.timeIn) document.getElementById('timeIn') && (document.getElementById('timeIn').value = ticket.timeIn || '');
+        if (ticket.timeOut) document.getElementById('timeOut') && (document.getElementById('timeOut').value = ticket.timeOut || '');
+        if (ticket.totalTime) document.getElementById('totTime') && (document.getElementById('totTime').value = ticket.totalTime || '');
+        if (ticket.customerName) document.getElementById('custName') && (document.getElementById('custName').value = ticket.customerName || '');
+        if (ticket.customerAddress) document.getElementById('custAddress') && (document.getElementById('custAddress').value = ticket.customerAddress || '');
+        if (ticket.customerPhone) document.getElementById('custPhone') && (document.getElementById('custPhone').value = ticket.customerPhone || '');
+        if (ticket.customerEmail) document.getElementById('custEmail') && (document.getElementById('custEmail').value = ticket.customerEmail || '');
+        if (ticket.concern) document.getElementById('concern') && (document.getElementById('concern').value = ticket.concern || '');
+        if (ticket.diagnosis) document.getElementById('diagnosis') && (document.getElementById('diagnosis').value = ticket.diagnosis || '');
+        if (ticket.dateSigned) document.getElementById('sDate') && (document.getElementById('sDate').value = ticket.dateSigned || '');
+        if (ticket.customerSignature) {
+          var sigField = document.getElementById('signatureData');
+          if (sigField) sigField.value = ticket.customerSignature || '';
+        }
+
+        // populate repairs table: use same markup as the add-row template so classes are correct
+        if (Array.isArray(ticket.repairs) && ticket.repairs.length) {
+          var tbody = document.querySelector('#repairs-table tbody');
+          if (tbody) {
+            tbody.innerHTML = '';
+            ticket.repairs.forEach(function(r){
+              var tr = document.createElement('tr');
+              tr.innerHTML = `
+                <td><input type="text" class="rp-desc" placeholder="Description"></td>
+                <td><input type="number" min="0" class="rp-qty" placeholder="1" style="width:4em"></td>
+                <td><input type="text" class="rp-um" placeholder="Part #"></td>
+                <td><input type="number" min="0" step="0.01" class="rp-partprice" placeholder="0.00"></td>
+                <td><input type="text" class="rp-partstotal" placeholder="0.00" readonly tabindex="-1" aria-readonly="true"></td>
+                <td><input type="number" min="0" step="0.01" class="rp-laborhours" placeholder="0.00"></td>
+                <td><input type="text" class="rp-labortotal" placeholder="0.00" readonly tabindex="-1" aria-readonly="true"></td>
+                <td><button type="button" class="remove-repair-line">Remove</button></td>
+              `;
+              tbody.appendChild(tr);
+              // fill values
+              try { tr.querySelector('.rp-desc').value = r.repairDescription || ''; } catch (e) {}
+              try { tr.querySelector('.rp-qty').value = (r.qty != null) ? r.qty : ''; } catch (e) {}
+              try { tr.querySelector('.rp-um').value = r.partNumber || ''; } catch (e) {}
+              try { tr.querySelector('.rp-partprice').value = (r.partPrice != null) ? r.partPrice : ''; } catch (e) {}
+              try { tr.querySelector('.rp-partstotal').value = (r.partsTotal != null) ? r.partsTotal : ''; } catch (e) {}
+              try { tr.querySelector('.rp-laborhours').value = (r.laborHours != null) ? r.laborHours : ''; } catch (e) {}
+              try { tr.querySelector('.rp-labortotal').value = (r.laborTotal != null) ? r.laborTotal : ''; } catch (e) {}
+              // wire the row behaviors already present in the page
+              try { if (typeof ensureRowClasses === 'function') ensureRowClasses(tr); } catch(e){}
+              try { if (typeof wireRow === 'function') wireRow(tr); } catch(e){}
+            });
+            // update subtotals after populating
+            try { if (typeof updateSubtotals === 'function') updateSubtotals(); } catch(e){}
+          }
+        }
+      } catch (e) { console.error('Error applying server ticket to form', e); }
+    }
+
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', applyTicket);
+    else applyTicket();
+  } catch (err) {
+    console.warn('populateFromServerTicket: no server ticket or parse failed', err);
+  }
+})();

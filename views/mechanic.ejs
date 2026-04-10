@@ -646,5 +646,8 @@
       <button id="completeTicketBottom" type="button" class="btn btn-success">Complete Ticket</button>
     </div>
   </main>
+
+    <!-- server-provided ticket payload (JSON). Read by public/js/form.js to populate the form when editing -->
+    <input type="hidden" id="server-ticket" value='<%- JSON.stringify(typeof locals !== "undefined" && locals.ticket ? locals.ticket : null) %>'>
 </body>
 </html>
