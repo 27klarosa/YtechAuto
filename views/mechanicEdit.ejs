@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EditBench</title>
           <link rel="stylesheet" href="/css/mechanicEdit.css">
+          <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
     <header class="site-header">
@@ -21,16 +22,12 @@
                 <select id="ticket-select" style="flex:1;padding:6px;border:1px solid #ccc;border-radius:4px;"><option value="">-- Select ticket --</option></select>
                 <button id="load-ticket" class="btn btn-primary" disabled style="margin-left:8px;">Open</button>
             </div>
-            <p style="margin-top:8px;color:#555;font-size:0.95rem">Selecting a ticket will open the mechanic editor (an editable copy of the mechanic form) below.</p>
-            <div style="margin-top:12px">
-                <iframe id="editor-frame" src="" style="width:100%;height:1100px;border:1px solid #ddd;border-radius:6px;"></iframe>
-            </div>
+            <p style="margin-top:8px;color:#555;font-size:0.95rem">Selecting a ticket will open the mechanic editor page with that ticket pre-filled.</p>
             <script>
                 (function(){
                     function $q(sel){ return document.querySelector(sel); }
                     var select = $q('#ticket-select');
                     var btn = $q('#load-ticket');
-                    var frame = $q('#editor-frame');
 
                     function fetchTickets(){
                         fetch('/mechanic/incomplete').then(function(r){ return r.json(); }).then(function(list){
@@ -49,15 +46,15 @@
 
                     select.addEventListener('change', function(){
                         btn.disabled = !select.value;
-                        // auto-open when selected
+                        // auto-redirect when selected
                         if (select.value) {
-                            frame.src = '/mechanic/edit/' + select.value;
+                            window.location.href = '/mechanic?id=' + select.value;
                         }
                     });
 
                     btn.addEventListener('click', function(){
                         if (!select.value) return;
-                        frame.src = '/mechanic/edit/' + select.value;
+                        window.location.href = '/mechanic?id=' + select.value;
                     });
 
                     // init
