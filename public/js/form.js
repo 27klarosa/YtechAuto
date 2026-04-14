@@ -1039,8 +1039,17 @@ document.addEventListener('DOMContentLoaded', function () {
     // run when DOM is ready
     function applyTicket() {
       try {
+        console.log('populateFromServerTicket: applying ticket', ticket);
         if (ticket.date) document.getElementById('roDate') && (document.getElementById('roDate').value = ticket.date || '');
         if (ticket.techName) document.getElementById('technician') && (document.getElementById('technician').value = ticket.techName || '');
+        // Repair order can be named differently in DB: try several possibilities
+        const ro = ticket.roNum || ticket.repairOrderNumber || ticket.ro || ticket.repairOrder || ticket.repair_order || '';
+        if (ro) {
+          const roEl = document.getElementById('roNum');
+          if (roEl) roEl.value = ro;
+        }
+
+        // timeIn/timeOut: set hidden fields and the individual selects if present
         if (ticket.timeIn) document.getElementById('timeIn') && (document.getElementById('timeIn').value = ticket.timeIn || '');
         if (ticket.timeOut) document.getElementById('timeOut') && (document.getElementById('timeOut').value = ticket.timeOut || '');
         if (ticket.totalTime) document.getElementById('totTime') && (document.getElementById('totTime').value = ticket.totalTime || '');
@@ -1082,14 +1091,64 @@ document.addEventListener('DOMContentLoaded', function () {
               try { tr.querySelector('.rp-partstotal').value = (r.partsTotal != null) ? r.partsTotal : ''; } catch (e) {}
               try { tr.querySelector('.rp-laborhours').value = (r.laborHours != null) ? r.laborHours : ''; } catch (e) {}
               try { tr.querySelector('.rp-labortotal').value = (r.laborTotal != null) ? r.laborTotal : ''; } catch (e) {}
-              // wire the row behaviors already present in the page
+              // wire the row behaviors already present in the page if available
               try { if (typeof ensureRowClasses === 'function') ensureRowClasses(tr); } catch(e){}
               try { if (typeof wireRow === 'function') wireRow(tr); } catch(e){}
             });
-            // update subtotals after populating
-            try { if (typeof updateSubtotals === 'function') updateSubtotals(); } catch(e){}
+            // update subtotals after populating: attempt to call existing helper, otherwise compute locally
+            try {
+              if (typeof updateSubtotals === 'function') updateSubtotals();
+              else {
+                // compute sums locally
+                const rowsNow = Array.from(tbody.querySelectorAll('tr'));
+                let partsSum = 0, laborSum = 0;
+                rowsNow.forEach(rr => {
+                  const pt = parseFloat((rr.querySelector('.rp-partstotal') && rr.querySelector('.rp-partstotal').value) || '') || 0;
+                  const lt = parseFloat((rr.querySelector('.rp-labortotal') && rr.querySelector('.rp-labortotal').value) || '') || 0;
+                  // fallback: compute from qty * price or laborHours * 100
+                  if (!pt) {
+                    const qty = parseFloat((rr.querySelector('.rp-qty') && rr.querySelector('.rp-qty').value) || '') || 0;
+                    const price = parseFloat((rr.querySelector('.rp-partprice') && rr.querySelector('.rp-partprice').value) || '') || 0;
+                    partsSum += qty * price;
+                  } else partsSum += pt;
+                  if (!lt) {
+                    const lh = parseFloat((rr.querySelector('.rp-laborhours') && rr.querySelector('.rp-laborhours').value) || '') || 0;
+                    laborSum += lh * 100;
+                  } else laborSum += lt;
+                });
+                const subPartsEl = document.getElementById('subTotParts');
+                const subLaborEl = document.getElementById('subTotLabor');
+                const taxEl = document.getElementById('tax');
+                const totEstimateEl = document.getElementById('totEstimate');
+                function fmt(n){ return (Math.round(n * 100) / 100).toFixed(2); }
+                if (subPartsEl) subPartsEl.value = fmt(partsSum);
+                if (subLaborEl) subLaborEl.value = fmt(laborSum);
+                const tax = partsSum * 0.06;
+                if (taxEl) taxEl.value = fmt(tax);
+                if (totEstimateEl) totEstimateEl.value = fmt(partsSum + tax);
+              }
+            } catch(e){}
           }
         }
+        
+        // set time picker select values (if individual selects exist) by parsing the ticket.timeIn/timeOut
+        function setTimeSelects(prefix, timeStr) {
+          if (!timeStr) return;
+          const parts = timeStr.split(' ');
+          if (parts.length < 2) return;
+          const time = parts[0];
+          const period = parts[1];
+          const [h, m] = time.split(':');
+          const hEl = document.getElementById(prefix + 'Hour');
+          const mEl = document.getElementById(prefix + 'Minute');
+          const pEl = document.getElementById(prefix + 'AmPm');
+          try { if (hEl) { hEl.value = String(parseInt(h,10)); hEl.dispatchEvent(new Event('change')); } } catch(e){}
+          try { if (mEl) { mEl.value = String(m).padStart(2,'0'); mEl.dispatchEvent(new Event('change')); } } catch(e){}
+          try { if (pEl) { pEl.value = period; pEl.dispatchEvent(new Event('change')); } } catch(e){}
+        }
+
+        setTimeSelects('timeIn', ticket.timeIn);
+        setTimeSelects('timeOut', ticket.timeOut);
       } catch (e) { console.error('Error applying server ticket to form', e); }
     }
 

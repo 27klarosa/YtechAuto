@@ -5,6 +5,7 @@ CREATE TABLE users (
 
 CREATE TABLE tickets (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    repairOrderNumber TEXT NOT NULL UNIQUE,
     date TEXT NOT NULL,
     techName TEXT NOT NULL,
     timeIn TEXT NOT NULL,
@@ -18,8 +19,8 @@ CREATE TABLE tickets (
     diagnosis TEXT NOT NULL,
     recommendedRepairs TEXT NOT NULL,
     dateSigned TEXT NOT NULL,
-    customerSignature TEXT NOT NULL,
-    stat TEXT NOT NULL
+    customerSignature TEXT,
+    stat TEXT
 );
 
 CREATE TABLE recRepairs (
