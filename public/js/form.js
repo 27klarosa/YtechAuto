@@ -93,8 +93,8 @@ document.addEventListener('DOMContentLoaded', function () {
     function formatPhone(digits) {
       const d = digits.slice(0, 10);
       if (d.length <= 3) return d;
-      if (d.length <= 6) return d.slice(0,3) + '-' + d.slice(3);
-      return d.slice(0,3) + '-' + d.slice(3,6) + '-' + d.slice(6);
+      if (d.length <= 6) return d.slice(0, 3) + '-' + d.slice(3);
+      return d.slice(0, 3) + '-' + d.slice(3, 6) + '-' + d.slice(6);
     }
 
     function digitsBeforeCursor(value, cursorPos) {
@@ -115,7 +115,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     el.addEventListener('keydown', function (e) {
       // allow control keys, navigation, backspace/delete
-      const allowed = ['Backspace','Delete','ArrowLeft','ArrowRight','Tab','Home','End'];
+      const allowed = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab', 'Home', 'End'];
       if (allowed.includes(e.key)) return;
       // allow Ctrl/Cmd combos
       if (e.ctrlKey || e.metaKey) return;
@@ -139,23 +139,23 @@ document.addEventListener('DOMContentLoaded', function () {
       const formatted = formatPhone(newDigits);
       el.value = formatted;
       const cursor = cursorPosFromDigits(formatted, before.length + digits.length);
-      try { el.setSelectionRange(cursor, cursor); } catch (e) {}
+      try { el.setSelectionRange(cursor, cursor); } catch (e) { }
     });
 
     el.addEventListener('input', function (e) {
       const orig = el.value || '';
       const sel = el.selectionStart || 0;
       const digitsBefore = digitsBeforeCursor(orig, sel);
-      const digits = onlyDigits(orig).slice(0,10);
+      const digits = onlyDigits(orig).slice(0, 10);
       const formatted = formatPhone(digits);
       el.value = formatted;
       const newPos = cursorPosFromDigits(formatted, digitsBefore);
-      try { el.setSelectionRange(newPos, newPos); } catch (err) {}
+      try { el.setSelectionRange(newPos, newPos); } catch (err) { }
     });
 
     // ensure format on blur
     el.addEventListener('blur', function () {
-      const digits = onlyDigits(el.value).slice(0,10);
+      const digits = onlyDigits(el.value).slice(0, 10);
       el.value = formatPhone(digits);
     });
   })();
@@ -239,109 +239,127 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   })();
 
-    // --- Image upload (click/drag-preview + upload) ---
-    (function setupImageUpload() {
-      const zone = document.getElementById('image-upload-zone');
-      const fileInput = document.getElementById('image-file');
-      const trigger = document.getElementById('image-upload-trigger');
-      const uploadBtn = document.getElementById('image-upload-btn');
-      const previewEl = document.getElementById('image-preview'); // optional <img> or container
-      if (!zone || !fileInput || !uploadBtn) return;
+  // --- Image upload (click/drag-preview + upload) ---
+  (function setupImageUpload() {
+    const zone = document.getElementById('image-upload-zone');
+    const fileInput = document.getElementById('image-file');
+    const trigger = document.getElementById('image-upload-trigger');
+    const uploadBtn = document.getElementById('image-upload-btn');
+    const previewEl = document.getElementById('image-preview');
+    if (!zone || !fileInput || !uploadBtn) return;
 
-      let selectedImage = null;
-      const MAX_BYTES = 5 * 1024 * 1024; // 5MB
+    // enable multi-select on the input (ensure HTML has multiple attribute)
+    fileInput.multiple = true;
 
-      function showPreview(file) {
-        if (!previewEl) return;
-        // if previewEl is an <img>, set src; otherwise create/replace an img inside
+    let selectedFiles = []; // array of File
+    const MAX_BYTES = 5 * 1024 * 1024; // 5MB per file
+    const MAX_FILES = 10;
+
+    function showPreview(files) {
+      if (!previewEl) return;
+      previewEl.innerHTML = '';
+      const list = document.createElement('div');
+      list.style.display = 'flex';
+      list.style.flexWrap = 'wrap';
+      files.forEach((file) => {
         const reader = new FileReader();
         reader.onload = function (e) {
-          if (previewEl.tagName && previewEl.tagName.toLowerCase() === 'img') {
-            previewEl.src = e.target.result;
-          } else {
-            previewEl.innerHTML = '';
-            const img = document.createElement('img');
-            img.src = e.target.result;
-            img.style.maxWidth = '160px';
-            img.style.maxHeight = '120px';
-            img.alt = 'Selected image preview';
-            previewEl.appendChild(img);
-          }
+          const img = document.createElement('img');
+          img.src = e.target.result;
+          img.style.width = '120px';
+          img.style.height = '90px';
+          img.style.objectFit = 'cover';
+          img.style.margin = '4px';
+          img.alt = file.name;
+          list.appendChild(img);
         };
         reader.readAsDataURL(file);
+      });
+      previewEl.appendChild(list);
+    }
+
+    if (trigger) {
+      trigger.addEventListener('click', function (e) { e.preventDefault(); fileInput.click(); });
+    }
+
+    zone.addEventListener('click', function (e) {
+      if (e.target !== trigger && e.target !== uploadBtn) fileInput.click();
+    });
+
+    zone.addEventListener('dragover', function (e) { e.preventDefault(); zone.classList.add('dragover'); });
+    zone.addEventListener('dragleave', function (e) { e.preventDefault(); zone.classList.remove('dragover'); });
+    zone.addEventListener('drop', function (e) {
+      e.preventDefault(); zone.classList.remove('dragover');
+      const fileList = e.dataTransfer && e.dataTransfer.files;
+      if (fileList && fileList.length) {
+        const arr = Array.from(fileList);
+        handleFilesChosen(arr);
+        // guard: setting input.files may throw in some browsers
+        try { fileInput.files = fileList; } catch (err) { console.warn('Could not set fileInput.files', err); }
       }
+    });
 
-      // clicking trigger opens picker
-      if (trigger) {
-        trigger.addEventListener('click', function (e) { e.preventDefault(); fileInput.click(); });
+    fileInput.addEventListener('change', function (e) {
+      const fileList = e.target.files;
+      if (fileList && fileList.length) handleFilesChosen(Array.from(fileList));
+    });
+
+    function handleFilesChosen(filesArr) {
+      // merge and dedupe by name+size to avoid duplicates
+      const combined = selectedFiles.concat(filesArr);
+      const dedup = [];
+      const seen = new Set();
+      for (const f of combined) {
+        const key = f.name + '|' + f.size;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        // validation
+        if (!f.type.startsWith('image/')) continue;
+        if (f.size > MAX_BYTES) continue;
+        dedup.push(f);
+        if (dedup.length >= MAX_FILES) break;
       }
-
-      // click on zone opens picker (but avoid clicking the upload button)
-      zone.addEventListener('click', function (e) {
-        if (e.target !== trigger && e.target !== uploadBtn) fileInput.click();
-      });
-
-      // dragover/drop support
-      zone.addEventListener('dragover', function (e) { e.preventDefault(); zone.classList.add('dragover'); });
-      zone.addEventListener('dragleave', function (e) { e.preventDefault(); zone.classList.remove('dragover'); });
-      zone.addEventListener('drop', function (e) {
-        e.preventDefault(); zone.classList.remove('dragover');
-        const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-        if (f) {
-          fileInput.files = e.dataTransfer.files; // update input
-          handleFileChosen(f);
-        }
-      });
-
-      fileInput.addEventListener('change', function (e) {
-        const f = e.target.files && e.target.files[0];
-        if (f) handleFileChosen(f);
-      });
-
-      function handleFileChosen(f) {
-        if (!f) return;
-        if (!f.type.startsWith('image/')) {
-          alert('Please select an image file.');
-          fileInput.value = '';
-          selectedImage = null;
-          return;
-        }
-        if (f.size > MAX_BYTES) {
-          alert('Image is too large (max 5MB).');
-          fileInput.value = '';
-          selectedImage = null;
-          return;
-        }
-        selectedImage = f;
-        const p = zone.querySelector('p');
-        if (p) p.textContent = `Selected: ${f.name}`;
+      selectedFiles = dedup;
+      if (selectedFiles.length === 0) {
+        uploadBtn.disabled = true;
+        uploadBtn.style.opacity = '0.5';
+      } else {
         uploadBtn.disabled = false;
         uploadBtn.style.opacity = '1';
-        showPreview(f);
       }
+      const p = zone.querySelector('p');
+      if (p) p.textContent = `Selected ${selectedFiles.length} image(s)`;
+      showPreview(selectedFiles);
+    }
 
-      uploadBtn.addEventListener('click', function () {
-        if (!selectedImage) { alert('Please select an image first.'); return; }
-        const fd = new FormData();
-        fd.append('image', selectedImage);
-        uploadBtn.textContent = 'Uploading...'; uploadBtn.disabled = true;
-        fetch('/upload-image', { method: 'POST', body: fd })
-          .then(res => res.json())
-          .then(data => {
-            if (data && data.success) {
-              alert('Image uploaded successfully!');
-              const p = zone.querySelector('p'); if (p) p.textContent = 'Image uploaded successfully!';
-              zone.style.backgroundColor = '#d4edda'; zone.style.borderColor = '#c3e6cb';
-              fileInput.value = '';
-              selectedImage = null;
-            } else {
-              alert('Upload failed: ' + (data && data.message ? data.message : 'Unknown'));
-            }
-          })
-          .catch(err => { console.error('Image upload error:', err); alert('Upload failed.'); })
-          .finally(() => { uploadBtn.textContent = 'Upload'; uploadBtn.disabled = false; });
-      });
-    })();
+    uploadBtn.addEventListener('click', function () {
+      if (!selectedFiles || selectedFiles.length === 0) { alert('Please select one or more images first.'); return; }
+      const fd = new FormData();
+      // append multiple files using the same field name "image"
+      selectedFiles.forEach(f => fd.append('image', f));
+      // include ticketID if needed: fd.append('ticketID', ticketIdValue);
+      uploadBtn.textContent = 'Uploading...'; uploadBtn.disabled = true;
+
+      fetch('/upload-image', { method: 'POST', body: fd })
+        .then(res => res.json())
+        .then((data) => {
+          if (data && data.success) {
+            alert('Images uploaded successfully!');
+            const p = zone.querySelector('p');
+            if (p) p.textContent = 'Upload complete';
+            zone.style.backgroundColor = '#d4edda';
+            zone.style.borderColor = '#c3e6cb';
+            fileInput.value = '';
+            selectedFiles = [];
+            if (previewEl) previewEl.innerHTML = '';
+          } else {
+            alert('Upload failed: ' + (data && data.message ? data.message : 'Unknown'));
+          }
+        })
+        .catch(err => { console.error('Image upload error:', err); alert('Upload failed.'); })
+        .finally(() => { uploadBtn.textContent = 'Upload'; uploadBtn.disabled = false; });
+    });
+  })();
 
   // --- Recommended Repairs: row wiring, calc, add/remove, block '-' input ---
   (function initRepairs() {
@@ -355,7 +373,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!table) return;
 
     // utility
-  function toNum(v) { const n = parseFloat(String(v).replace(/[^0-9.\-]/g,'')); return isNaN(n) ? 0 : n; }
+    function toNum(v) { const n = parseFloat(String(v).replace(/[^0-9.\-]/g, '')); return isNaN(n) ? 0 : n; }
     function fmt(n) { return (Math.round(n * 100) / 100).toFixed(2); }
 
     function calcRow(row) {
@@ -423,15 +441,15 @@ document.addEventListener('DOMContentLoaded', function () {
       if (inputs.length >= 2 && !inputs[1].classList.contains('rp-qty')) {
         inputs[1].classList.add('rp-qty');
         // ensure numeric constraints
-        try { inputs[1].setAttribute('type','number'); inputs[1].setAttribute('min','0'); } catch(e){}
+        try { inputs[1].setAttribute('type', 'number'); inputs[1].setAttribute('min', '0'); } catch (e) { }
       }
       if (inputs.length >= 4 && !inputs[3].classList.contains('rp-partprice')) {
         inputs[3].classList.add('rp-partprice');
-        try { inputs[3].setAttribute('type','number'); inputs[3].setAttribute('min','0'); inputs[3].setAttribute('step','0.01'); } catch(e){}
+        try { inputs[3].setAttribute('type', 'number'); inputs[3].setAttribute('min', '0'); inputs[3].setAttribute('step', '0.01'); } catch (e) { }
       }
       if (inputs.length >= 5 && !inputs[5].classList.contains('rp-laborhours')) {
         inputs[5].classList.add('rp-laborhours');
-        try { inputs[5].setAttribute('type','number'); inputs[5].setAttribute('min','0'); inputs[5].setAttribute('step','0.01'); } catch(e){}
+        try { inputs[5].setAttribute('type', 'number'); inputs[5].setAttribute('min', '0'); inputs[5].setAttribute('step', '0.01'); } catch (e) { }
       }
       if (inputs.length >= 4 && !inputs[4].classList.contains('rp-partstotal')) inputs[4].classList.add('rp-partstotal');
       if (inputs.length >= 6 && !inputs[6].classList.contains('rp-labortotal')) inputs[6].classList.add('rp-labortotal');
@@ -472,8 +490,8 @@ document.addEventListener('DOMContentLoaded', function () {
       });
 
       // make totals readonly and unfocusable
-      if (partsTotal) { partsTotal.readOnly = true; partsTotal.tabIndex = -1; partsTotal.setAttribute('aria-readonly','true'); }
-      if (laborTotal) { laborTotal.readOnly = true; laborTotal.tabIndex = -1; laborTotal.setAttribute('aria-readonly','true'); }
+      if (partsTotal) { partsTotal.readOnly = true; partsTotal.tabIndex = -1; partsTotal.setAttribute('aria-readonly', 'true'); }
+      if (laborTotal) { laborTotal.readOnly = true; laborTotal.tabIndex = -1; laborTotal.setAttribute('aria-readonly', 'true'); }
 
       // remove buttons
       const removeBtn = row.querySelector('.remove-repair-line');
@@ -483,8 +501,8 @@ document.addEventListener('DOMContentLoaded', function () {
       });
     }
 
-  // wire existing rows (ensure classes exist first)
-  Array.from(table.querySelectorAll('tbody tr')).forEach(r => { ensureRowClasses(r); wireRow(r); });
+    // wire existing rows (ensure classes exist first)
+    Array.from(table.querySelectorAll('tbody tr')).forEach(r => { ensureRowClasses(r); wireRow(r); });
 
     // add new row handler (keep markup consistent with your table)
     if (addBtn) {
@@ -533,7 +551,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         ampm.innerHTML = '';
         ampm.add(new Option('AM/PM', ''));
-        ['AM','PM'].forEach(x => ampm.add(new Option(x, x)));
+        ['AM', 'PM'].forEach(x => ampm.add(new Option(x, x)));
       });
     }
 
@@ -579,8 +597,8 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     populateTimePickers();
-    ['timeIn','timeOut'].forEach(prefix => {
-      ['Hour','Minute','AmPm'].forEach(suffix => {
+    ['timeIn', 'timeOut'].forEach(prefix => {
+      ['Hour', 'Minute', 'AmPm'].forEach(suffix => {
         const el = document.getElementById(prefix + suffix);
         if (el) el.addEventListener('change', computeTotalTime);
       });
@@ -626,8 +644,8 @@ document.addEventListener('DOMContentLoaded', function () {
     function endDraw(e) {
       if (!isDrawing) return;
       isDrawing = false;
-      try { canvas.releasePointerCapture && canvas.releasePointerCapture(e.pointerId); } catch (err) {}
-      try { signatureData.value = canvas.toDataURL('image/png'); } catch (err) {}
+      try { canvas.releasePointerCapture && canvas.releasePointerCapture(e.pointerId); } catch (err) { }
+      try { signatureData.value = canvas.toDataURL('image/png'); } catch (err) { }
     }
     canvas.addEventListener('pointerup', endDraw);
     canvas.addEventListener('pointercancel', endDraw);
@@ -641,6 +659,15 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   })();
 
+  // helper: create a local filename/path for the signature PNG (no upload)
+  function createSignatureFileInfo() {
+    const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    const filename = 'signature-' + unique + '.png';
+    // server-side storage path expected (adjust if your server uses a different folder)
+    const relativePath = 'upload/signatures/' + filename;
+    return { filename, relativePath };
+  }
+
   // --- Form validation & submit handling (main) ---
   (function initValidation() {
     const form = document.getElementById('repForm');
@@ -651,7 +678,7 @@ document.addEventListener('DOMContentLoaded', function () {
       alert(errors.join('\n'));
     }
 
-    function validateAndSubmit(e) {
+    async function validateAndSubmit(e) {
       e.preventDefault();
       const errors = [];
 
@@ -763,13 +790,13 @@ document.addEventListener('DOMContentLoaded', function () {
           const partPrice = r.querySelector('.rp-partprice')?.value.trim() || '';
           const laborHours = r.querySelector('.rp-laborhours')?.value.trim() || '';
           if (!desc && !qty && !partPrice && !laborHours) return;
-          if (qty === '') errors.push(`Row ${idx+1}: Qty is required when adding a repair line.`);
+          if (qty === '') errors.push(`Row ${idx + 1}: Qty is required when adding a repair line.`);
           else {
             const qn = Number(qty);
-            if (!Number.isInteger(qn) || qn < 0) errors.push(`Row ${idx+1}: Qty must be a non-negative integer.`);
+            if (!Number.isInteger(qn) || qn < 0) errors.push(`Row ${idx + 1}: Qty must be a non-negative integer.`);
           }
-          if (partPrice !== '' && (isNaN(parseFloat(partPrice)) || parseFloat(partPrice) < 0)) errors.push(`Row ${idx+1}: Part Price must be a non-negative number.`);
-          if (laborHours !== '' && (isNaN(parseFloat(laborHours)) || parseFloat(laborHours) < 0)) errors.push(`Row ${idx+1}: Labor Hours must be a non-negative number.`);
+          if (partPrice !== '' && (isNaN(parseFloat(partPrice)) || parseFloat(partPrice) < 0)) errors.push(`Row ${idx + 1}: Part Price must be a non-negative number.`);
+          if (laborHours !== '' && (isNaN(parseFloat(laborHours)) || parseFloat(laborHours) < 0)) errors.push(`Row ${idx + 1}: Labor Hours must be a non-negative number.`);
         });
       }
 
@@ -777,6 +804,43 @@ document.addEventListener('DOMContentLoaded', function () {
         showErrors(errors);
         return false;
       }
+
+      // all good -> upload signature (so server stores PNG) then submit
+      if (signatureData && signatureData.value) {
+        try {
+          // do not upload from client. create filename/path and leave dataURL in signatureData.
+          // server can save the dataURL to disk using these values when processing the form.
+          const fileInfo = createSignatureFileInfo();
+          // ensure hidden inputs for server-side form processing
+          let sigFileEl = document.getElementById('signatureFilename');
+          if (!sigFileEl) {
+            sigFileEl = document.createElement('input');
+            sigFileEl.type = 'hidden';
+            sigFileEl.id = 'signatureFilename';
+            sigFileEl.name = 'signatureFilename';
+            form.appendChild(sigFileEl);
+          }
+          let sigPathEl = document.getElementById('signaturePath');
+          if (!sigPathEl) {
+            sigPathEl = document.createElement('input');
+            sigPathEl.type = 'hidden';
+            sigPathEl.id = 'signaturePath';
+            sigPathEl.name = 'signaturePath';
+            form.appendChild(sigPathEl);
+          }
+          // ensure signatureData contains the PNG dataURL; if not, create from canvas
+          const canvas = document.getElementById('signatureCanvas');
+          if ((!signatureData.value || signatureData.value === '') && canvas) {
+            try { signatureData.value = canvas.toDataURL('image/png'); } catch (e) { /* ignore */ }
+          }
+          sigFileEl.value = fileInfo.filename;
+          sigPathEl.value = fileInfo.relativePath;
+        } catch (err) {
+          console.error('Signature processing failed:', err);
+          showErrors(['Failed to process signature. Please try again.']);
+          return false;
+        }
+      } // end if (signatureData && signatureData.value)
 
       // If completing the ticket, enforce full Digital Courtesy Check validation
       const ticketStatusEl = document.getElementById('ticketStatus');
@@ -809,8 +873,6 @@ document.addEventListener('DOMContentLoaded', function () {
               }
             });
           }
-
-          // also check for any 'Comments' input in this section and skip it (comments are optional)
         }
         // comprehensive required-fields check across the main form (excluding notes/comments and optional fields)
         (function comprehensiveCheck() {
@@ -909,8 +971,9 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     form.addEventListener('submit', validateAndSubmit);
-  })();
 
+  })();
+  
   // --- Brake pads/rotors color coding based on thickness ---
   (function initBrakeColorCoding() {
     const brakesSection = document.getElementById('brakes');

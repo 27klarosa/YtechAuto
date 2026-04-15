@@ -2,27 +2,67 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const router = express.Router();
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, 'upload/videos/') // Make sure this directory exists
-    },
+const sqlite3 = require('sqlite3').verbose();
+const fs = require('fs');
+
+const videoDir = path.join(__dirname, '..', 'upload', 'videos');
+const imageDir = path.join(__dirname, '..', 'upload', 'images');
+const signatureDir = path.join(__dirname, '..', 'upload', 'signatures');
+fs.mkdirSync(videoDir, { recursive: true });
+fs.mkdirSync(imageDir, { recursive: true });
+fs.mkdirSync(signatureDir, { recursive: true });
+
+// video storage
+const videoStorage = multer.diskStorage({
+    destination: function (req, file, cb) { cb(null, videoDir); },
     filename: function (req, file, cb) {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
         cb(null, 'video-' + uniqueSuffix + path.extname(file.originalname));
     }
 });
-
-const upload = multer({ 
-    storage: storage,
-    limits: {
-        fileSize: 500 * 1024 * 1024 // 500MB limit
-    },
+const videoUpload = multer({
+    storage: videoStorage,
+    limits: { fileSize: 500 * 1024 * 1024 }, // 500MB
     fileFilter: function (req, file, cb) {
-        if (file.mimetype.startsWith('video/')) {
-            cb(null, true);
-        } else {
-            cb(new Error('Only video files are allowed!'));
-        }
+        if (file.mimetype && file.mimetype.startsWith('video/')) cb(null, true);
+        else cb(new Error('Only video files are allowed'));
+    }
+});
+
+// image storage (matches video flow, uses field name 'image')
+const imageStorage = multer.diskStorage({
+    destination: function (req, file, cb) { cb(null, imageDir); },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, 'image-' + uniqueSuffix + path.extname(file.originalname));
+    }
+});
+
+const imageUpload = multer({
+    storage: imageStorage,
+    limits: { fileSize: 100 * 1024 * 1024 }, // 100MB
+    fileFilter: function (req, file, cb) {
+        if (file.mimetype && file.mimetype.startsWith('image/')) cb(null, true);
+        else cb(new Error('Only image files are allowed'));
+    }
+});
+
+// signature storage + multipart upload route
+const signatureStorage = multer.diskStorage({
+  destination: function (req, file, cb) { cb(null, signatureDir); },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    const ext = path.extname(file.originalname) || '.png';
+    cb(null, 'signature-' + uniqueSuffix + ext);
+  }
+});
+
+const signatureUpload = multer({
+    storage: signatureStorage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+    fileFilter: function (req, file, cb) {
+        if (file.mimetype && file.mimetype.startsWith('image/')) cb(null, true);
+        else cb(new Error('Only image files are allowed'));
     }
 });
 
@@ -90,6 +130,10 @@ router.post('/mechanic', (req, res) => {
 
     const recommendedRepairsText = JSON.stringify(repairs || []);
 
+    const insertTicketSql = `INSERT INTO tickets (date, techName, timeIn, timeOut, totalTime, customerName, customerAddress, customerPhone, customerEmail, concern, diagnosis, recommendedRepairs, dateSigned) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+    const ticketParams = [roDate, technician, timeArrive, timeOut, totTime, custName, custAdd, custPhone, custEmail, concern, diagnosis, recommendedRepairsText, sDate];
+
+    db.run(insertTicketSql, ticketParams, function (err) {
     // Ensure schema has roNum column, then INSERT
     db.all("PRAGMA table_info('tickets')", [], (err, cols) => {
         if (err) {
@@ -149,27 +193,100 @@ router.post('/mechanic', (req, res) => {
     });
 });
 
-
-router.post('/upload-video', upload.single('video'), (req, res) => {
-    try {
-        if (!req.file) {
-            return res.status(400).json({ success: false, message: 'No file uploaded' });
-        }
-        
-        console.log('Video uploaded successfully:', req.file.filename);
-        console.log('File size:', req.file.size, 'bytes');
-        console.log('Original name:', req.file.originalname);
-        
-        res.json({ 
-            success: true, 
-            message: 'Video uploaded successfully',
-            filename: req.file.filename,
-            originalName: req.file.originalname
-        });
-    } catch (error) {
-        console.error('Upload error:', error);
-        res.status(500).json({ success: false, message: 'Upload failed' });
+// video upload route 
+router.post('/upload-video', videoUpload.single('video'), (req, res) => {
+    const db = req.app.locals.db;
+    if (!db) {
+        if (req.file) fs.unlink(req.file.path, () => { });
+        return res.status(500).json({ success: false, message: 'Database not available' });
     }
+    if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
+
+    const file = req.file;
+    const relativePath = path.relative(path.join(__dirname, '..'), file.path).split(path.sep).join('/');
+    const insertSql = `INSERT INTO videos (ticketID, filename, originalName, relativePath, mimeType, sizeBytes, uploadDate)
+                     VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`;
+    const params = [req.body.ticketID || null, file.filename, file.originalname, relativePath, file.mimetype, file.size];
+
+    db.run(insertSql, params, function (err) {
+        if (err) {
+            console.error('DB insert failed, removing uploaded file:', err);
+            // remove the saved file to avoid orphan
+            fs.unlink(file.path, (unlinkErr) => {
+                if (unlinkErr) console.error('Failed to unlink file after DB error:', unlinkErr);
+                return res.status(500).json({ success: false, message: 'Database error' });
+            });
+            return;
+        }
+        // success
+        res.json({ success: true, id: this.lastID, path: relativePath });
+    });
+});
+
+// image upload route
+router.post('/upload-image', imageUpload.array('image'), (req, res) => {
+    const db = req.app.locals.db;
+    if (!db) {
+        if (req.file) fs.unlink(req.file.path, () => { });
+        return res.status(500).json({ success: false, message: 'Database not available' });
+    }
+    if (!req.files || req.files.length === 0) return res.status(400).json({ success: false, message: 'No files uploaded' });
+
+    const results = [];
+    let pending = req.files.length;
+
+    req.files.forEach((file) => {
+        const relativePath = path.relative(path.join(__dirname, '..'), file.path).split(path.sep).join('/');
+        const insertSql = `INSERT INTO pictures (ticketID, filename, originalName, relativePath, mimeType, sizeBytes, uploadDate)
+                     VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`;
+        const params = [req.body.ticketID || null, file.filename, file.originalname, relativePath, file.mimetype, file.size];
+
+        db.run(insertSql, params, function (err) {
+            if (err) {
+                console.error('upload-image: DB insert failed for', file.filename, err);
+                // remove file to avoid orphans
+                try { fs.unlinkSync(file.path); } catch (e) { /* ignore */ }
+                results.push({ success: false, filename: file.filename, error: err.message });
+            } else {
+                results.push({ success: true, id: this.lastID, filename: file.filename, path: relativePath });
+            }
+
+            pending -= 1;
+            if (pending === 0) {
+                return res.json({ success: true, files: results });
+            }
+        });
+    });
+});
+
+//signitures upload route
+router.post('/upload-signature', signatureUpload.single('signature'), (req, res) => {
+    const db = req.app.locals.db;
+    if (!db) {
+        if (req.file) fs.unlink(req.file.path, () => { });
+        return res.status(500).json({ success: false, message: 'Database not available' });
+    }
+    if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
+
+    const file = req.file;
+    const relativePath = path.relative(path.join(__dirname, '..'), file.path).split(path.sep).join('/');
+    const insertSql = `INSERT INTO signatures (ticketID, filename, originalName, relativePath, uploadDate)
+                     VALUES (?, ?, ?, ?, datetime('now'))`;
+    const params = [req.body.ticketID || null, file.filename, file.originalname, relativePath];
+
+    db.run(insertSql, params, function (err) {
+        if (err) {
+            console.error('DB insert failed, removing uploaded file:', err);
+            // remove the saved file to avoid orphan
+            fs.unlink(file.path, (unlinkErr) => {
+                if (unlinkErr) console.error('Failed to unlink file after DB error:', unlinkErr);
+                return res.status(500).json({ success: false, message: 'Database error' });
+            });
+            return;
+        }
+        // success
+        res.json({ success: true, id: this.lastID, path: relativePath });
+    });
 });
 
 module.exports = router;

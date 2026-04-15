@@ -51,6 +51,7 @@ const ticketRoute = require('./routes/ticket');
 const authRouter = require('./routes/auth');
 
 
+
 app.use('/', indexRouter);
 app.use('/', mechanicRouter);
 app.use('/', customerRouter);
@@ -64,3 +65,5 @@ app.use('/', ticketRoute);
 server.listen(PORT, () => {
     console.log(`Example app listening on port http://localhost:${PORT}`);
 });
+
+module.exports = app;
