@@ -298,30 +298,6 @@ router.post('/mechanic/vehicle-info', (req, res) => {
         }
     });
 });
-
-
-
-router.post('/upload-video', upload.single('video'), (req, res) => {
-    try {
-        if (!req.file) {
-            return res.status(400).json({ success: false, message: 'No file uploaded' });
-        }
-        
-        console.log('Video uploaded successfully:', req.file.filename);
-        console.log('File size:', req.file.size, 'bytes');
-        console.log('Original name:', req.file.originalname);
-        
-        res.json({ 
-            success: true, 
-            message: 'Video uploaded successfully',
-            filename: req.file.filename,
-            originalName: req.file.originalname
-        });
-    } catch (error) {
-        console.error('Upload error:', error);
-        res.status(500).json({ success: false, message: 'Upload failed' });
-    }
-});
 // video upload route 
 router.post('/upload-video', videoUpload.single('video'), (req, res) => {
     const db = req.app.locals.db;
