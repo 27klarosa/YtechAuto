@@ -35,7 +35,7 @@ router.get("/auth/callback", async (req, res) => {
 
     try {
         const response = await msalClient.acquireTokenByCode(tokenRequest);
-        const email = response.account.username;
+        const email = response.account.username.toLowerCase();
         console.log(`${response.account.username}`);
         res.cookie('user', JSON.stringify({ email }), { 
             httpOnly: true, 

@@ -192,6 +192,7 @@ router.post('/mechanic', (req, res) => {
         });
     });
 });
+});
 
 // video upload route 
 router.post('/upload-video', videoUpload.single('video'), (req, res) => {
