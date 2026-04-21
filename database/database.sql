@@ -107,7 +107,7 @@ CREATE TABLE brakes (
     ticketID INTEGER NOT NULL,
     item TEXT NOT NULL,
     comments
-)
+);
 
 CREATE TABLE brakesTable (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
