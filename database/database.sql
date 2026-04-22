@@ -119,7 +119,7 @@ CREATE TABLE brakesTable (
 
 CREATE TABLE emissionsTable (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    emissions INTEGER NOT NULL,
+    emissionsID INTEGER NOT NULL,
     item TEXT NOT NULL,
     status TEXT NOT NULL,
     notes TEXT 
@@ -128,14 +128,12 @@ CREATE TABLE emissionsTable (
 CREATE TABLE emissions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ticketID INTEGER NOT NULL,
-    emmisionsTable INTEGER NOT NULL,
     OBD TEXT NOT NULL,
     inspections TEXT NOT NULL,
     emissionsDue TEXT NOT NULL,
     nextOilChange TEXT NOT NULL,
     inspectedBy TEXT NOT NULL,
     reInspectedBy TEXT NOT NULL,
-    warnings TEXT NOT NULL,
     comments TEXT
 );
 

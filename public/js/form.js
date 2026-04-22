@@ -297,8 +297,6 @@ document.addEventListener('DOMContentLoaded', function () {
         // guard: setting input.files may throw in some browsers
         try { fileInput.files = fileList; } catch (err) { console.warn('Could not set fileInput.files', err); }
       }
-    });
-
     fileInput.addEventListener('change', function (e) {
       const fileList = e.target.files;
       if (fileList && fileList.length) handleFilesChosen(Array.from(fileList));
@@ -1531,6 +1529,88 @@ document.addEventListener('DOMContentLoaded', function () {
                     } catch (e) {}
                   });
                 }
+                // Populate parent emissions fields and warnings from ticket.sections.emissions (if present)
+                try {
+                  const parent = (ticket && ticket.sections && (ticket.sections.emissions || ticket.sections['emissions'])) || null;
+                  if (parent) {
+                    try { console.log('populateFromServerTicket: emissions parent object', parent); } catch(e) {}
+                    // populate middle form-grid fields by matching labels
+                    const groups = Array.from(sec.querySelectorAll('.form-grid .form-group'));
+                    const mapKeys = {
+                      OBD: ['obd','obd/emissions','obd_emissions','obd'],
+                      inspections: ['inspections','inspection','inspected'],
+                      emissionsDue: ['emissionsdue','emissions_due','emissionsdue','emissiondue','emission_due','emission due'],
+                      nextOilChange: ['nextoilchange','nextOilChange','next_oil_change','nextoilchange','next oil change','next oil','nextoil'],
+                      inspectedBy: ['inspectedby','inspectedBy','inspected_by'],
+                      reInspectedBy: ['reinspectedby','reInspectedBy','re_inspected_by']
+                    };
+                    // helper: find a parent property by trying aliases and case-insensitive match
+                    const findParentVal = (parentObj, aliasesArr, fallback) => {
+                      if (!parentObj) return null;
+                      const keys = Object.keys(parentObj || {});
+                      // try aliases first
+                      for (const a of (aliasesArr || [])) {
+                        const al = String(a || '').toLowerCase();
+                        for (const pk of keys) {
+                          if (String(pk || '').toLowerCase() === al) return parentObj[pk];
+                        }
+                      }
+                      // try fallback key
+                      if (fallback) {
+                        for (const pk of keys) {
+                          if (String(pk || '').toLowerCase() === String(fallback).toLowerCase()) return parentObj[pk];
+                        }
+                      }
+                      return null;
+                    };
+
+                    Object.keys(mapKeys).forEach(k => {
+                      const aliases = mapKeys[k];
+                      for (const g of groups) {
+                        const lbl = (g.querySelector('label') && g.querySelector('label').textContent || '').toLowerCase();
+                        if (!lbl) continue;
+                        const matched = aliases.some(a => lbl.includes(a.toLowerCase()) || a.toLowerCase().includes(lbl));
+                        if (matched) {
+                          const inp = g.querySelector('input,select,textarea');
+                          const val = findParentVal(parent, aliases, k);
+                          if (inp && (val != null && val !== '')) {
+                            try { inp.value = val; inp.dispatchEvent(new Event('change')); } catch(e) {}
+                          }
+                        }
+                      }
+                    });
+
+                    // populate parent comments (full-width)
+                    try {
+                      const parentComments = parent.comments || parent.emissionsComments || parent.comments || '';
+                      if (parentComments) {
+                        const commentsGroup = Array.from(sec.querySelectorAll('.form-group.full-width')).find(g => { const l=(g.querySelector('label')&&g.querySelector('label').textContent||'').toLowerCase(); return l.includes('comment'); });
+                        const cinput = commentsGroup && commentsGroup.querySelector('input,textarea');
+                        if (cinput) { cinput.value = parentComments; cinput.dispatchEvent(new Event('change')); }
+                      }
+                    } catch(e) {}
+                  }
+
+                  // populate warnings/tags from ticket.sections.emissionsWarnings or fallback keys
+                  const warnRows = (ticket && ticket.sections && (ticket.sections.emissionsWarnings || ticket.sections.warningstable || ticket.sections.warnings || [])) || [];
+                  if (Array.isArray(warnRows) && warnRows.length) {
+                    try {
+                      const tagsHidden = document.getElementById('tags-hidden');
+                      const list = document.getElementById('tag-list');
+                      if (tagsHidden && list) {
+                        const items = warnRows.map(r => (r.item || r.Item || r.name || '').toString()).filter(Boolean);
+                        tagsHidden.value = items.join(',');
+                        list.innerHTML = '';
+                        items.forEach((t) => {
+                          const chip = document.createElement('div'); chip.className = 'tag-chip'; chip.textContent = t;
+                          const x = document.createElement('button'); x.type='button'; x.className='tag-remove'; x.textContent='×';
+                          x.addEventListener('click', () => { /* no-op on load */ });
+                          chip.appendChild(x); list.appendChild(chip);
+                        });
+                      }
+                    } catch (e) { /* ignore */ }
+                  }
+                } catch (e) { /* ignore */ }
                 // emissions (form inputs) may exist under 'emissions' table (separate)
                 if (key === 'emissions') {
                   // rows may represent a single row with form fields
@@ -1539,8 +1619,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     const mapping = {
                       OBD: ['obd','obd/emissions','obd_emissions','obd'],
                       inspections: ['inspections','inspection','inspected'],
-                      emissionsDue: ['emissionsdue','emissions_due','emissionsdue'],
-                      nextOilChange: ['nextoilchange','nextOilChange','next_oil_change','nextOilChange'],
+                      emissionsDue: ['emissionsdue','emissions_due','emissionsdue','emissiondue','emission_due','emission due'],
+                      nextOilChange: ['nextoilchange','nextOilChange','next_oil_change','nextoilchange','next oil change','next oil','nextoil'],
                       inspectedBy: ['inspectedby','inspectedBy','inspected_by'],
                       reInspectedBy: ['reinspectedby','reInspectedBy','re_inspected_by','reInspectedBy'],
                       warnings: ['warnings','warnings'],
@@ -1552,16 +1632,78 @@ document.addEventListener('DOMContentLoaded', function () {
                       for (let i=0;i<keys.length;i++) { if (row[keys[i]] != null) { val = row[keys[i]]; break; } }
                       if (!val && row[k] != null) val = row[k];
                       if (val != null && val !== '') {
-                        // find input/select with label matching key
-                        const inputs = Array.from(sec.querySelectorAll('input,select,textarea'));
-                        const found = inputs.find(inp => {
-                          const id = (inp.id||'').toLowerCase(); const name = (inp.name||'').toLowerCase();
-                          return id.includes(k.toLowerCase()) || name.includes(k.toLowerCase());
-                        });
+                        // try to find input by id/name first
+                        let found = null;
+                        try {
+                          const inputs = Array.from(sec.querySelectorAll('input,select,textarea'));
+                          found = inputs.find(inp => {
+                            const id = (inp.id||'').toLowerCase(); const name = (inp.name||'').toLowerCase();
+                            return id.includes(k.toLowerCase()) || name.includes(k.toLowerCase());
+                          });
+                        } catch(e) { found = null; }
+
+                        // fallback: find by label text in the .form-grid groups
+                        if (!found) {
+                          try {
+                            const groups = Array.from(sec.querySelectorAll('.form-grid .form-group'));
+                            for (const g of groups) {
+                              const lbl = (g.querySelector('label') && g.querySelector('label').textContent || '').toLowerCase();
+                              if (!lbl) continue;
+                              // check any alias for this mapping
+                              const aliasMatch = keys.some(alias => lbl.includes(alias.toLowerCase()) || alias.toLowerCase().includes(lbl));
+                              if (aliasMatch || lbl.includes(k.toLowerCase())) {
+                                const inp = g.querySelector('input,select,textarea');
+                                if (inp) { found = inp; break; }
+                              }
+                            }
+                          } catch (e) { /* ignore */ }
+                        }
+
                         if (found) { try { found.value = val; found.dispatchEvent(new Event('change')); } catch(e){} }
                       }
                     });
                   }
+
+                  // populate parent fields (OBD..reInspectedBy) from ticket.sections.emissions if available
+                  try {
+                    const parent = (ticket && ticket.sections && (ticket.sections.emissions || ticket.sections['emissions'])) || null;
+                    if (parent) {
+                      const groups = Array.from(sec.querySelectorAll('.form-grid .form-group'));
+                      const mapKeys = {
+                        OBD: ['obd','obd/emissions','obd_emissions','obd'],
+                        inspections: ['inspections','inspection','inspected'],
+                        emissionsDue: ['emissionsdue','emissions_due','emissionsdue'],
+                        nextOilChange: ['nextoilchange','nextOilChange','next_oil_change','nextoilchange'],
+                        inspectedBy: ['inspectedby','inspectedBy','inspected_by'],
+                        reInspectedBy: ['reinspectedby','reInspectedBy','re_inspected_by']
+                      };
+                      Object.keys(mapKeys).forEach(k => {
+                        const aliases = mapKeys[k];
+                        // find matching group by label
+                        for (const g of groups) {
+                          const lbl = (g.querySelector('label') && g.querySelector('label').textContent || '').toLowerCase();
+                          if (!lbl) continue;
+                          const matched = aliases.some(a => lbl.includes(a.toLowerCase()) || a.toLowerCase().includes(lbl));
+                          if (matched) {
+                            const inp = g.querySelector('input,select,textarea');
+                            if (inp && (parent[k] != null && parent[k] !== '')) {
+                              try { inp.value = parent[k]; inp.dispatchEvent(new Event('change')); } catch(e) {}
+                            }
+                          }
+                        }
+                      });
+
+                      // populate parent comments (full-width)
+                      try {
+                        const parentComments = parent.comments || parent.emissionsComments || parent.comments || '';
+                        if (parentComments) {
+                          const commentsGroup = Array.from(sec.querySelectorAll('.form-group.full-width')).find(g => { const l=(g.querySelector('label')&&g.querySelector('label').textContent||'').toLowerCase(); return l.includes('comment'); });
+                          const cinput = commentsGroup && commentsGroup.querySelector('input,textarea');
+                          if (cinput) { cinput.value = parentComments; cinput.dispatchEvent(new Event('change')); }
+                        }
+                      } catch(e) {}
+                    }
+                  } catch(e) {}
                 }
                 return;
               }
@@ -1808,6 +1950,7 @@ document.addEventListener('DOMContentLoaded', function () {
   else bind();
 })();
 
+
 // --- Steering & Suspension: save rows (item/left/right/front/rear) + comments to /mechanic/steering-suspension ---
 (function wireSteeringSave() {
   const bind = function () {
@@ -2048,11 +2191,20 @@ document.addEventListener('DOMContentLoaded', function () {
         let tags = [];
         if (tagsHidden && tagsHidden.value) tags = tagsHidden.value.split(',').map(s=>s.trim()).filter(Boolean);
 
-        // parent comments
-        const parentCommentsInput = emissionsSection.querySelector('.form-group.full-width input[type="text"], .form-group.full-width textarea');
+        // parent comments - find the full-width form-group whose label contains 'comment'
+        let parentCommentsInput = null;
+        try {
+          const fullGroups = Array.from(emissionsSection.querySelectorAll('.form-group.full-width'));
+          for (const g of fullGroups) {
+            const lbl = (g.querySelector('label') && g.querySelector('label').textContent || '').toLowerCase();
+            if (lbl.includes('comment')) { parentCommentsInput = g.querySelector('input[type="text"], textarea'); break; }
+          }
+        } catch (e) {}
+        if (!parentCommentsInput) parentCommentsInput = emissionsSection.querySelector('.form-group.full-width input[type="text"], .form-group.full-width textarea');
         const parentComments = parentCommentsInput ? (parentCommentsInput.value || '').trim() : '';
 
         // assemble payload
+        console.log('Emissions save - parentComments (client):', parentComments);
         const payload = { ticketId, items, emissions: emissionsInfo, tags, comments: parentComments };
 
         try {
@@ -2181,3 +2333,5 @@ document.addEventListener('DOMContentLoaded', () => {
     }, { capture: true });
   }
 });
+
+})();
