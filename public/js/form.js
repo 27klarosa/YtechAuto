@@ -1992,6 +1992,83 @@ document.addEventListener('DOMContentLoaded', function () {
   else bind();
 })();
 
+// --- Emissions: save emissions table, middle info, and warnings to /mechanic/emissions ---
+(function wireEmissionsSave() {
+  const bind = function() {
+    try {
+      const saveBtn = document.querySelector('.section-save[data-section="emissions"]');
+      const emissionsSection = document.getElementById('emissions');
+      if (!saveBtn || !emissionsSection) return;
+      if (saveBtn.dataset.boundEmissionsSave === '1') return;
+      saveBtn.dataset.boundEmissionsSave = '1';
+
+      saveBtn.addEventListener('click', async function(e) {
+        e.preventDefault(); e.stopPropagation();
+        const ticketId = (window.__SERVER_TICKET__ && window.__SERVER_TICKET__.id) || document.getElementById('vehicle-ticketId')?.value || document.getElementById('ticketId')?.value || '';
+        if (!ticketId) { console.error('Cannot save emissions: missing ticket id. Save Repair Order first.'); return; }
+
+        // collect table rows
+        const table = emissionsSection.querySelector('table');
+        const items = [];
+        if (table) {
+          const rows = Array.from(table.querySelectorAll('tbody tr'));
+          rows.forEach(row => {
+            try {
+              const item = (row.cells && row.cells[0] ? row.cells[0].textContent : '').trim();
+              if (!item) return;
+              const status = row.querySelector('select') ? (row.querySelector('select').value || '').trim() : '';
+              const notes = row.querySelector('input[type="text"], textarea') ? (row.querySelector('input[type="text"], textarea').value || '').trim() : '';
+              items.push({ item, status, notes });
+            } catch (e) { /* ignore row */ }
+          });
+        }
+
+        // collect middle emissions info
+        const emissionsInfo = {};
+        try {
+          const selects = emissionsSection.querySelectorAll('.form-grid .form-group');
+          // find inputs by label text
+          const groups = Array.from(emissionsSection.querySelectorAll('.form-grid .form-group'));
+          groups.forEach(g => {
+            const label = (g.querySelector('label') && g.querySelector('label').textContent || '').toLowerCase();
+            const input = g.querySelector('input,select,textarea');
+            if (!input) return;
+            const val = input.value || '';
+            if (label.includes('obd')) emissionsInfo.OBD = val;
+            else if (label.includes('state') || label.includes('inspection')) emissionsInfo.inspections = val;
+            else if (label.includes('emission') && label.includes('due')) emissionsInfo.emissionsDue = val;
+            else if (label.includes('next oil') || label.includes('next oil change')) emissionsInfo.nextOilChange = val;
+            else if (label.includes('inspected by') && !label.includes('re-')) emissionsInfo.inspectedBy = val;
+            else if (label.includes('re-inspected') || label.includes('re inspected')) emissionsInfo.reInspectedBy = val;
+          });
+        } catch (e) { /* ignore */ }
+
+        // tags (warnings)
+        const tagsHidden = document.getElementById('tags-hidden');
+        let tags = [];
+        if (tagsHidden && tagsHidden.value) tags = tagsHidden.value.split(',').map(s=>s.trim()).filter(Boolean);
+
+        // parent comments
+        const parentCommentsInput = emissionsSection.querySelector('.form-group.full-width input[type="text"], .form-group.full-width textarea');
+        const parentComments = parentCommentsInput ? (parentCommentsInput.value || '').trim() : '';
+
+        // assemble payload
+        const payload = { ticketId, items, emissions: emissionsInfo, tags, comments: parentComments };
+
+        try {
+          const res = await fetch('/mechanic/emissions', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+          });
+          if (res.status === 204) { console.log('Emissions saved (204)'); return; }
+          if (res.ok) { let p = null; try { p = await res.json(); } catch(e){ } if (p && p.success) { console.log('Emissions saved'); return; } console.warn('Emissions save unexpected ok response', res.status, p); return; }
+          let err = null; try { err = await res.json(); } catch(e) { err = null; } console.error('Emissions save failed', res.status, err);
+        } catch (err) { console.error('Emissions save failed', err); }
+      });
+    } catch (err) { console.warn('wireEmissionsSave error', err); }
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind); else bind();
+})();
+
  // --- Vehicle Info: force AJAX submit to /mechanic/vehicle-info to avoid interfering with main ticket submit ---
  (function wireVehicleInfoForm() {
   try {
