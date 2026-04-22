@@ -333,7 +333,7 @@ router.post('/mechanic', (req, res) => {
                     }
                     else {
                         console.warn('No ticket ID after insert');
-                        return res.send('Ticket created, but failed to retrieve ID for repairs insertion. Please check your form ensure all fields are filled.');
+                        return res.send('Ticket created, but failed to retrieve ID for repairs insertion. Please check your form ensure all fields are filled. RO Number must be unique as well');
                     }
                 });
             });
@@ -1112,6 +1112,7 @@ router.post('/upload-video', videoUpload.single('video'), (req, res) => {
             });
             return;
         }
+        
         res.json({ success: true, id: this.lastID, path: relativePath });
     });
 });
