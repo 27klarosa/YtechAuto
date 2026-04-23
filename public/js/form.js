@@ -764,8 +764,6 @@ document.addEventListener('DOMContentLoaded', function () {
       const custAddress = custAddressEl ? custAddressEl.value.trim() : '';
       if (!custAddress) errors.push('Customer address is required.');
 
-      // (mileage validation removed)
-
       const diagnosis = diagnosisEl ? diagnosisEl.value.trim() : '';
       if (!diagnosis) errors.push('Diagnosis is required. Put N/A if none.');
 
@@ -907,6 +905,9 @@ document.addEventListener('DOMContentLoaded', function () {
               }
               const lowerLabel = (labelText || '').toLowerCase();
               if (lowerLabel.includes('comments') || lowerLabel.includes('notes')) return;
+              // treat warnings/tags as optional
+              if (lowerLabel.includes('warning') || lowerLabel.includes('warnings')) return;
+              if ((el.id && el.id.toLowerCase().includes('tag')) || (el.name && el.name.toLowerCase().includes('tag'))) return;
 
               // skip inputs that are part of the repairs table (we validate repairs separately)
               if (el.closest && el.closest('#repairs-table')) return;
@@ -914,7 +915,7 @@ document.addEventListener('DOMContentLoaded', function () {
               // For selects, ensure a non-empty value
               if (el.tagName.toLowerCase() === 'select') {
                 if (!el.value || String(el.value).trim() === '') {
-                  const name = labelText || (el.name || el.id) || 'Unnamed select';
+                  const name = labelText || el.name || el.id || el.getAttribute('placeholder') || el.getAttribute('aria-label') || 'Field (no label)';
                   errors.push(`Required: ${name}`);
                 }
                 return;
@@ -923,7 +924,7 @@ document.addEventListener('DOMContentLoaded', function () {
               // For text inputs and textareas, require non-empty
               const val = (el.value || '').toString().trim();
               if (!val) {
-                const name = labelText || (el.name || el.id) || 'Unnamed field';
+                const name = labelText || el.name || el.id || el.getAttribute('placeholder') || el.getAttribute('aria-label') || 'Field (no label)';
                 errors.push(`Required: ${name}`);
               }
             } catch (e) {
@@ -1063,10 +1064,34 @@ document.addEventListener('DOMContentLoaded', function () {
         }
       }
 
-      const status = document.getElementById('ticketStatus');
-      if (status) status.value = 'complete';
-      // use requestSubmit so the form's submit handler runs
-      try { form.requestSubmit(); } catch (e) { form.submit(); }
+      // prefer calling the dedicated completeTicket route so the server marks this ticket complete
+      const ticketId = (window.__SERVER_TICKET__ && window.__SERVER_TICKET__.id) || document.getElementById('vehicle-ticketId')?.value || document.getElementById('tires-ticketId')?.value || document.getElementById('ticketId')?.value || '';
+      if (!ticketId) {
+        alert('Cannot complete ticket: ticket id not found.');
+        return;
+      }
+
+      try {
+        fetch('/mechanic/completeTicket', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ticketId })
+        }).then(res => {
+          if (res.status === 204) {
+            // mark UI and redirect to list or refresh
+            alert('Ticket marked complete.');
+            window.location.href = '/mechanicDis';
+            return;
+          }
+          return res.json().then(j => { throw new Error(j && j.error ? j.error : 'Unknown error'); });
+        }).catch(err => {
+          console.error('Failed to complete ticket', err);
+          alert('Failed to complete ticket: ' + (err && err.message ? err.message : 'See console'));
+        });
+      } catch (e) {
+        console.error('Complete ticket fetch failed', e);
+        alert('Failed to complete ticket.');
+      }
     });
   })();
 
