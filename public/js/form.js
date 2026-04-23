@@ -680,6 +680,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     async function validateAndSubmit(e) {
       e.preventDefault();
+      try { console.log('validateAndSubmit invoked'); } catch(e) {}
       const errors = [];
 
       // collect elements used earlier in your validation
@@ -698,6 +699,7 @@ document.addEventListener('DOMContentLoaded', function () {
       // if the user clicked Complete Ticket, we should validate the Digital Courtesy Check first
       const ticketStatusElTop = document.getElementById('ticketStatus');
       const tryingToCompleteTop = ticketStatusElTop && ticketStatusElTop.value === 'complete';
+      try { console.log('validateAndSubmit: ticketStatus=', ticketStatusElTop ? ticketStatusElTop.value : '(none)'); } catch(e) {}
       if (tryingToCompleteTop) {
         const courtesy = document.getElementById('courtesy-check');
         if (courtesy) {
@@ -747,7 +749,11 @@ document.addEventListener('DOMContentLoaded', function () {
       // basic required checks
       const roNum = roNumEl ? roNumEl.value.trim() : '';
       if (!roNum) errors.push('Repair Order number is required.');
-      else if (isNaN(Number(roNum))) errors.push('Repair Order number must be a valid number.');
+      else {
+        // allow alphanumeric repair order identifiers (letters, numbers, hyphen, underscore and spaces)
+        const validRo = /^[A-Za-z0-9\-_ ]+$/;
+        if (!validRo.test(roNum)) errors.push('Repair Order must contain only letters, numbers, hyphen, underscore or spaces.');
+      }
 
       const roDate = roDateEl ? roDateEl.value : '';
       if (!roDate) errors.push('Date is required.');
@@ -1064,34 +1070,11 @@ document.addEventListener('DOMContentLoaded', function () {
         }
       }
 
-      // prefer calling the dedicated completeTicket route so the server marks this ticket complete
-      const ticketId = (window.__SERVER_TICKET__ && window.__SERVER_TICKET__.id) || document.getElementById('vehicle-ticketId')?.value || document.getElementById('tires-ticketId')?.value || document.getElementById('ticketId')?.value || '';
-      if (!ticketId) {
-        alert('Cannot complete ticket: ticket id not found.');
-        return;
-      }
-
-      try {
-        fetch('/mechanic/completeTicket', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ticketId })
-        }).then(res => {
-          if (res.status === 204) {
-            // mark UI and redirect to list or refresh
-            alert('Ticket marked complete.');
-            window.location.href = '/mechanicDis';
-            return;
-          }
-          return res.json().then(j => { throw new Error(j && j.error ? j.error : 'Unknown error'); });
-        }).catch(err => {
-          console.error('Failed to complete ticket', err);
-          alert('Failed to complete ticket: ' + (err && err.message ? err.message : 'See console'));
-        });
-      } catch (e) {
-        console.error('Complete ticket fetch failed', e);
-        alert('Failed to complete ticket.');
-      }
+      // mark the form to indicate we're completing and let the form submit handler perform validation
+      const status = document.getElementById('ticketStatus');
+      if (status) status.value = 'complete';
+      try { console.log('Complete button: submitting form via requestSubmit'); } catch(e) {}
+      try { form.requestSubmit(); } catch (e) { form.submit(); }
     });
   })();
 
