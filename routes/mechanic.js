@@ -86,7 +86,7 @@ const videoUpload = multer({
     }
 });
 
-// image storage 
+// image storage (matches video flow, uses field name 'image')
 const imageStorage = multer.diskStorage({
     destination: function (req, file, cb) { cb(null, imageDir); },
     filename: function (req, file, cb) {
@@ -104,20 +104,19 @@ const imageUpload = multer({
     }
 });
 
-// signature storage 
+// signature storage + multipart upload route
 const signatureStorage = multer.diskStorage({
     destination: function (req, file, cb) { cb(null, signatureDir); },
     filename: function (req, file, cb) {
-        let name = (req.body && req.body.signatureFilename) || file.originalname || 'signature.png';
-        name = path.basename(String(name));
-        name = name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 255);
-        cb(null, name);
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+        const ext = path.extname(file.originalname) || '.png';
+        cb(null, 'signature-' + uniqueSuffix + ext);
     }
 });
 
 const signatureUpload = multer({
     storage: signatureStorage,
-    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
     fileFilter: function (req, file, cb) {
         if (file.mimetype && file.mimetype.startsWith('image/')) cb(null, true);
         else cb(new Error('Only image files are allowed'));
@@ -208,7 +207,45 @@ router.get('/mechanic', (req, res) => {
                                         ticket.sections = ticket.sections || {};
                                         ticket.sections.brakesTable = brakesRows;
                                     }
-                                    return res.render('mechanic', { ticket, editMode: explicitEdit });
+
+                                    // load emissions child rows joined to their parent (emissions) so client can populate the visual table
+                                    const emissionsJoinSql = `
+                                                                        SELECT et.*, e.ticketID AS emissionsTicketID, e.comments AS emissionsComments, e.obd AS emissionsOBD, e.inspections AS emissionsInspections, e.emissionsDue AS emissionsDue, e.nextOilChange AS emissionsNextOilChange, e.inspectedBy AS emissionsInspectedBy, e.reInspectedBy AS emissionsReInspectedBy
+                                                                        FROM emissionsTable et
+                                                                        INNER JOIN emissions e ON et.emissionsID = e.id
+                                                                        WHERE e.ticketID = ?
+                                                                        ORDER BY et.id ASC
+                                                                    `;
+
+                                    db.all(emissionsJoinSql, [ticketId], (emErr, emissionsRows) => {
+                                        if (emErr) {
+                                            console.error('Error loading emissions joined rows:', emErr);
+                                        } else {
+                                            ticket.sections = ticket.sections || {};
+                                            ticket.sections.emissionsTable = emissionsRows || [];
+                                        }
+
+                                        // also fetch the emissions parent row (contains ticket-level fields and comments)
+                                        db.get('SELECT * FROM emissions WHERE ticketID = ?', [ticketId], (epErr, emissionsParent) => {
+                                            if (epErr) {
+                                                console.error('Error fetching emissions parent:', epErr);
+                                            }
+                                            ticket.sections = ticket.sections || {};
+                                            ticket.sections.emissions = emissionsParent || null;
+
+                                            // fetch warnings linked to this emissions parent (if any)
+                                            if (emissionsParent && emissionsParent.id) {
+                                                db.all('SELECT * FROM warningsTable WHERE emissionsID = ?', [emissionsParent.id], (wErr, warnRows) => {
+                                                    if (wErr) console.error('Error loading emissions warnings:', wErr);
+                                                    ticket.sections.emissionsWarnings = warnRows || [];
+                                                    return res.render('mechanic', { ticket, editMode: explicitEdit });
+                                                });
+                                            } else {
+                                                ticket.sections.emissionsWarnings = [];
+                                                return res.render('mechanic', { ticket, editMode: explicitEdit });
+                                            }
+                                        });
+                                    });
                                 });
                             });
                         });
@@ -308,48 +345,45 @@ router.post('/mechanic', async (req, res) => {
         return res.status(500).send('Failed to save signature');
     }
 
+    // Ensure Repair Order is provided (schema requires a repairOrderNumber/roNum)
+    if (!roNum || String(roNum).trim() === '') {
+        console.warn('POST /mechanic: missing roNum in request body');
+        return res.status(400).send('Repair Order number (roNum) is required');
+    }
+
     // parse repairs
     let repairs = [];
     try { if (req.body.repairs) repairs = JSON.parse(req.body.repairs); } catch (e) { repairs = []; }
 
     const recommendedRepairsText = JSON.stringify(repairs || []);
 
-    const insertTicketSql = `INSERT INTO tickets (date, techName, timeIn, timeOut, totalTime, customerName, customerAddress, customerPhone, customerEmail, concern, diagnosis, recommendedRepairs, dateSigned) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-    const ticketParams = [roDate, technician, timeArrive, timeOut, totTime, custName, custAdd, custPhone, custEmail, concern, diagnosis, recommendedRepairsText, sDate];
+    // read incoming ticket id (if editing an existing ticket)
+    const incomingTicketId = req.body.ticketId;
 
-    db.run(insertTicketSql, ticketParams, function (err) {
-        // Ensure schema has roNum column, then INSERT
-        db.all("PRAGMA table_info('tickets')", [], (err, cols) => {
-            if (err) {
-                console.error('Failed to read tickets table info', err);
-                return res.status(500).send('Database error');
-            }
-            const hasRepairOrderNumber = Array.isArray(cols) && cols.some(c => c && c.name === 'repairOrderNumber');
-            const hasRo = Array.isArray(cols) && cols.some(c => c && c.name === 'roNum');
-            const hasCustomerSignature = Array.isArray(cols) && cols.some(c => c && c.name === 'customerSignature');
-            const chooseAndInsert = (colName) => {
-                // include customerSignature column if present
-                const extraCol = hasCustomerSignature ? ', customerSignature' : '';
-                const insertCols = `${colName}, date, techName, timeIn, timeOut, totalTime, customerName, customerAddress, customerPhone, customerEmail, concern, diagnosis, recommendedRepairs, dateSigned${extraCol}, stat`;
-                const insertPlaceholders = Array(insertCols.split(',').length).fill('?').join(', ');
-                const insertTicketSql = `INSERT INTO tickets (${insertCols}) VALUES (${insertPlaceholders})`;
-                const ticketParams = [roNum, roDate, technician, timeArrive, timeOut, totTime, custName, custAdd, custPhone, custEmail, concern, diagnosis, recommendedRepairsText, sDate];
-                if (hasCustomerSignature) {
-                    ticketParams.push(savedSignature ? savedSignature.relativePath : null);
+    // Ensure schema has roNum/repairOrderNumber column, then INSERT or UPDATE with RO included
+    db.all("PRAGMA table_info('tickets')", [], (err, cols) => {
+        if (err) {
+            console.error('Failed to read tickets table info', err);
+        }
+        const hasRepairOrderNumber = Array.isArray(cols) && cols.some(c => c && c.name === 'repairOrderNumber');
+        const hasRo = Array.isArray(cols) && cols.some(c => c && c.name === 'roNum');
+
+        const performUpdate = (colName, targetId) => {
+            const updateCols = `${colName} = ?, date = ?, techName = ?, timeIn = ?, timeOut = ?, totalTime = ?, customerName = ?, customerAddress = ?, customerPhone = ?, customerEmail = ?, concern = ?, diagnosis = ?, recommendedRepairs = ?, dateSigned = ?, stat = ?`;
+            const updateSql = `UPDATE tickets SET ${updateCols} WHERE id = ?`;
+            const updateParams = [roNum, roDate, technician, timeArrive, timeOut, totTime, custName, custAdd, custPhone, custEmail, concern, diagnosis, recommendedRepairsText, sDate, ticketStatus, targetId];
+            console.log('Updating ticket id', targetId, 'with params:', updateParams);
+            db.run(updateSql, updateParams, function (updErr) {
+                if (updErr) {
+                    console.error('Failed to update ticket:', updErr);
+                    return res.status(500).send('Failed to update ticket: ' + (updErr && updErr.message ? updErr.message : 'unknown'));
                 }
-                ticketParams.push(ticketStatus);
-                console.log('Inserting ticket with params:', ticketParams);
 
-                db.run(insertTicketSql, ticketParams, function (err) {
-                    if (err) {
-                        console.error('Failed to insert ticket:', err);
-                        return res.status(500).send('Failed to save ticket');
-                    }
+                // Replace recRepairs for this ticket
+                db.run('DELETE FROM recRepairs WHERE ticketId = ?', [targetId], (delErr) => {
+                    if (delErr) console.error('Failed to delete old recRepairs for ticket', targetId, delErr);
 
-                    const ticketId = this.lastID;
-                    console.log('Inserted ticket id', ticketId);
-
-                    if (!repairs || repairs.length === 0) return res.redirect('/mechanic?id=' + ticketId);
+                    if (!repairs || repairs.length === 0) return res.redirect('/mechanic?id=' + targetId);
 
                     const insertRecSql = `INSERT INTO recRepairs (ticketId, repairDescription, qty, partNumber, partPrice, partsTotal, laborHours, laborTotal) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
                     const stmt = db.prepare(insertRecSql);
@@ -362,13 +396,104 @@ router.post('/mechanic', async (req, res) => {
                         const laborHours = Number.isFinite(Number(r.laborHours)) ? parseFloat(r.laborHours) : (r.laborHours ? parseFloat(r.laborHours) : 0);
                         const laborTotal = Number.isFinite(Number(r.laborTotal)) ? parseFloat(r.laborTotal) : (r.laborTotal ? parseFloat(r.laborTotal) : (laborHours * 100));
 
-                        stmt.run([ticketId, desc, qty, partNumber, partPrice, partsTotal, laborHours, laborTotal], (err) => {
-                            if (err) console.error('Failed to insert recRepair row:', err);
+                        stmt.run([targetId, desc, qty, partNumber, partPrice, partsTotal, laborHours, laborTotal], (rErr) => {
+                            if (rErr) console.error('Failed to insert recRepair row for updated ticket:', rErr);
                         });
                     });
-                    stmt.finalize((err) => {
-                        if (err) console.error('Failed finalizing recRepairs stmt:', err);
-                        return res.redirect('/mechanic?id=' + ticketId);
+                    stmt.finalize((finalErr) => {
+                        if (finalErr) console.error('Failed finalizing recRepairs stmt for updated ticket:', finalErr);
+                        return res.redirect('/mechanic?id=' + targetId);
+                    });
+                });
+            });
+        };
+
+        const chooseAndInsert = (colName) => {
+            const insertCols = `${colName}, date, techName, timeIn, timeOut, totalTime, customerName, customerAddress, customerPhone, customerEmail, concern, diagnosis, recommendedRepairs, dateSigned, stat`;
+            const insertPlaceholders = Array(insertCols.split(',').length).fill('?').join(', ');
+            const insertTicketSql = `INSERT INTO tickets (${insertCols}) VALUES (${insertPlaceholders})`;
+            const ticketParams = [roNum, roDate, technician, timeArrive, timeOut, totTime, custName, custAdd, custPhone, custEmail, concern, diagnosis, recommendedRepairsText, sDate, ticketStatus];
+            console.log('Inserting ticket with params:', ticketParams);
+
+            db.run(insertTicketSql, ticketParams, function (err) {
+                if (err) {
+                    console.error('Failed to insert ticket:', err);
+                    // handle UNIQUE constraint on repairOrderNumber by updating the existing ticket instead
+                    if (err.code === 'SQLITE_CONSTRAINT' && String(err.message).toLowerCase().includes('repairordernumber')) {
+                        console.log('repairOrderNumber already exists — attempting to update existing ticket and replace repairs');
+                        return db.get('SELECT id FROM tickets WHERE repairOrderNumber = ?', [roNum], (getErr, existingRow) => {
+                            if (getErr) {
+                                console.error('Failed to lookup existing ticket by repairOrderNumber:', getErr);
+                                return res.status(500).send('DB error looking up existing ticket');
+                            }
+                            if (!existingRow || !existingRow.id) {
+                                console.error('Unique constraint reported but existing ticket not found for RO:', roNum);
+                                return res.status(500).send('Unique constraint on repair order and existing ticket not found');
+                            }
+                            const existingId = existingRow.id;
+                            // update ticket record with new values
+                            const updateSql = `UPDATE tickets SET date=?, techName=?, timeIn=?, timeOut=?, totalTime=?, customerName=?, customerAddress=?, customerPhone=?, customerEmail=?, concern=?, diagnosis=?, recommendedRepairs=?, dateSigned=?, stat=? WHERE id=?`;
+                            const updateParams = [roDate, technician, timeArrive, timeOut, totTime, custName, custAdd, custPhone, custEmail, concern, diagnosis, recommendedRepairsText, sDate, ticketStatus, existingId];
+                            db.run(updateSql, updateParams, function (updErr) {
+                                if (updErr) {
+                                    console.error('Failed to update existing ticket:', updErr);
+                                    return res.status(500).send('Failed to update existing ticket: ' + (updErr.message || 'unknown'));
+                                }
+
+                                // Replace existing recRepairs for this ticket with the provided repairs
+                                db.run('DELETE FROM recRepairs WHERE ticketId = ?', [existingId], (delErr) => {
+                                    if (delErr) console.error('Failed to delete old recRepairs for ticket', existingId, delErr);
+
+                                    if (!repairs || repairs.length === 0) return res.redirect('/mechanic?id=' + existingId);
+
+                                    const insertRecSql = `INSERT INTO recRepairs (ticketId, repairDescription, qty, partNumber, partPrice, partsTotal, laborHours, laborTotal) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
+                                    const stmt = db.prepare(insertRecSql);
+                                    repairs.forEach(r => {
+                                        const desc = r.repairDescription || '';
+                                        const qty = Number.isFinite(Number(r.qty)) ? parseInt(r.qty) : (r.qty ? parseInt(r.qty) : 0);
+                                        const partNumber = r.partNumber || '';
+                                        const partPrice = Number.isFinite(Number(r.partPrice)) ? parseFloat(r.partPrice) : (r.partPrice ? parseFloat(r.partPrice) : 0);
+                                        const partsTotal = Number.isFinite(Number(r.partsTotal)) ? parseFloat(r.partsTotal) : (r.partsTotal ? parseFloat(r.partsTotal) : (qty * partPrice));
+                                        const laborHours = Number.isFinite(Number(r.laborHours)) ? parseFloat(r.laborHours) : (r.laborHours ? parseFloat(r.laborHours) : 0);
+                                        const laborTotal = Number.isFinite(Number(r.laborTotal)) ? parseFloat(r.laborTotal) : (r.laborTotal ? parseFloat(r.laborTotal) : (laborHours * 100));
+
+                                        stmt.run([existingId, desc, qty, partNumber, partPrice, partsTotal, laborHours, laborTotal], (rErr) => {
+                                            if (rErr) console.error('Failed to insert recRepair row for existing ticket:', rErr);
+                                        });
+                                    });
+                                    stmt.finalize((finalErr) => {
+                                        if (finalErr) console.error('Failed finalizing recRepairs stmt for existing ticket:', finalErr);
+                                        return res.redirect('/mechanic?id=' + existingId);
+                                    });
+                                });
+                            });
+                        });
+                    }
+                    return res.status(500).send('Failed to insert ticket: ' + (err && err.message ? err.message : 'unknown'));
+                }
+
+                const ticketId = this.lastID;
+                console.log('Inserted ticket id', ticketId);
+                if (!ticketId) {
+                    console.warn('No lastID returned after ticket insert');
+                    return res.status(500).send('Failed to create ticket record (no id returned)');
+                }
+
+                if (!repairs || repairs.length === 0) return res.redirect('/mechanic?id=' + ticketId);
+
+                const insertRecSql = `INSERT INTO recRepairs (ticketId, repairDescription, qty, partNumber, partPrice, partsTotal, laborHours, laborTotal) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
+                const stmt = db.prepare(insertRecSql);
+                repairs.forEach(r => {
+                    const desc = r.repairDescription || '';
+                    const qty = Number.isFinite(Number(r.qty)) ? parseInt(r.qty) : (r.qty ? parseInt(r.qty) : 0);
+                    const partNumber = r.partNumber || '';
+                    const partPrice = Number.isFinite(Number(r.partPrice)) ? parseFloat(r.partPrice) : (r.partPrice ? parseFloat(r.partPrice) : 0);
+                    const partsTotal = Number.isFinite(Number(r.partsTotal)) ? parseFloat(r.partsTotal) : (r.partsTotal ? parseFloat(r.partsTotal) : (qty * partPrice));
+                    const laborHours = Number.isFinite(Number(r.laborHours)) ? parseFloat(r.laborHours) : (r.laborHours ? parseFloat(r.laborHours) : 0);
+                    const laborTotal = Number.isFinite(Number(r.laborTotal)) ? parseFloat(r.laborTotal) : (r.laborTotal ? parseFloat(r.laborTotal) : (laborHours * 100));
+
+                    stmt.run([ticketId, desc, qty, partNumber, partPrice, partsTotal, laborHours, laborTotal], (err) => {
+                        if (err) console.error('Failed to insert recRepair row:', err);
                     });
                 });
                 stmt.finalize((err) => {
@@ -381,19 +506,27 @@ router.post('/mechanic', async (req, res) => {
                         return res.send('Ticket created, but failed to retrieve ID for repairs insertion. Please check your form ensure all fields are filled. RO Number must be unique as well');
                     }
                 });
-            };
+            });
+        };
+
+        if (hasRepairOrderNumber) {
+            if (incomingTicketId) return performUpdate('repairOrderNumber', incomingTicketId);
+            return chooseAndInsert('repairOrderNumber');
+        }
+        if (hasRo) {
+            if (incomingTicketId) return performUpdate('roNum', incomingTicketId);
+            return chooseAndInsert('roNum');
+        }
+
+        // prefer adding repairOrderNumber to match existing schema expectations
+        db.run("ALTER TABLE tickets ADD COLUMN repairOrderNumber TEXT", [], (err2) => {
+            if (err2) console.error('Failed to add repairOrderNumber column to tickets table', err2);
+            if (incomingTicketId) return performUpdate('repairOrderNumber', incomingTicketId);
+            chooseAndInsert('repairOrderNumber');
         });
     });
-
-    if (hasRepairOrderNumber) return chooseAndInsert('repairOrderNumber');
-    if (hasRo) return chooseAndInsert('roNum');
-
-    // prefer adding repairOrderNumber to match existing schema expectations
-    db.run("ALTER TABLE tickets ADD COLUMN repairOrderNumber TEXT", [], (err2) => {
-        if (err2) console.error('Failed to add repairOrderNumber column to tickets table', err2);
-        chooseAndInsert('repairOrderNumber');
-    });
 });
+
 
 router.post('/mechanic/vehicle-info', (req, res) => {
     const db = req.app.locals.db;
@@ -914,6 +1047,221 @@ router.post('/mechanic/brakes', (req, res) => {
 
 });
 
+router.post('/mechanic/emissions', (req, res) => {
+    const db = req.app.locals.db;
+    if (!db) return res.status(500).json({ error: 'Database not available' });
+
+    // normalize body (accept JSON or form fields)
+    let body = req.body || {};
+    if (typeof body === 'string') {
+        try { body = JSON.parse(body); } catch (e) { body = {}; }
+    }
+
+    const ticketId = body.ticketId || body.ticketID || req.query.ticketId || req.query.ticketID;
+    if (!ticketId) return res.status(400).json({ error: 'ticketId is required' });
+
+    // items for emissions table (visual items)
+    let items = body.items || body.rows || body.table || null;
+    if (!items && body.payload) {
+        try { const p = typeof body.payload === 'string' ? JSON.parse(body.payload) : body.payload; items = p.items || p.rows || null; } catch (e) { }
+    }
+    if (typeof items === 'string') {
+        try { items = JSON.parse(items); } catch (e) { items = null; }
+    }
+
+    // middle emissions info
+    const emissionsInfo = body.emissions || body.data || {};
+    // also accept individual fields
+    const OBD = emissionsInfo.OBD || body.OBD || body.obd || '';
+    const inspections = emissionsInfo.inspections || body.inspections || '';
+    const emissionsDue = emissionsInfo.emissionsDue || body.emissionsDue || body.emissions_due || '';
+    const nextOilChange = emissionsInfo.nextOilChange || body.nextOilChange || body.next_oil_change || '';
+    const inspectedBy = emissionsInfo.inspectedBy || body.inspectedBy || body.inspected_by || '';
+    const reInspectedBy = emissionsInfo.reInspectedBy || body.reInspectedBy || body.re_inspected_by || '';
+    const warningsText = emissionsInfo.warnings || body.warningsText || body.warnings || '';
+    // ensure comments always defined and add debug logging to inspect incoming payload
+    const comments = emissionsInfo.comments || body.comments || body.emissionsComments || '';
+    try { console.log('POST /mechanic/emissions - raw body keys:', Object.keys(body)); } catch (e) { }
+    try { console.log('POST /mechanic/emissions - body snapshot:', JSON.stringify(body)); } catch (e) { }
+    console.log('Received emissions info:', { OBD, inspections, emissionsDue, nextOilChange, inspectedBy, reInspectedBy, warningsText, comments });
+    // tags/warnings array
+    let tags = body.tags || body.warnings || emissionsInfo.tags || emissionsInfo.warnings || null;
+    if (typeof tags === 'string') {
+        try { tags = JSON.parse(tags); } catch (e) { tags = tags.split(',').map(s => s.trim()).filter(Boolean); }
+    }
+    tags = Array.isArray(tags) ? tags : (tags ? [tags] : []);
+
+    items = Array.isArray(items) ? items : (items ? [items] : []);
+
+    // normalize items rows
+    const normalizedItems = items.map(it => ({
+        item: (it.item || it.name || it.label || '').toString().trim(),
+        status: (it.status || it.State || it.state || '').toString().trim(),
+        notes: (it.notes || it.note || '').toString().trim()
+    })).filter(it => it.item);
+
+    db.serialize(() => {
+        // ensure emissionsTable has emissionsID column and warningsTable has emissionsID column (for parent-child link)
+        db.all("PRAGMA table_info('emissionsTable')", [], (piErr, cols) => {
+            if (piErr) console.warn('PRAGMA emissionsTable failed', piErr);
+            const hasEmissionsID = Array.isArray(cols) && cols.find(c => String(c.name).toLowerCase() === 'emissionsid');
+            const ensureEmissionsID = (cb) => {
+                if (hasEmissionsID) return cb && cb();
+                db.run("ALTER TABLE emissionsTable ADD COLUMN emissionsID INTEGER", [], (altErr) => { if (altErr) console.warn('Failed add emissionsID to emissionsTable', altErr); return cb && cb(); });
+            };
+
+            db.all("PRAGMA table_info('warningsTable')", [], (pwErr, wcols) => {
+                if (pwErr) console.warn('PRAGMA warningsTable failed', pwErr);
+                const hasWarnEmissionsID = Array.isArray(wcols) && wcols.find(c => String(c.name).toLowerCase() === 'emissionsid');
+                const ensureWarningsEmissionsID = (cb) => {
+                    if (hasWarnEmissionsID) return cb && cb();
+                    db.run("ALTER TABLE warningsTable ADD COLUMN emissionsID INTEGER", [], (altErr) => { if (altErr) console.warn('Failed add emissionsID to warningsTable', altErr); return cb && cb(); });
+                };
+
+                ensureEmissionsID(() => ensureWarningsEmissionsID(() => {
+                    // find or create parent emissions row
+                    db.get('SELECT id FROM emissions WHERE ticketID = ?', [ticketId], (gErr, prow) => {
+                        if (gErr) { console.error('Find emissions parent error', gErr); return res.status(500).json({ error: 'DB error' }); }
+
+                        // helper: update parent emissions fields only for columns that exist
+                        const updateParentFields = (parentId, cb) => {
+                            db.all("PRAGMA table_info('emissions')", [], (piErr, cols) => {
+                                if (piErr) { console.warn('PRAGMA emissions check failed', piErr); if (cb) cb(); return; }
+                                const existing = Array.isArray(cols) ? cols.map(c => String(c.name).toLowerCase()) : [];
+                                const parts = [];
+                                const params = [];
+                                const mapping = {
+                                    obd: OBD,
+                                    inspections: inspections,
+                                    emissionsdue: emissionsDue,
+                                    nextoilchange: nextOilChange,
+                                    inspectedby: inspectedBy,
+                                    reinspectedby: reInspectedBy,
+                                    warnings: warningsText,
+                                    comments: comments
+                                };
+                                Object.keys(mapping).forEach(k => {
+                                    if (existing.includes(k)) {
+                                        parts.push(k + ' = ?');
+                                        params.push(mapping[k] || '');
+                                    }
+                                });
+                                if (!parts.length) { if (cb) cb(); return; }
+                                const sql = `UPDATE emissions SET ${parts.join(', ')} WHERE id = ?`;
+                                params.push(parentId);
+                                db.run(sql, params, (uErr) => {
+                                    if (uErr) console.warn('Failed update emissions parent (dynamic)', uErr);
+                                    if (cb) cb();
+                                });
+                            });
+                        };
+
+                        // helper: create parent emissions row using actual table columns
+                        const createParentRow = (cb) => {
+                            db.all("PRAGMA table_info('emissions')", [], (piErr, cols) => {
+                                if (piErr) { console.warn('PRAGMA emissions failed', piErr); return cb(piErr); }
+                                const colInfos = Array.isArray(cols) ? cols.filter(c => c && c.name && c.name.toLowerCase() !== 'id') : [];
+                                const colNames = colInfos.map(c => c.name);
+                                if (!colNames.length) return cb(new Error('No columns found for emissions'));
+                                const values = colNames.map((cn, idx) => {
+                                    const lower = cn.toLowerCase();
+                                    if (lower === 'ticketid' || lower === 'ticket_id') return ticketId;
+                                    if (lower === 'obd') return OBD || '';
+                                    if (lower === 'inspections') return inspections || '';
+                                    if (lower === 'emissionsdue') return emissionsDue || '';
+                                    if (lower === 'nextoilchange') return nextOilChange || '';
+                                    if (lower === 'inspectedby') return inspectedBy || '';
+                                    if (lower === 'reinspectedby') return reInspectedBy || '';
+                                    if (lower === 'warnings') return warningsText || '';
+                                    if (lower === 'comments') return comments || '';
+                                    // default for other columns: empty string if NOT NULL, otherwise null
+                                    try { const info = colInfos[idx]; return (info && info.notnull) ? '' : null; } catch (e) { return null; }
+                                });
+                                const placeholders = colNames.map(() => '?').join(', ');
+                                const sql = `INSERT INTO emissions (${colNames.join(', ')}) VALUES (${placeholders})`;
+                                db.run(sql, values, function (insErr) {
+                                    if (insErr) return cb(insErr);
+                                    return cb(null, this.lastID);
+                                });
+                            });
+                        };
+
+                        const upsertParent = (parentId, created) => {
+                            // delete existing child rows linked to this parent
+                            db.run('DELETE FROM emissionsTable WHERE emissionsID = ?', [parentId], (delErr) => {
+                                if (delErr) console.warn('Failed to delete old emissionsTable rows', delErr);
+
+                                // ensure the parent comments are saved immediately so they persist even if child/warning processing errors occur
+                                db.run('UPDATE emissions SET comments = ? WHERE id = ?', [comments || '', parentId], (cErr) => {
+                                    if (cErr) console.warn('Failed to explicitly update emissions comments', cErr);
+
+                                    // insert new child rows
+                                    if (!normalizedItems.length) {
+                                        // still update parent fields and warnings
+                                        const finalize = () => saveWarnings(parentId);
+                                        if (created) return finalize();
+                                        // update parent dynamically according to existing columns
+                                        return updateParentFields(parentId, finalize);
+                                    }
+
+                                    const stmt = db.prepare('INSERT INTO emissionsTable (emissionsID, item, status, notes) VALUES (?, ?, ?, ?)');
+                                    let pending = normalizedItems.length; let failed = false;
+                                    normalizedItems.forEach(row => {
+                                        stmt.run([parentId, row.item, row.status, row.notes], (itemErr) => {
+                                            if (failed) return;
+                                            if (itemErr) { failed = true; stmt.finalize(() => { console.error('Failed insert emissionsTable row', itemErr); return res.status(500).json({ error: 'Failed to save emissions table rows' }); }); return; }
+                                            pending -= 1;
+                                            if (pending === 0) {
+                                                stmt.finalize((finErr) => {
+                                                    if (finErr) { console.error('Failed finalize emissionsTable stmt', finErr); return res.status(500).json({ error: 'Failed to save emissions table rows' }); }
+                                                    // update parent fields now (use dynamic updater)
+                                                    updateParentFields(parentId, () => saveWarnings(parentId));
+                                                });
+                                            }
+                                        });
+                                    });
+                                });
+                            });
+                        };
+
+                        const saveWarnings = (parentId) => {
+                            // always update the emissions parent comments first (ensure comments persist even when no tags)
+                            db.run('UPDATE emissions SET comments = ? WHERE id = ?', [comments || '', parentId], (cErr) => {
+                                if (cErr) console.warn('Failed to update emissions comments explicitly', cErr);
+                                // remove existing warnings linked to this parent
+                                db.run('DELETE FROM warningsTable WHERE emissionsID = ?', [parentId], (wdelErr) => {
+                                    if (wdelErr) console.warn('Failed to delete old warnings', wdelErr);
+                                    if (!tags || tags.length === 0) return res.sendStatus(204);
+                                    const wstmt = db.prepare('INSERT INTO warningsTable (emissionsID, item) VALUES (?, ?)');
+                                    let wpending = tags.length; let wfailed = false;
+                                    tags.forEach(t => {
+                                        wstmt.run([parentId, (t || '').toString()], (we) => {
+                                            if (wfailed) return;
+                                            if (we) { wfailed = true; wstmt.finalize(() => { console.error('Failed insert warning', we); return res.status(500).json({ error: 'Failed to save warnings' }); }); return; }
+                                            wpending -= 1;
+                                            if (wpending === 0) { wstmt.finalize((wfin) => { if (wfin) { console.error('Failed finalize warnings stmt', wfin); return res.status(500).json({ error: 'Failed to save warnings' }); } return res.sendStatus(204); }); }
+                                        });
+                                    });
+                                });
+                            });
+                        };
+
+                        if (prow && prow.id) {
+                            upsertParent(prow.id, false);
+                        } else {
+                            // create parent emissions row using dynamic insert (handles schema differences)
+                            createParentRow((cErr, newId) => {
+                                if (cErr) { console.error('Failed create emissions parent', cErr); return res.status(500).json({ error: 'DB insert error' }); }
+                                upsertParent(newId, true);
+                            });
+                        }
+                    });
+                }));
+            });
+        });
+    });
+});
+
 // video upload route 
 router.post('/upload-video', videoUpload.single('video'), (req, res) => {
     const db = req.app.locals.db;
@@ -980,7 +1328,7 @@ router.post('/upload-image', imageUpload.array('image'), (req, res) => {
     });
 });
 
-//signatures upload route
+//signitures upload route
 router.post('/upload-signature', signatureUpload.single('signature'), (req, res) => {
     const db = req.app.locals.db;
     if (!db) {
