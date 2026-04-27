@@ -458,6 +458,7 @@ router.post('/mechanic', (req, res) => {
     });
 });
 
+
 router.post('/mechanic/vehicle-info', (req, res) => {
     const db = req.app.locals.db;
     if (!db) return res.status(500).json({ success: false, message: 'Database not available' });
