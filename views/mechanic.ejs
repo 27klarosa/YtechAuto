@@ -6,8 +6,13 @@
   <title>Mechanic - Auto Repair Ticket System</title>
   <link rel="stylesheet" href="/css/styles.css">
   <script src="/js/mockup.js"></script>
-  <% var safeEditMode = (typeof editMode !== 'undefined' && !!editMode); %>
-  <% if (typeof ticket !== 'undefined' && ticket) { %>
+  <%
+    // showEditable: true when creating a new ticket (no server ticket provided) OR when editMode is explicitly true
+    var hasServerTicket = (typeof ticket !== 'undefined' && ticket);
+    var safeEditMode = (typeof editMode !== 'undefined' && !!editMode);
+    var showEditable = (!hasServerTicket) || safeEditMode;
+  %>
+  <% if (hasServerTicket) { %>
   <script>
     window.__SERVER_TICKET__ = <%- JSON.stringify(ticket) %>;
     window.__MECHANIC_EDIT_MODE__ = <%= safeEditMode %>;
@@ -15,7 +20,7 @@
   <% } else { %>
   <script>window.__SERVER_TICKET__ = null; window.__MECHANIC_EDIT_MODE__ = false;</script>
   <% } %>
-  <% if (!safeEditMode) { %>
+  <% if (!showEditable) { %>
   <style>
     /* hide editable controls when not in edit mode */
     .editable-only { display: none !important; }
