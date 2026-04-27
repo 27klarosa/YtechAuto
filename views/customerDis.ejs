@@ -58,7 +58,8 @@
                 </div>
                 
                 <div style="margin-top: 1rem;">
-                    <a href="/customer?ticketId=<%= ticket.id %>" class="btn btn-primary">View Full Details</a>
+                    <a href="/customer?ticketId=<%= ticket.id %>" class="btn btn-primary">View Summary Details</a>
+                    <a href="/mechanic?id=<%= ticket.id %>" class="btn btn-secondary" style="margin-left: 8px;">View Full Ticket</a>
                 </div>
             </section>
         <% }) %>
