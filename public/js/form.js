@@ -205,8 +205,7 @@ document.addEventListener('DOMContentLoaded', function () {
       }
       const formData = new FormData();
       formData.append('video', selectedFile);
-
-      // include ticket id if available (server may expect ticketID / ticketId / id)
+       // include ticket id if available (server may expect ticketID / ticketId / id)
       let ticketId = (window.__SERVER_TICKET__ && window.__SERVER_TICKET__.id) ||
                      document.getElementById('vehicle-ticketId')?.value ||
                      document.getElementById('ticketId')?.value || null;
