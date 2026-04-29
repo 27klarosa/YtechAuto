@@ -160,7 +160,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   })();
 
-  // --- Video upload (keeps previous upload flow intact) ---
+  // --- Video upload ---
   (function setupVideoUpload() {
     const uploadZone = document.getElementById('video-upload-zone');
     const videoFileInput = document.getElementById('video-file');
