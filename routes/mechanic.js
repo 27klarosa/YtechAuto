@@ -104,7 +104,7 @@ const imageUpload = multer({
     }
 });
 
-// signature storage + multipart upload route
+// signature storage 
 const signatureStorage = multer.diskStorage({
     destination: function (req, file, cb) { cb(null, signatureDir); },
     filename: function (req, file, cb) {
@@ -1353,6 +1353,7 @@ router.post('/upload-signature', signatureUpload.single('signature'), (req, res)
     }
     if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
 
+    console.log('Received signature upload request with body:', req.body);
     const file = req.file;
     const relativePath = path.relative(path.join(__dirname, '..'), file.path).split(path.sep).join('/');
     // accept several common field names from the client (ticketID, ticketId, id)
@@ -1361,6 +1362,7 @@ router.post('/upload-signature', signatureUpload.single('signature'), (req, res)
                      VALUES (?, ?, ?, ?, datetime('now'))`;
     const params = [ticketIdValue, file.filename, file.originalname, relativePath];
 
+    console.log('Inserting ticket with params:', params);
     db.run(insertSql, params, function (err) {
         if (err) {
             console.error('DB insert failed, removing uploaded file:', err);
