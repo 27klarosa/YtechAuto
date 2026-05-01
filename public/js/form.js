@@ -205,7 +205,7 @@ document.addEventListener('DOMContentLoaded', function () {
       }
       const formData = new FormData();
       formData.append('video', selectedFile);
-       // include ticket id if available (server may expect ticketID / ticketId / id)
+      // include ticket id if available (server may expect ticketID / ticketId / id)
       let ticketId = (window.__SERVER_TICKET__ && window.__SERVER_TICKET__.id) ||
         document.getElementById('vehicle-ticketId')?.value ||
         document.getElementById('ticketId')?.value || null;
@@ -527,7 +527,7 @@ document.addEventListener('DOMContentLoaded', function () {
             let v = Number(el.value) || 0;
             if (v < 0) v = 0;
             el.value = (Math.round(v * 100) / 100).toFixed(2);
-            try { row.dataset.forceCalc = '1'; } catch(e){}
+            try { row.dataset.forceCalc = '1'; } catch (e) { }
             calcRow(row);
           });
         }
@@ -742,42 +742,21 @@ document.addEventListener('DOMContentLoaded', function () {
       return new Blob([u8], { type: mime });
     }
 
-    // robust ticket id lookup
-    function findTicketId() {
-      try {
-        if (window.__SERVER_TICKET__ && window.__SERVER_TICKET__.id) return String(window.__SERVER_TICKET__.id);
-      } catch (e) { }
-      const tryIds = ['vehicle-ticketId', 'ticketId', 'ticketID', 'ticketIdHidden', 'vehicle_ticketId'];
-      for (const id of tryIds) {
-        const el = document.getElementById(id);
-        if (el && el.value) return String(el.value);
-      }
-      // search inputs/selects for first non-empty value with 'ticket' in name/id
-      const els = Array.from(document.querySelectorAll('input,select,textarea'));
-      for (const el of els) {
-        const name = (el.name || '').toLowerCase();
-        const id = (el.id || '').toLowerCase();
-        if ((name && name.includes('ticket')) || (id && id.includes('ticket'))) {
-          if (el.value) return String(el.value);
-        }
-      }
-      // body data attribute
-      if (document.body && document.body.dataset && document.body.dataset.ticketId) return String(document.body.dataset.ticketId);
-      // url params fallback
-      try {
-        const p = new URLSearchParams(window.location.search);
-        const v = p.get('id') || p.get('ticketId') || p.get('ticketID');
-        if (v) return String(v);
-      } catch (e) { }
-      return '';
-    }
-
     // upload function used by the clear button handler
     async function uploadSignatureAndApply() {
       console.log('does signature even WORK?', !!signatureData.value);
       try {
         // find ticket id robustly and append under multiple keys for server compatibility
-        const ticketId = findTicketId();
+        // include ticket id if available (server may expect ticketID / ticketId / id)
+        let ticketId = (window.__SERVER_TICKET__ && window.__SERVER_TICKET__.id) ||
+          document.getElementById('vehicle-ticketId')?.value ||
+          document.getElementById('ticketId')?.value || null;
+        if (!ticketId) {
+          try {
+            const p = new URLSearchParams(window.location.search);
+            ticketId = p.get('id') || p.get('ticketId') || p.get('ticketID') || null;
+          } catch (e) { ticketId = null; }
+        }
 
 
 
@@ -785,7 +764,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
 
-        
+
         const endpoint = '/upload-signature';
         console.log('uploadSignatureAndApply: POST', 'ticketId=', ticketId);
 
