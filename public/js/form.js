@@ -767,6 +767,14 @@ document.addEventListener('DOMContentLoaded', function () {
       try {
         // find ticket id robustly and append under multiple keys for server compatibility
         const ticketId = findTicketId();
+
+
+
+
+
+
+
+        
         const endpoint = '/upload-signature';
         console.log('uploadSignatureAndApply: POST', 'ticketId=', ticketId);
 
@@ -782,8 +790,6 @@ document.addEventListener('DOMContentLoaded', function () {
         // remove clear button and swap canvas for image preview later
 
 
-
-        console.log('Signature uploaded and applied');
         return true;
       } catch (err) {
         console.error('Signature upload error', err);
