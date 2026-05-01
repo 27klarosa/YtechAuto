@@ -679,6 +679,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const canvas = document.getElementById('signatureCanvas');
     const signatureData = document.getElementById('signatureData');
     const clearBtn = document.getElementById('clearSignature');
+    const saveBtn = document.getElementById('firstSub');
     if (!canvas || !signatureData) return;
 
     const ctx = canvas.getContext('2d');
@@ -762,94 +763,26 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // upload function used by the clear button handler
     async function uploadSignatureAndApply() {
+      console.log('does signature even WORK?', !!signatureData.value);
       try {
-        const dataUrl = signatureData.value;
-        if (!dataUrl) {
-          // nothing to upload
-          return false;
-        }
-        const blob = dataURLToBlob(dataUrl);
-        const fd = new FormData();
-        fd.append('signature', blob, 'signature.png');
-
         // find ticket id robustly and append under multiple keys for server compatibility
         const ticketId = findTicketId();
-        if (ticketId) {
-          fd.append('ticketID', ticketId);
-          fd.append('ticketId', ticketId);
-          fd.append('id', ticketId);
-          fd.append('ticket', ticketId);
-        } else {
-          // still append empty ticket fields so server logs show what was sent
-          fd.append('ticketId', '');
-        }
-
         const endpoint = '/upload-signature';
-        console.log('uploadSignatureAndApply: POST', endpoint, 'ticketId=', ticketId || '(none)');
-        if (clearBtn) { clearBtn.dataset._origText = clearBtn.textContent; clearBtn.textContent = 'Uploading...'; clearBtn.disabled = true; }
+        console.log('uploadSignatureAndApply: POST', 'ticketId=', ticketId);
 
-        const json = await (res.ok ? res.json().catch(() => null) : Promise.resolve(null));
-        try {
-          const res = await fetch('/', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
-          });
-          if (res.status === 204) { console.log('Emissions saved (204)'); return; }
-          if (res.ok) { let p = null; try { p = await res.json(); } catch (e) { } if (p && p.success) { console.log('Emissions saved'); return; } console.warn('Emissions save unexpected ok response', res.status, p); return; }
-          let err = null; try { err = await res.json(); } catch (e) { err = null; } console.error('Emissions save failed', res.status, err);
-        } catch (err) { console.error('Emissions save failed', err); }
+        fetch(endpoint, {
+          method: 'POST',
+        }).then(async res => {
+          if (res.status === 204) { console.log('signature saved (204)'); return; }
+          if (res.ok) { let p = null; try { p = await res.json(); } catch (e) { } if (p && p.success) { console.log('signature saved'); return; } console.warn('signature save unexpected ok response', res.status, p); return; }
+          let err = null; try { err = await res.json(); } catch (e) { err = null; } console.error('signature save failed', res.status, err);
+        }).catch(err => { console.error('POST failed', err); });
 
-        if (!res.ok || !(json && json.success)) {
-          console.error('Signature upload failed', res.status, json);
-          alert('Signature upload failed. See console for details.');
-          return false;
-        }
 
-        const sig = json.signature || json.data || {};
+        // remove clear button and swap canvas for image preview later
 
-        // ensure hidden inputs are present for form submit
-        const form = document.getElementById('repForm') || document.querySelector('form');
-        const ensureHidden = (name, id) => {
-          let el = form && form.querySelector(`input[name="${name}"]`);
-          if (!el) el = document.getElementById(id);
-          if (!el) {
-            el = document.createElement('input');
-            el.type = 'hidden';
-            el.name = name;
-            if (id) el.id = id;
-            form && form.appendChild(el);
-          }
-          return el;
-        };
-        const idEl = ensureHidden('signatureId', 'signatureId');
-        const fileEl = ensureHidden('signatureFilename', 'signatureFilename');
-        const pathEl = ensureHidden('signaturePath', 'signaturePath');
 
-        idEl.value = String(sig.id || sig.signatureId || '');
-        fileEl.value = String(sig.filename || sig.originalName || '');
-        pathEl.value = String(sig.relativePath || sig.path || '');
 
-        // also ensure ticket id hidden exists so subsequent saves include it
-        if (ticketId) {
-          const t1 = ensureHidden('ticketId', 'ticketId');
-          const t2 = ensureHidden('ticketID', 'ticketID');
-          const t3 = ensureHidden('vehicle-ticketId', 'vehicle-ticketId');
-          try { t1.value = ticketId; t2.value = ticketId; t3.value = ticketId; } catch (e) { }
-        }
-
-        // remove clear button and swap canvas for image preview
-        const container = document.querySelector('.form-grid') || document;
-        const canvasEl = container.querySelector('#signatureCanvas');
-        const clearBtnEl = container.querySelector('#clearSignature');
-        if (clearBtnEl && clearBtnEl.parentNode) clearBtnEl.parentNode.removeChild(clearBtnEl);
-
-        const img = document.createElement('img');
-        img.alt = 'Customer signature';
-        img.style.maxWidth = '100%';
-        img.style.height = 'auto';
-        if (sig.relativePath || sig.path) img.src = '/' + (sig.relativePath || sig.path).replace(/^\/+/, '');
-        else img.src = signatureData.value; // fallback
-
-        if (canvasEl && canvasEl.parentNode) canvasEl.parentNode.replaceChild(img, canvasEl);
         console.log('Signature uploaded and applied');
         return true;
       } catch (err) {
@@ -861,29 +794,28 @@ document.addEventListener('DOMContentLoaded', function () {
       }
     }
 
-    if (clearBtn) {
-      clearBtn.addEventListener('click', async function (e) {
-        e.preventDefault();
+    saveBtn.addEventListener('click', async function (e) {
+      e.preventDefault();
 
-        // if a server-saved signature already exists for this ticket, remove the clear button (view-only)
-        const existingSigId = document.getElementById('signatureId') || document.querySelector('input[name="signatureId"]');
-        if (existingSigId && existingSigId.value) {
-          if (clearBtn.parentNode) clearBtn.parentNode.removeChild(clearBtn);
-          return;
-        }
+      // if a server-saved signature already exists for this ticket, remove the clear button (view-only)
+      const existingSigId = document.getElementById('signatureId') || document.querySelector('input[name="signatureId"]');
+      if (existingSigId && existingSigId.value) {
+        if (clearBtn.parentNode) clearBtn.parentNode.removeChild(clearBtn);
+        return;
+      }
 
-        // If there's a drawn signature, upload it and apply on success
-        if (signatureData.value) {
-          const ok = await uploadSignatureAndApply();
-          if (ok) return;
-          // on failure, fall through to clearing the canvas so user can retry
-        }
+      // If there's a drawn signature, upload it and apply on success
+      if (signatureData.value) {
+        const ok = await uploadSignatureAndApply();
+        if (ok) return;
+        // on failure, fall through to clearing the canvas so user can retry
+      }
 
-        // default clear behavior: just clear the canvas and signatureData
-        try { ctx.clearRect(0, 0, canvas.width, canvas.height); } catch (e) { }
-        signatureData.value = '';
-      });
-    }
+      // default clear behavior: just clear the canvas and signatureData
+      try { ctx.clearRect(0, 0, canvas.width, canvas.height); } catch (e) { }
+      signatureData.value = '';
+    });
+
   })();
 
   document.addEventListener('DOMContentLoaded', () => {
