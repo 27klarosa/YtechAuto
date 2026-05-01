@@ -13,7 +13,7 @@ fs.mkdirSync(videoDir, { recursive: true });
 fs.mkdirSync(imageDir, { recursive: true });
 fs.mkdirSync(signatureDir, { recursive: true });
 
-// save signature dataURL to signatures table (insert -> write -> update)
+// save signature dataURL to signatures table (write file, insert DB row)
 async function saveSignatureFromDataUrl(db, dataUrl, clientName) {
     return new Promise((resolve, reject) => {
         if (!dataUrl || typeof dataUrl !== 'string') return resolve(null);
@@ -23,47 +23,34 @@ async function saveSignatureFromDataUrl(db, dataUrl, clientName) {
         let buffer;
         try { buffer = Buffer.from(b64, 'base64'); } catch (e) { return resolve(null); }
 
-        const ensureSql = `
-          CREATE TABLE IF NOT EXISTS signatures (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ticketID INTEGER,
-            filename TEXT NOT NULL,
-            originalName TEXT NOT NULL,
-            relativePath TEXT NOT NULL,
-            uploadDate TEXT DEFAULT (datetime('now'))
-          )`;
-        db.run(ensureSql, (ensureErr) => {
-            if (ensureErr) return reject(ensureErr);
+        const filename = `signature-${Date.now()}.png`;
+        const savePath = path.join(signatureDir, filename);
+        fs.writeFile(savePath, buffer, (writeErr) => {
+            if (writeErr) return reject(writeErr);
 
-            const tempName = `signature-pending-${Date.now()}.tmp`;
-            const tempRel = path.join('upload', 'signatures', tempName).split(path.sep).join('/');
-            const insertSql = `INSERT INTO signatures (ticketID, filename, originalName, relativePath, uploadDate)
-                               VALUES (?, ?, ?, ?, datetime('now'))`;
-            db.run(insertSql, [null, tempName, clientName || tempName, tempRel], function (insertErr) {
-                if (insertErr) return reject(insertErr);
-                const sigId = this.lastID;
-                const finalName = (clientName && path.basename(String(clientName))) || `signature-${sigId}.png`;
-                const savePath = path.join(signatureDir, finalName);
-                fs.writeFile(savePath, buffer, (writeErr) => {
-                    if (writeErr) {
-                        // remove placeholder row on failure
-                        db.run('DELETE FROM signatures WHERE id = ?', [sigId], () => {
-                            return reject(writeErr);
-                        });
-                        return;
+            const relPath = path.relative(path.join(__dirname, '..'), savePath).split(path.sep).join('/');
+
+            const ensureSql = `
+              CREATE TABLE IF NOT EXISTS signatures (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticketID INTEGER,
+                filename TEXT NOT NULL,
+                originalName TEXT NOT NULL,
+                relativePath TEXT NOT NULL,
+                uploadDate TEXT DEFAULT (datetime('now'))
+              )`;
+
+            db.run(ensureSql, (ensureErr) => {
+                if (ensureErr) return reject(ensureErr);
+
+                const insertSql = `INSERT INTO signatures (ticketID, filename, originalName, relativePath, uploadDate) VALUES (?, ?, ?, ?, datetime('now'))`;
+                db.run(insertSql, [null, filename, clientName || filename, relPath], function (insertErr) {
+                    if (insertErr) {
+                        // cleanup file if DB insert fails
+                        try { fs.unlinkSync(savePath); } catch (e) { /* ignore */ }
+                        return reject(insertErr);
                     }
-                    const relPath = path.relative(path.join(__dirname, '..'), savePath).split(path.sep).join('/');
-                    const updateSql = `UPDATE signatures SET filename = ?, relativePath = ? WHERE id = ?`;
-                    db.run(updateSql, [finalName, relPath, sigId], function (updErr) {
-                        if (updErr) {
-                            try { fs.unlinkSync(savePath); } catch (e) { /* ignore */ }
-                            db.run('DELETE FROM signatures WHERE id = ?', [sigId], () => {
-                                return reject(updErr);
-                            });
-                            return;
-                        }
-                        return resolve({ id: sigId, filename: finalName, relativePath: relPath });
-                    });
+                    return resolve({ id: this.lastID, filename, relativePath: relPath });
                 });
             });
         });
@@ -424,6 +411,31 @@ router.post('/mechanic', async (req, res) => {
     if (!Array.isArray(repairs)) repairs = [];
     const recommendedRepairsText = JSON.stringify(repairs);
 
+    // Determine whether the client actually submitted repair lines (vs leaving the repairs out)
+    let repairsProvided = false;
+    // If we parsed any repairs, that's a clear sign
+    if (Array.isArray(repairs) && repairs.length > 0) repairsProvided = true;
+    // Otherwise check if the request body contains any repair-related fields (arrays or indexed names)
+    const bodyKeys = Object.keys(body || {});
+    const repairKeyNames = ['repairs', 'repairs[]', 'repairDescription[]', 'repairDescription', 'qty[]', 'partNumber[]', 'partPrice[]', 'partsTotal[]', 'laborHours[]', 'laborTotal[]'];
+    if (!repairsProvided) {
+        for (const k of repairKeyNames) {
+            if (Object.prototype.hasOwnProperty.call(body, k)) {
+                const v = body[k];
+                if (Array.isArray(v) && v.length >= 0) { repairsProvided = v.length > 0; break; }
+                if (typeof v === 'string') { if (v.trim() !== '') { repairsProvided = true; break; } /* empty string treated as not provided */ }
+                // any non-empty non-string value counts as provided
+                if (v != null && typeof v !== 'string') { repairsProvided = true; break; }
+            }
+        }
+    }
+    // Also detect indexed keys like repairDescription_0, qty_0, repairs[0][repairDescription]
+    if (!repairsProvided) {
+        for (const k of bodyKeys) {
+            if (/repairDescription_(\d+)$/.test(k) || /qty_(\d+)$/.test(k) || /partPrice_(\d+)$/.test(k) || /repairs\[\d+\]\[/.test(k)) { repairsProvided = true; break; }
+        }
+    }
+
     const saveRecRepairs = (ticketId, repairsArr, cb) => {
         // Always remove existing recRepairs for this ticket first so updates that remove lines clear DB
         db.run('DELETE FROM recRepairs WHERE ticketId = ?', [ticketId], (delErr) => {
@@ -474,10 +486,15 @@ router.post('/mechanic', async (req, res) => {
                 console.error('Failed to update ticket:', updErr);
                 return res.status(500).send('Failed to update ticket: ' + (updErr.message || updErr));
             }
-            saveRecRepairs(targetId, repairs, (rErr) => {
-                if (rErr) { console.error('Failed saving recRepairs on update:', rErr); return res.status(500).send('Failed to save repairs'); }
+            if (repairsProvided) {
+                saveRecRepairs(targetId, repairs, (rErr) => {
+                    if (rErr) { console.error('Failed saving recRepairs on update:', rErr); return res.status(500).send('Failed to save repairs'); }
+                    return res.redirect('/mechanic?id=' + targetId);
+                });
+            } else {
+                // client didn't submit repairs; leave existing recRepairs unchanged
                 return res.redirect('/mechanic?id=' + targetId);
-            });
+            }
         });
     };
 
