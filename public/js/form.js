@@ -1622,7 +1622,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         if (matched) {
                           const inp = g.querySelector('input,select,textarea');
                           if (inp && (parent[k] != null && parent[k] !== '')) {
-                            try { inp.value = parent[k]; inp.dispatchEvent(new Event('change')); } catch(e) {}
+                            try { inp.value = parent[k]; inp.dispatchEvent(new Event('change')); } catch (e) { }
                           }
                         }
                       }
@@ -2197,7 +2197,7 @@ document.addEventListener('DOMContentLoaded', function () {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
           });
           if (res.status === 204) { console.log('Emissions saved (204)'); return; }
-          if (res.ok) { let p = null; try { p = await res.json(); } catch(e){ } if (p && p.success) { console.log('Emissions saved'); return; } console.warn('Emissions save unexpected ok response', res.status, p); return; }
+          if (res.ok) { let p = null; try { p = await res.json(); } catch (e) { p = null; } if (p && p.success) { console.log('Emissions saved'); return; } console.warn('Emissions save unexpected ok response', res.status, p); return; }
           let err = null; try { err = await res.json(); } catch (e) { err = null; } console.error('Emissions save failed', res.status, err);
         } catch (err) { console.error('Emissions save failed', err); }
       });
@@ -2319,39 +2319,25 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-document.addEventListener('DOMContentLoaded', () => {
-  const signatureCanvas = document.getElementById('signatureCanvas');
-  const clearBtn = document.getElementById('clearSignature');
-  const ticketId = (window.__SERVER_TICKET__ && window.__SERVER_TICKET__.id) || document.getElementById('vehicle-ticketId')?.value || document.getElementById('ticketId')?.value || '';
-  console.log('Signature save & ticketId:', ticketId, "canvas", !!signatureCanvas, "btn", !!clearBtn);
+// --- Signature save & loader (for customer signature) ---
+(function customerSignatureSaveLoader() {
+  // Make the signature loader runnable immediately if DOM already ready,
+  // otherwise attach to DOMContentLoaded.
+  function initSignatureLoader() {
+    const signatureCanvas = document.getElementById('signatureCanvas');
+    const clearBtn = document.getElementById('clearSignature');
+    console.log('Signature loader init', "canvas", !!signatureCanvas, "btn", !!clearBtn);
 
-  // --- Load saved signature for ticket (if present) ---
-  function loadSavedSignatureForTicket(ticketId) {
-    if (!ticketId) return;
-    const endpoint = '/mechanic/ticket-check';
-    console.log('loadSavedSignatureForTicket: POST', endpoint, { ticketId });
+    // apply a signature (dataURL or server path) into the DOM where the canvas lives and remove the clear button
+    function applySignature(src, meta = {}) {
+      try {
+        // prefer exact IDs (old + any new one you renamed). Update 'YOUR_NEW_CANVAS_ID' if you changed it.
+        const canvas = document.getElementById('signatureCanvas') || document.getElementById('YOUR_NEW_CANVAS_ID');
+        const clear = document.getElementById('clearSignature') || document.getElementById('YOUR_NEW_CLEAR_ID');
+        // container = canvas parent (ensures image replaces in same spot)
+        const container = canvas ? canvas.parentElement : (document.getElementById('signature-container') || document.querySelector('.form-grid') || document.body);
 
-    fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ticketId: String(ticketId) })
-    })
-      .then(res => {
-        if (!res.ok) {
-          console.log('loadSavedSignatureForTicket: fetch failed', res.status);
-          return null;
-        }
-        return res.json().catch(() => null);
-      })
-      .then(json => {
-        if (!json) return;
-        if (!json.success || !json.signature) {
-          console.log('loadSavedSignatureForTicket: no signature in response', json);
-          return;
-        }
-        const sig = json.signature;
-
-        // ensure hidden inputs are present for form submit
+        // ensure hidden inputs exist so form submits include signature info
         const form = document.getElementById('repForm') || document.querySelector('form');
         const ensureHidden = (name, id) => {
           let el = form && form.querySelector(`input[name="${name}"]`);
@@ -2359,7 +2345,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (!el) {
             el = document.createElement('input');
             el.type = 'hidden';
-            el.name = 'signature';
+            el.name = name;
             if (id) el.id = id;
             form && form.appendChild(el);
           }
@@ -2368,65 +2354,158 @@ document.addEventListener('DOMContentLoaded', () => {
         const idEl = ensureHidden('signatureId', 'signatureId');
         const fileEl = ensureHidden('signatureFilename', 'signatureFilename');
         const pathEl = ensureHidden('signaturePath', 'signaturePath');
+        const signatureDataField = document.getElementById('signatureData') || (form && form.querySelector('input[name="signatureData"]'));
 
-        idEl.value = String(sig.id || '');
-        fileEl.value = String(sig.filename || sig.originalName || '');
-        pathEl.value = String(sig.relativePath || sig.path || '');
+        if (meta && meta.id) idEl.value = String(meta.id);
+        if (meta && meta.filename) fileEl.value = String(meta.filename);
+        if (meta && (meta.relativePath || meta.path)) pathEl.value = String(meta.relativePath || meta.path);
 
-        // remove clear button and swap canvas for image
-        const container = document.querySelector('.form-grid') || document;
-        const canvas = container.querySelector('#signatureCanvas');
-        const clearBtn = container.querySelector('#clearSignature');
-        if (clearBtn && clearBtn.parentNode) clearBtn.parentNode.removeChild(clearBtn);
-
+        // create image element
         const img = document.createElement('img');
         img.alt = 'Customer signature';
         img.style.maxWidth = '100%';
         img.style.height = 'auto';
-        if (sig.relativePath || sig.path) img.src = '/' + (sig.relativePath || sig.path).replace(/^\/+/, '');
-        else {
-          const sigDataField = container.querySelector('#signatureData, input[name="signatureData"]');
-          if (sigDataField && sigDataField.value) img.src = sigDataField.value;
+        img.style.display = 'block';
+        img.src = src;
+
+        // if src is dataURL set signatureData hidden
+        if (typeof src === 'string' && src.indexOf('data:') === 0 && signatureDataField) {
+          try { signatureDataField.value = src; } catch (e) { console.warn('failed to set signatureData', e); }
         }
 
+        // replace in-place if canvas found, otherwise append to container
         if (canvas && canvas.parentNode) canvas.parentNode.replaceChild(img, canvas);
-        console.log('loadSavedSignatureForTicket: signature applied for ticket', ticketId);
-      })
-      .catch(err => {
+        else container.appendChild(img);
+
+        if (clear && clear.parentNode) clear.parentNode.removeChild(clear);
+
+        console.log('applySignature: signature applied', meta, 'srcLen=', (src || '').length);
+        return true;
+      } catch (err) {
+        console.error('applySignature error', err);
+        return false;
+      }
+    }
+
+    // load signature info for a given ticket id:
+    //  - first try window.__SERVER_TICKET__ if present (fast)
+    //  - otherwise POST /ticket-check to ask server for saved signature metadata
+    async function loadSavedSignatureForTicket(ticketId) {
+      if (!ticketId) { console.log('loadSavedSignatureForTicket: no ticketId'); return false; }
+      console.log('loadSavedSignatureForTicket:', ticketId);
+
+      // quick check: server-injected ticket object may already contain signature data/path
+      try {
+        const st = window.__SERVER_TICKET__ || null;
+        if (st && (String(st.id) === String(ticketId))) {
+          // tolerant keys
+          const sigData = st.customerSignature || st.signature || st.customer_signature || null;
+          const sigPath = st.signaturePath || st.signature_path || st.signatureURL || st.signatureUrl || st.signature_url || null;
+          const sigMeta = {};
+          if (st.signatureId || st.signature_id) sigMeta.id = st.signatureId || st.signature_id;
+          if (st.signatureFilename || st.signature_filename) sigMeta.filename = st.signatureFilename || st.signature_filename;
+          if (sigData) {
+            console.log('loadSavedSignatureForTicket: using server ticket embedded dataURL');
+            applySignature(sigData, sigMeta);
+            return true;
+          }
+          if (sigPath) {
+            const src = (sigPath.indexOf('data:') === 0) ? sigPath : '/' + String(sigPath).replace(/^\/+/, '');
+            console.log('loadSavedSignatureForTicket: using server ticket embedded path ->', src);
+            applySignature(src, sigMeta);
+            return true;
+          }
+        }
+      } catch (e) { console.warn('server-ticket quick check failed', e); }
+
+      // fallback: ask server endpoint for signature metadata
+      try {
+        const endpoint = '/ticket-check';
+        console.log('loadSavedSignatureForTicket: POST', endpoint, { ticketId });
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ticketId: String(ticketId) })
+        });
+        if (!res.ok) { console.warn('loadSavedSignatureForTicket: server returned', res.status); return false; }
+        let json = null;
+        try { json = await res.json(); } catch (e) { console.warn('loadSavedSignatureForTicket: failed to parse json', e); json = null; }
+        if (!json || !json.success || !json.signature) {
+          console.log('loadSavedSignatureForTicket: no signature payload', json);
+          return false;
+        }
+        const sig = json.signature;
+        // If server returned a path on disk/URL, prefer that; otherwise accept dataURL if provided
+        if (sig.relativePath || sig.path || sig.url) {
+          const src = '/' + (sig.relativePath || sig.path || sig.url).replace(/^\/+/, '');
+          applySignature(src, sig);
+          return true;
+        }
+        if (sig.data || sig.dataUrl || sig.dataURL || sig.base64) {
+          const src = sig.data || sig.dataUrl || sig.dataURL || ('data:' + (sig.mime || 'image/png') + ';base64,' + sig.base64);
+          applySignature(src, sig);
+          return true;
+        }
+
+        console.log('loadSavedSignatureForTicket: signature object present but no usable path/data', sig);
+        return false;
+      } catch (err) {
         console.error('loadSavedSignatureForTicket fetch error', err);
-      });
+        return false;
+      }
+    }
+
+    // find a ticket id from multiple fallbacks (server-injected, hidden inputs, query string)
+    function resolveTicketId() {
+      const id =
+        (window.__SERVER_TICKET__ && window.__SERVER_TICKET__.id) ||
+        document.getElementById('vehicle-ticketId')?.value ||
+        document.getElementById('ticketId')?.value ||
+        document.getElementById('ticketIdHidden')?.value ||
+        '';
+      if (id) return String(id);
+      try {
+        const p = new URLSearchParams(window.location.search);
+        return p.get('id') || p.get('ticketId') || p.get('ticketID') || '';
+      } catch (e) { return ''; }
+    }
+
+    // attempt immediately and retry for a short period until a ticketId exists or signature successfully applied
+    (async function attemptLoadWithRetries() {
+      const maxAttempts = 80; // ~20s with 250ms interval
+      let attempt = 0;
+      let applied = false;
+      const tryOnce = async () => {
+        attempt += 1;
+        const id = resolveTicketId();
+        console.log('signature loader attempt', attempt, 'resolved ticketId=', id);
+        if (!id) return false;
+        try {
+          const ok = await loadSavedSignatureForTicket(id);
+          if (ok) applied = true;
+          return ok;
+        } catch (e) { console.error('signature tryOnce error', e); return false; }
+      };
+
+      // immediate first try
+      if (await tryOnce()) return;
+
+      const iv = setInterval(async () => {
+        if (attempt >= maxAttempts || applied) { clearInterval(iv); if (!applied) console.log('signature loader giving up after', attempt, 'attempts'); return; }
+        try {
+          if (await tryOnce()) {
+            clearInterval(iv);
+            console.log('signature loader: applied on attempt', attempt);
+          }
+        } catch (e) { console.error('signature loader interval error', e); }
+      }, 250);
+    })();
   }
 
-  // Minimal, reliable ticket-id check that calls loadSavedSignatureForTicket once an id is available.
-  const tryLoad = () => {
-    const id =
-      (window.__SERVER_TICKET__ && window.__SERVER_TICKET__.id) ||
-      document.getElementById('vehicle-ticketId')?.value ||
-      document.getElementById('ticketId')?.value ||
-      document.getElementById('ticketIdHidden')?.value ||
-      '';
-    if (id) {
-      // call the existing loader (no-op if already applied)
-      try { loadSavedSignatureForTicket(String(id)); } catch (e) { console.error('loadSavedSignatureForTicket error', e); }
-      return true;
-    }
-    return false;
-  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initSignatureLoader);
+  else initSignatureLoader();
+})();
 
-  // attempt immediately
-  if (!tryLoad()) {
-    // if not present yet, listen for changes on likely inputs and try again once
-    const watch = document.querySelector('#vehicle-ticketId, #ticketId, #ticketIdHidden');
-    if (watch) {
-      const onChange = () => { tryLoad(); watch.removeEventListener('change', onChange); };
-      watch.addEventListener('change', onChange);
-    } else {
-      // fallback: re-attempt after a short delay (covers server-inserted inputs)
-      setTimeout(tryLoad, 500);
-    }
-  }
-});
-// ...existing code...
 (function customerPdfDownload() {
   function loadScript(url) {
     return new Promise((resolve, reject) => {
