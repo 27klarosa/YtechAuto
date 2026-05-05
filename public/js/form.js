@@ -1622,7 +1622,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         if (matched) {
                           const inp = g.querySelector('input,select,textarea');
                           if (inp && (parent[k] != null && parent[k] !== '')) {
-                            try { inp.value = parent[k]; inp.dispatchEvent(new Event('change')); } catch(e) {}
+                            try { inp.value = parent[k]; inp.dispatchEvent(new Event('change')); } catch (e) { }
                           }
                         }
                       }
@@ -1787,6 +1787,9 @@ document.addEventListener('DOMContentLoaded', function () {
       const interactive = main.querySelectorAll('input,select,textarea,button, a, [role="button"]');
       interactive.forEach(el => {
         try {
+          // Always allow PDF download buttons to remain enabled
+          if (el.id === 'downloadMechPage' || el.id === 'downloadPage') return;
+
           if (allowed.contains(el)) return; // keep repair order interactive
           const tag = (el.tagName || '').toLowerCase();
           if (tag === 'a') {
@@ -1798,8 +1801,8 @@ document.addEventListener('DOMContentLoaded', function () {
             if (isBack || isNewTicket || inHeader) return; // allow interaction for these
 
             // disable other links by removing href (store it in data-attr)
-            if (el.getAttribute('href')) el.dataset._href = el.getAttribute('href');
-            el.removeAttribute('href');
+            if (el.getAttribute && el.getAttribute('href')) el.dataset._href = el.getAttribute('href');
+            if (el.removeAttribute) el.removeAttribute('href');
             el.style.pointerEvents = 'none';
             el.style.opacity = '0.6';
             el.setAttribute('aria-disabled', 'true');
@@ -1807,6 +1810,7 @@ document.addEventListener('DOMContentLoaded', function () {
           }
           // allow interactive elements that live inside the site header (top buttons)
           if (el.closest && el.closest('.site-header')) return;
+
           if ('disabled' in el) el.disabled = true;
           else el.setAttribute('aria-disabled', 'true');
           // make unfocusable
@@ -2197,8 +2201,13 @@ document.addEventListener('DOMContentLoaded', function () {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
           });
           if (res.status === 204) { console.log('Emissions saved (204)'); return; }
-          if (res.ok) { let p = null; try { p = await res.json(); } catch(e){ } if (p && p.success) { console.log('Emissions saved'); return; } console.warn('Emissions save unexpected ok response', res.status, p); return; }
-          let err = null; try { err = await res.json(); } catch (e) { err = null; } console.error('Emissions save failed', res.status, err);
+          if (res.ok) {
+            let p = null; try { p = await res.json(); } catch (e) { p = null; }
+            if (p && p.success) { console.log('Emissions saved'); return; }
+            console.warn('Emissions save unexpected ok response', res.status, p); return;
+          }
+          let err = null; try { err = await res.json(); } catch (e) { err = null; }
+          console.error('Emissions save failed', res.status, err);
         } catch (err) { console.error('Emissions save failed', err); }
       });
     } catch (err) { console.warn('wireEmissionsSave error', err); }
@@ -2426,65 +2435,107 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 });
-// ...existing code...
-(function customerPdfDownload() {
+
+(function bindPagePdfDownloadsDiagnostics() {
+  // remove any previous binding marker so this block can be reloaded during dev
+  if (window.__PDF_BINDINGS_DIAG_LOADED__) {
+    console.log('PDF bindings (diag) already loaded');
+    return;
+  }
+  window.__PDF_BINDINGS_DIAG_LOADED__ = true;
+
   function loadScript(url) {
     return new Promise((resolve, reject) => {
-      if (document.querySelector('script[src="' + url + '"]')) return resolve();
+      if (document.querySelector('script[src="' + url + '"]')) {
+        console.log('loadScript: already present', url);
+        return resolve();
+      }
       const s = document.createElement('script');
       s.src = url;
       s.async = true;
-      s.onload = () => resolve();
-      s.onerror = (e) => reject(e);
+      s.onload = () => { console.log('loadScript: loaded', url); resolve(); };
+      s.onerror = (e) => { console.error('loadScript: failed', url, e); reject(e); };
       document.head.appendChild(s);
     });
   }
 
   async function ensureHtml2Pdf() {
-    if (window.html2pdf) return;
+    if (window.html2pdf) {
+      console.log('ensureHtml2Pdf: html2pdf already available');
+      return;
+    }
     const cdn = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.2/html2pdf.bundle.min.js';
+    console.log('ensureHtml2Pdf: loading', cdn);
     await loadScript(cdn);
-    if (!window.html2pdf) throw new Error('html2pdf failed to load');
+    if (!window.html2pdf) throw new Error('html2pdf did not attach to window after loading bundle');
+    console.log('ensureHtml2Pdf: html2pdf ready');
   }
 
-  async function onDownloadClick(ev) {
-    ev.preventDefault();
-    const btn = ev.currentTarget;
-    const ticketId = btn?.dataset?.ticketId || 'ticket';
-    const element = document.querySelector('main.main-content') || document.body;
-
+  async function generatePdf(ticketId) {
     try {
       await ensureHtml2Pdf();
     } catch (err) {
-      console.error('Failed to load html2pdf:', err);
-      alert('PDF generator could not be loaded.');
+      console.error('generatePdf: html2pdf load failed', err);
+      alert('PDF generator could not be loaded. See console.');
       return;
     }
 
+    const target = document.querySelector('main.main-content') || document.body;
+    if (!target) {
+      console.error('generatePdf: target element not found (main.main-content or body)');
+      alert('PDF target element missing. See console.');
+      return;
+    }
+    const filename = `ticket-${ticketId || 'page'}.pdf`;
     const opt = {
       margin: 10,
-      filename: `ticket-${ticketId}.pdf`,
+      filename: filename,
       image: { type: 'jpeg', quality: 0.98 },
       html2canvas: { scale: 2, useCORS: true, logging: false },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
 
     try {
-      await window.html2pdf().set(opt).from(element).save();
+      console.log('generatePdf: starting html2pdf', { filename, opt });
+      await window.html2pdf().set(opt).from(target).save();
+      console.log('generatePdf: saved', filename);
     } catch (err) {
-      console.error('PDF generation failed', err);
-      alert('Failed to generate PDF. See console for details.');
+      console.error('generatePdf: failed', err);
+      alert('PDF generation failed. See console for details.');
     }
   }
 
-  document.addEventListener('DOMContentLoaded', () => {
-    const btn = document.getElementById('downloadPage');
-    if (!btn) return;
-    // avoid attaching duplicate listeners
-    if (!btn.dataset.pdfBound) {
-      btn.addEventListener('click', onDownloadClick);
-      btn.dataset.pdfBound = '1';
+  function bindId(id) {
+    const btn = document.getElementById(id);
+    if (!btn) {
+      console.warn('bindId: button not found', id);
+      return;
     }
-  });
-})();
+    if (btn.dataset.pdfBound) {
+      console.log('bindId: already bound', id);
+      return;
+    }
+    console.log('bindId: binding click for', id);
+    btn.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      try {
+        const ticketId = btn.dataset && btn.dataset.ticketId ? String(btn.dataset.ticketId) : 'page';
+        console.log('PDF button clicked', id, 'ticketId=', ticketId);
+        generatePdf(ticketId);
+      } catch (e) {
+        console.error('PDF click handler error', e);
+      }
+    });
+    btn.dataset.pdfBound = '1';
+  }
 
+  document.addEventListener('DOMContentLoaded', () => {
+    console.log('PDF diagnostics: DOMContentLoaded - attempting to bind buttons');
+    bindId('downloadPage');
+    bindId('downloadMechPage');
+
+    // helpful debug: print whether html2pdf already present
+    console.log('PDF diagnostics: html2pdf present=', !!window.html2pdf);
+  });
+
+})();
