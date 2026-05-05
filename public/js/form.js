@@ -365,7 +365,7 @@ document.addEventListener('DOMContentLoaded', function () {
           // remove by matching name+size if available, otherwise by index
           const key = file && file.name && file.size ? (file.name + '|' + file.size) : null;
           if (key) {
-            selectedFiles = selectedFiles.filter(f => (f.name + '|' + f.size) !== key);
+            selectedFiles = selectedFiles.filter(f => (f.name + '|' + (f.size || 0)) !== key);
           } else {
             selectedFiles.splice(idx, 1);
           }
@@ -391,7 +391,47 @@ document.addEventListener('DOMContentLoaded', function () {
         uploadBtn.disabled = imagesLocked;
         uploadBtn.style.opacity = imagesLocked ? '0.5' : '1';
       }
+
+      // when imagesLocked, disable file input to prevent changes
+      try { fileInput.disabled = imagesLocked; } catch (e) { }
     }
+
+    // Expose a helper to apply server-provided images (URLs or {src,filename})
+    function applyServerImages(images) {
+      if (!Array.isArray(images) || images.length === 0) return;
+      // normalize to objects with src/name
+      selectedFiles = images.map((it, i) => {
+        if (typeof it === 'string') return { src: it, name: `image-${i}`, size: 0 };
+        return { src: it.src || it.url || it.path || '', name: it.filename || it.name || `image-${i}`, size: it.size || 0 };
+      }).filter(f => f.src);
+      imagesLocked = true;
+      showPreview(selectedFiles);
+      updateControls();
+      // visually lock zone and remove file input ability
+      try {
+        zone.style.backgroundColor = '#d4edda';
+        zone.style.borderColor = '#c3e6cb';
+      } catch (e) {}
+      try {
+        // remove any visible remove buttons (showPreview already hides them when imagesLocked true)
+        if (previewEl) previewEl.querySelectorAll('.thumb-remove').forEach(b => b.remove());
+      } catch (e) {}
+      try { fileInput.value = ''; fileInput.disabled = true; } catch (e) {}
+      try { uploadBtn.disabled = true; uploadBtn.style.opacity = '0.5'; uploadBtn.textContent = 'Uploaded'; } catch (e) {}
+
+      // also disable any video upload controls (if present on page) when images are locked / viewing saved ticket
+      try {
+        const vidInput = document.getElementById('video-file');
+        const vidBtn = document.getElementById('upload-btn');
+        if (vidInput) vidInput.disabled = true;
+        if (vidBtn) { vidBtn.disabled = true; vidBtn.style.opacity = '0.5'; }
+      } catch (e) { /* ignore */ }
+    }
+
+    // expose helper to global so populateFromServerTicket and other loaders can apply server images
+    try { window.applyUploadedImages = applyServerImages; } catch (e) { /* ignore if frozen */ }
+
+    function updateControlsInitial() { updateControls(); }
 
     if (trigger) {
       trigger.addEventListener('click', function (e) { e.preventDefault(); if (!imagesLocked) fileInput.click(); });
@@ -428,12 +468,15 @@ document.addEventListener('DOMContentLoaded', function () {
       const dedup = [];
       const seen = new Set();
       for (const f of combined) {
-        const key = f.name + '|' + f.size;
+        const key = (f.name || '') + '|' + (f.size || 0);
         if (seen.has(key)) continue;
         seen.add(key);
         // validation
-        if (!f.type || !f.type.startsWith('image/')) continue;
-        if (f.size > MAX_BYTES) continue;
+        // allow server-provided objects (they may not have a type)
+        if (f instanceof File) {
+          if (!f.type || !f.type.startsWith('image/')) continue;
+          if (f.size > MAX_BYTES) continue;
+        }
         dedup.push(f);
         if (dedup.length >= MAX_FILES) break;
       }
@@ -446,7 +489,7 @@ document.addEventListener('DOMContentLoaded', function () {
       if (imagesLocked) return;
       if (!selectedFiles || selectedFiles.length === 0) { alert('Please select one or more images first.'); return; }
       const fd = new FormData();
-      selectedFiles.forEach(f => fd.append('image', f));
+      selectedFiles.forEach(f => fd.append('image', f instanceof File ? f : f.src));
       let ticketId = (window.__SERVER_TICKET__ && window.__SERVER_TICKET__.id) ||
                      document.getElementById('vehicle-ticketId')?.value ||
                      document.getElementById('ticketId')?.value || null;
@@ -487,6 +530,9 @@ document.addEventListener('DOMContentLoaded', function () {
         .catch(err => { console.error('Image upload error:', err); alert('Upload failed.'); })
         .finally(() => { if (!imagesLocked) { uploadBtn.textContent = 'Upload'; uploadBtn.disabled = false; } });
     });
+
+    // initial update
+    updateControlsInitial();
   })();
 
   // --- Recommended Repairs: row wiring, calc, add/remove, block '-' input ---
@@ -1450,7 +1496,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 const headers = Array.from(table.querySelectorAll('thead th')).map(h => (h.textContent || '').trim().toLowerCase());
                 const rowsDom = Array.from(table.querySelectorAll('tbody tr'));
                 rows.forEach(item => {
-                  const name = item.item || item.name || item.label || item.Item || '';
+                  const name = item.item || item.name || item.label || '';
                   if (!name) return;
                   let rowDom = rowsDom.find(r => r.dataset && r.dataset.item === name);
                   if (!rowDom) {
