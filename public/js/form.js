@@ -761,6 +761,24 @@ document.addEventListener('DOMContentLoaded', function () {
       const totEstimateEl = document.getElementById('totEstimate');
       const signatureData = document.getElementById('signatureData');
 
+      // treat a saved/loaded signature as present if any of:
+      // - signatureData (dataURL) has a value
+      // - server-saved signaturePath / signatureFilename / signatureId hidden inputs have values
+      // - an image was rendered in place of the canvas
+      const signaturePathEl = document.getElementById('signaturePath') || document.querySelector('input[name="signaturePath"]');
+      const signatureFilenameEl = document.getElementById('signatureFilename') || document.querySelector('input[name="signatureFilename"]');
+      const signatureIdEl = document.getElementById('signatureId') || document.querySelector('input[name="signatureId"]');
+      const signatureImg = document.querySelector('img[alt="Customer signature"]');
+
+      const hasSignature =
+        (signatureData && signatureData.value && String(signatureData.value).trim() !== '') ||
+        (signaturePathEl && signaturePathEl.value && String(signaturePathEl.value).trim() !== '') ||
+        (signatureFilenameEl && signatureFilenameEl.value && String(signatureFilenameEl.value).trim() !== '') ||
+        (signatureIdEl && signatureIdEl.value && String(signatureIdEl.value).trim() !== '') ||
+        !!signatureImg;
+
+      if (!hasSignature) errors.push('Customer signature is required.');
+
       // if the user clicked Complete Ticket, we should validate the Digital Courtesy Check first
       const ticketStatusElTop = document.getElementById('ticketStatus');
       const tryingToCompleteTop = ticketStatusElTop && ticketStatusElTop.value === 'complete';
@@ -847,7 +865,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (tt !== '' && (isNaN(parseFloat(tt)) || parseFloat(tt) < 0)) errors.push('Total Estimate must be a non-negative number.');
       }
 
-      if (!signatureData || !signatureData.value) errors.push('Customer signature is required.');
+      // signature requirement already handled above via `hasSignature`
 
       // recommended repairs table validation
       const repairsTable = document.getElementById('repairs-table');
