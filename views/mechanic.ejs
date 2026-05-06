@@ -686,6 +686,9 @@
     <div style="padding:1rem;text-align:center;margin-top:1rem">
       <button id="completeTicketBottom" type="button" class="btn btn-success editable-only">Complete Ticket</button>
     </div>
+    <div style="padding:1rem;text-align:center;margin-top:0.5rem">
+      <a id="downloadMechPage" href="#" data-ticket-id="<%= typeof ticket !== 'undefined' && ticket && ticket.id ? ticket.id : '' %>" class="btn">Download Page As PDF</a>
+    </div>
   </main>
 
     <!-- server-provided ticket payload (JSON). Read by public/js/form.js to populate the form when editing -->

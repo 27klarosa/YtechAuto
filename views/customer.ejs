@@ -171,11 +171,13 @@
           </video>
           <div>
             <a href="Recording-20260212_111802.webm" download="inspection-video.webm" class="video-download-link">Download Video</a>
-          </div>
+          </div>  
         <% } %>
       </section>
-      
-    <% } else { %>
+      <div >
+            <a id="downloadPage" href="#" data-ticket-id="<%= ticket && ticket.id ? ticket.id : '' %>">Download Page As PDF</a>
+           </div>
+     <% } else { %>
       <section class="section">
         <h2>Ticket Not Found</h2>
         <p>The requested ticket could not be found or you don't have permission to view it.</p>
@@ -183,5 +185,6 @@
       </section>
     <% } %>
   </main>
+<script src="/js/form.js"></script>
 </body>
 </html>
