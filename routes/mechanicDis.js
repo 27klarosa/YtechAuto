@@ -26,8 +26,8 @@ router.get('/mechanicDis', ensureAdmin, (req, res) => {
 
 });
 
-router.post('/mechanicDis', ensureAdmin, (req, res) => {
-  return res.sendStatus(204);
+
+router.post('/mechanicDis', (req, res) => {
 });
 
 module.exports = router;
