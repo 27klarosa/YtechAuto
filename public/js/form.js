@@ -181,55 +181,48 @@ document.addEventListener('DOMContentLoaded', function () {
     if (uploadTrigger) {
       uploadTrigger.addEventListener('click', function (e) {
         e.preventDefault();
-        // prevent choosing a file when a video was already uploaded / locked
-        if (videoUploaded) return;
-        try {
-          videoFileInput.click();
-        } catch (err) { /* ignore */ }
+        videoFileInput.click();
       });
     }
- 
+
     // clicking the zone also opens picker (mockup behavior)
     uploadZone.addEventListener('click', function (e) {
-      if (videoUploaded) return; // lock entire zone when a video is uploaded
-      if (e.target !== uploadTrigger && e.target !== uploadBtn) {
-        try { videoFileInput.click(); } catch (err) { /* ignore */ }
-      }
+      if (e.target !== uploadTrigger && e.target !== uploadBtn) videoFileInput.click();
     });
- 
+
     // when a file is selected: accept any file type, but block videos if one has already been uploaded
-     videoFileInput.addEventListener('change', function (e) {
-       const file = e.target.files[0] || null;
-       const p = uploadZone.querySelector('p');
-       if (!file) {
-         selectedFile = null;
-         if (p) p.textContent = 'Drop file here or click to upload';
-         uploadBtn.disabled = true;
-         return;
-       }
-       if (isVideoFile(file) && videoUploaded) {
-         alert('A video has already been uploaded. You cannot upload another video. Choose a different file type.');
-         videoFileInput.value = '';
-         selectedFile = null;
-         if (p) p.textContent = 'A video is already uploaded. Choose a different file type.';
-         uploadBtn.disabled = true;
-         return;
-       }
-       selectedFile = file;
-       if (p) p.textContent = `Selected: ${selectedFile.name}`;
-       uploadBtn.disabled = false;
-       uploadBtn.style.opacity = '1';
-     });
- 
-     // upload to server; after successful upload, mark videoUploaded if the uploaded file was a video
-     uploadBtn.addEventListener('click', function () {
-       if (!selectedFile) {
-         alert('Please select a file first.');
-         return;
-       }
-       const formData = new FormData();
-       // keep server compatibility: send under 'video' field (server expects this route)
-       formData.append('video', selectedFile);
+    videoFileInput.addEventListener('change', function (e) {
+      const file = e.target.files[0] || null;
+      const p = uploadZone.querySelector('p');
+      if (!file) {
+        selectedFile = null;
+        if (p) p.textContent = 'Drop file here or click to upload';
+        uploadBtn.disabled = true;
+        return;
+      }
+      if (isVideoFile(file) && videoUploaded) {
+        alert('A video has already been uploaded. You cannot upload another video. Choose a different file type.');
+        videoFileInput.value = '';
+        selectedFile = null;
+        if (p) p.textContent = 'A video is already uploaded. Choose a different file type.';
+        uploadBtn.disabled = true;
+        return;
+      }
+      selectedFile = file;
+      if (p) p.textContent = `Selected: ${selectedFile.name}`;
+      uploadBtn.disabled = false;
+      uploadBtn.style.opacity = '1';
+    });
+
+    // upload to server; after successful upload, mark videoUploaded if the uploaded file was a video
+    uploadBtn.addEventListener('click', function () {
+      if (!selectedFile) {
+        alert('Please select a file first.');
+        return;
+      }
+      const formData = new FormData();
+      // keep server compatibility: send under 'video' field (server expects this route)
+      formData.append('video', selectedFile);
       let ticketId = (window.__SERVER_TICKET__ && window.__SERVER_TICKET__.id) ||
                      document.getElementById('vehicle-ticketId')?.value ||
                      document.getElementById('ticketId')?.value || null;
@@ -266,40 +259,19 @@ document.addEventListener('DOMContentLoaded', function () {
             uploadZone.style.borderColor = '#c3e6cb';
             // if uploaded file was a video, mark so no more videos can be uploaded
             if (isVideoFile(selectedFile)) videoUploaded = true;
-            // clear current selection
+            // clear current selection but keep ability to choose other files
             try { videoFileInput.value = ''; } catch (e) {}
             selectedFile = null;
- 
-            // mirror image-upload behavior: show "Uploaded", disable button and make choose-file unclickable
-            try { uploadBtn.disabled = true; } catch (e) {}
-            try { uploadBtn.style.opacity = '0.5'; } catch (e) {}
-            try { uploadBtn.textContent = 'Uploaded'; } catch (e) {}
- 
-            try { videoFileInput.disabled = !!videoUploaded; } catch (e) {}
-            try {
-              if (uploadTrigger) {
-                if ('disabled' in uploadTrigger) uploadTrigger.disabled = !!videoUploaded;
-                uploadTrigger.style.pointerEvents = !!videoUploaded ? 'none' : 'auto';
-                uploadTrigger.style.opacity = !!videoUploaded ? '0.6' : '1';
-                if (!videoUploaded) uploadTrigger.removeAttribute('aria-disabled');
-                else uploadTrigger.setAttribute('aria-disabled', 'true');
-              }
-            } catch (e) { /* ignore */ }
- 
-            // prevent clicking the upload zone when locked
-            try { uploadZone.style.pointerEvents = videoUploaded ? 'none' : 'auto'; } catch (e) {}
-           } else {
+            uploadBtn.disabled = true;
+            uploadBtn.style.opacity = '0.5';
+            uploadBtn.textContent = 'Upload';
+          } else {
             alert('Upload failed: ' + (json && json.message ? json.message : 'Unknown'));
-            // re-enable controls on failure
-            try { uploadBtn.disabled = false; } catch (e) {}
-            try { uploadBtn.style.opacity = '1'; } catch (e) {}
-            try { uploadBtn.textContent = 'Upload'; } catch (e) {}
-            try { videoFileInput.disabled = false; } catch (e) {}
-            try {
-              if (uploadTrigger) { if ('disabled' in uploadTrigger) uploadTrigger.disabled = false; uploadTrigger.style.pointerEvents = 'auto'; uploadTrigger.style.opacity = '1'; uploadTrigger.removeAttribute('aria-disabled'); }
-            } catch (e) {}
-           }
-         })
+            uploadBtn.disabled = false;
+            uploadBtn.style.opacity = '1';
+            uploadBtn.textContent = 'Upload';
+          }
+        })
         .catch(err => {
           console.error('Upload error:', err);
           alert('Upload failed. Please try again.');
@@ -1452,32 +1424,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
         setTimeSelects('timeIn', ticket.timeIn);
         setTimeSelects('timeOut', ticket.timeOut);
-
-        // Auto-apply uploaded images (when refreshing / editing an existing ticket)
-        try {
-          const imgs = ticket.images || ticket.pictures || ticket.files || ticket.photos || ticket.uploadedImages || null;
-          if (imgs && imgs.length) {
-            const normalized = imgs.map(it => {
-              if (!it) return null;
-              if (typeof it === 'string') {
-                // accept data URLs, absolute URLs, or server-relative paths
-                if (it.indexOf('data:') === 0) return it;
-                if (it.startsWith('http') || it.startsWith('/')) return it;
-                // common server-relative fallback (stored without leading slash)
-                if (it.indexOf('upload/') === 0) return '/' + it;
-                return it;
-              }
-              // object -> try common keys
-              const src = it.src || it.url || it.relativePath || it.path || (it.filename ? ('/upload/images/' + it.filename) : null);
-              if (!src) return null;
-              return (String(src).indexOf('/') === 0) ? src : '/' + String(src).replace(/^\/+/, '');
-            }).filter(Boolean);
-            if (normalized.length && window.applyUploadedImages) {
-              try { window.applyUploadedImages(normalized); console.log('populateFromServerTicket: applied uploaded images'); } catch (e) { console.warn('applyUploadedImages failed', e); }
-            }
-          }
-        } catch (e) { console.warn('populateFromServerTicket: apply uploaded images failed', e); }
-
         // populate other sections from ticket.sections by table name
         try {
           const sections = ticket.sections || {};
