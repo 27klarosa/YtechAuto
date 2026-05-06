@@ -23,6 +23,7 @@ function ensureAdmin(req, res, next) {
 
 router.get('/mechanicDis', ensureAdmin, (req, res) => {
   return res.render('mechanicDis');
+
 });
 
 router.post('/mechanicDis', ensureAdmin, (req, res) => {
