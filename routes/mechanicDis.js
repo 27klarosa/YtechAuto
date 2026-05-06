@@ -1,13 +1,5 @@
 const express = require('express');
 const router = express.Router();    
-
-router.get('/mechanicDis', (req, res) => {
-  const userCookie = req.cookies.user;
-    if (userCookie) {
-        res.render('mechanicDis');} 
-    else {
-        res.redirect('/login');
-        }
 // middleware to ensure admin access; if not admin redirect to home
 function ensureAdmin(req, res, next) {
   const sess = req && req.session && req.session.user;
