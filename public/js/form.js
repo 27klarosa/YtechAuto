@@ -405,8 +405,61 @@ document.addEventListener('DOMContentLoaded', function () {
         return { src: it.src || it.url || it.path || '', name: it.filename || it.name || `image-${i}`, size: it.size || 0 };
       }).filter(f => f.src);
       imagesLocked = true;
-      showPreview(selectedFiles);
+
+      // ensure we have a visible preview container -- prefer existing previewEl, otherwise make one under the zone
+      let container = previewEl;
+      if (!container) {
+        container = zone.querySelector('.image-preview-container');
+        if (!container) {
+          container = document.createElement('div');
+          container.className = 'image-preview-container';
+          container.style.marginTop = '8px';
+          zone.parentNode && zone.parentNode.insertBefore(container, zone.nextSibling);
+        }
+      }
+      // clear and render server images similarly to signature loader (static <img>)
+      container.innerHTML = '';
+      selectedFiles.forEach((f, idx) => {
+        try {
+          const img = document.createElement('img');
+          img.alt = f.name || `image-${idx}`;
+          img.style.maxWidth = '100%';
+          img.style.height = 'auto';
+          img.style.display = 'block';
+          img.style.marginBottom = '6px';
+          let src = String(f.src || '');
+          // normalize relative paths to absolute-ish so they load from server root
+          if (src && !src.match(/^data:|^https?:|^\//)) src = '/' + src.replace(/^\/+/, '');
+          img.src = src;
+          img.className = 'server-image';
+          container.appendChild(img);
+
+          // create hidden inputs so form submit includes server image metadata (one input containing JSON list)
+        } catch (e) {
+          console.warn('applyServerImages: failed to render image', f, e);
+        }
+      });
+
+      // set up a hidden input with JSON payload of images for server-side processing if form exists
+      try {
+        const form = document.getElementById('repForm') || document.querySelector('form');
+        if (form) {
+          let hid = form.querySelector('input[name="uploadedImages"]');
+          if (!hid) {
+            hid = document.createElement('input');
+            hid.type = 'hidden';
+            hid.name = 'uploadedImages';
+            form.appendChild(hid);
+          }
+          // store array of { src, name, size }
+          hid.value = JSON.stringify(selectedFiles.map(f => ({ src: f.src, name: f.name, size: f.size || 0 })));
+        }
+      } catch (e) { /* ignore */ }
+
+      // show preview via existing preview renderer (keeps compatibility)
+      try { showPreview(selectedFiles); } catch (e) { /* ignore */ }
       updateControls();
+
       // visually lock zone and remove file input ability
       try {
         zone.style.backgroundColor = '#d4edda';
