@@ -169,6 +169,13 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!uploadZone || !videoFileInput || !uploadBtn) return;
 
     let selectedFile = null;
+    let videoUploaded = false; // true once a video file has been successfully uploaded
+
+    function isVideoFile(f) {
+      if (!f) return false;
+      if (f.type) return f.type.startsWith('video/');
+      return /\.(mp4|mov|avi|mkv|webm|3gp|mpeg)$/i.test(f.name || '');
+    }
 
     // clicking the choose button opens file picker
     if (uploadTrigger) {
@@ -183,29 +190,39 @@ document.addEventListener('DOMContentLoaded', function () {
       if (e.target !== uploadTrigger && e.target !== uploadBtn) videoFileInput.click();
     });
 
-    // when a file is selected
+    // when a file is selected: accept any file type, but block videos if one has already been uploaded
     videoFileInput.addEventListener('change', function (e) {
-      selectedFile = e.target.files[0];
+      const file = e.target.files[0] || null;
       const p = uploadZone.querySelector('p');
-      if (selectedFile) {
-        if (p) p.textContent = `Selected: ${selectedFile.name}`;
-        uploadBtn.disabled = false;
-        uploadBtn.style.opacity = '1';
-      } else {
-        if (p) p.textContent = 'Drop video here or click to upload';
+      if (!file) {
+        selectedFile = null;
+        if (p) p.textContent = 'Drop file here or click to upload';
         uploadBtn.disabled = true;
+        return;
       }
+      if (isVideoFile(file) && videoUploaded) {
+        alert('A video has already been uploaded. You cannot upload another video. Choose a different file type.');
+        videoFileInput.value = '';
+        selectedFile = null;
+        if (p) p.textContent = 'A video is already uploaded. Choose a different file type.';
+        uploadBtn.disabled = true;
+        return;
+      }
+      selectedFile = file;
+      if (p) p.textContent = `Selected: ${selectedFile.name}`;
+      uploadBtn.disabled = false;
+      uploadBtn.style.opacity = '1';
     });
 
-    // upload to server
+    // upload to server; after successful upload, mark videoUploaded if the uploaded file was a video
     uploadBtn.addEventListener('click', function () {
       if (!selectedFile) {
-        alert('Please select a video file first.');
+        alert('Please select a file first.');
         return;
       }
       const formData = new FormData();
+      // keep server compatibility: send under 'video' field (server expects this route)
       formData.append('video', selectedFile);
-       // include ticket id if available (server may expect ticketID / ticketId / id)
       let ticketId = (window.__SERVER_TICKET__ && window.__SERVER_TICKET__.id) ||
                      document.getElementById('vehicle-ticketId')?.value ||
                      document.getElementById('ticketId')?.value || null;
@@ -218,10 +235,9 @@ document.addEventListener('DOMContentLoaded', function () {
       if (ticketId) {
         formData.append('ticketID', ticketId);
         formData.append('ticketId', ticketId);
-        // also append generic 'id' for maximal compatibility
         formData.append('id', ticketId);
       }
-      // include ticketID if needed: fd.append('ticketID', ticketIdValue);
+
       uploadBtn.textContent = 'Uploading...';
       uploadBtn.disabled = true;
 
@@ -229,28 +245,39 @@ document.addEventListener('DOMContentLoaded', function () {
         method: 'POST',
         body: formData
       })
-        .then(res => res.json())
-        .then(data => {
-          if (data && data.success) {
-            alert('Video uploaded successfully!');
+        .then(async res => {
+          let json = null;
+          try { json = await res.json(); } catch (e) { json = null; }
+          return { ok: res.ok, json };
+        })
+        .then(({ ok, json }) => {
+          if (ok && (json && (json.success || json.uploaded))) {
+            alert('File uploaded successfully!');
             const p = uploadZone.querySelector('p');
-            if (p) p.textContent = 'Video uploaded successfully!';
+            if (p) p.textContent = 'File uploaded';
             uploadZone.style.backgroundColor = '#d4edda';
             uploadZone.style.borderColor = '#c3e6cb';
-            // clear selection
-            videoFileInput.value = '';
+            // if uploaded file was a video, mark so no more videos can be uploaded
+            if (isVideoFile(selectedFile)) videoUploaded = true;
+            // clear current selection but keep ability to choose other files
+            try { videoFileInput.value = ''; } catch (e) {}
             selectedFile = null;
+            uploadBtn.disabled = true;
+            uploadBtn.style.opacity = '0.5';
+            uploadBtn.textContent = 'Upload';
           } else {
-            alert('Upload failed: ' + (data && data.message ? data.message : 'Unknown'));
+            alert('Upload failed: ' + (json && json.message ? json.message : 'Unknown'));
+            uploadBtn.disabled = false;
+            uploadBtn.style.opacity = '1';
+            uploadBtn.textContent = 'Upload';
           }
         })
         .catch(err => {
           console.error('Upload error:', err);
           alert('Upload failed. Please try again.');
-        })
-        .finally(() => {
-          uploadBtn.textContent = 'Upload';
           uploadBtn.disabled = false;
+          uploadBtn.style.opacity = '1';
+          uploadBtn.textContent = 'Upload';
         });
     });
   })();
@@ -268,92 +295,201 @@ document.addEventListener('DOMContentLoaded', function () {
     fileInput.multiple = true;
 
     let selectedFiles = []; // array of File
+    let imagesLocked = false; // when true, no further add/remove allowed
     const MAX_BYTES = 5 * 1024 * 1024; // 5MB per file
     const MAX_FILES = 10;
 
+    // render preview with an overlaid "X" on each thumbnail (removable before upload)
     function showPreview(files) {
       if (!previewEl) return;
       previewEl.innerHTML = '';
       const list = document.createElement('div');
       list.style.display = 'flex';
       list.style.flexWrap = 'wrap';
-      files.forEach((file) => {
-        const reader = new FileReader();
-        reader.onload = function (e) {
-          const img = document.createElement('img');
-          img.src = e.target.result;
-          img.style.width = '120px';
-          img.style.height = '90px';
-          img.style.objectFit = 'cover';
-          img.style.margin = '4px';
-          img.alt = file.name;
-          list.appendChild(img);
-        };
-        reader.readAsDataURL(file);
+
+      files.forEach((file, idx) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'thumb';
+        wrapper.style.position = 'relative';
+        wrapper.style.width = '120px';
+        wrapper.style.height = '90px';
+        wrapper.style.margin = '4px';
+        wrapper.style.flex = '0 0 auto';
+
+        const img = document.createElement('img');
+        img.style.width = '100%';
+        img.style.height = '100%';
+        img.style.objectFit = 'cover';
+        img.style.display = 'block';
+        img.alt = file.name || '';
+
+        // remove button overlay
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'thumb-remove';
+        removeBtn.textContent = '×';
+        removeBtn.title = 'Remove';
+        removeBtn.style.position = 'absolute';
+        removeBtn.style.top = '2px';
+        removeBtn.style.right = '2px';
+        removeBtn.style.background = 'rgba(0,0,0,0.6)';
+        removeBtn.style.color = '#fff';
+        removeBtn.style.border = 'none';
+        removeBtn.style.borderRadius = '12px';
+        removeBtn.style.width = '24px';
+        removeBtn.style.height = '24px';
+        removeBtn.style.cursor = 'pointer';
+        removeBtn.style.lineHeight = '20px';
+        removeBtn.style.padding = '0';
+        removeBtn.style.fontSize = '16px';
+
+        // if locked, hide remove control
+        if (imagesLocked) removeBtn.style.display = 'none';
+
+        // file object (File) -> read; if object has src property (server images), use it
+        if (file && file.src) {
+          img.src = file.src;
+          img.alt = file.name || img.alt;
+        } else if (file instanceof File) {
+          const reader = new FileReader();
+          reader.onload = function (e) { img.src = e.target.result; };
+          reader.readAsDataURL(file);
+        } else {
+          // fallback: treat as URL string
+          try { img.src = String(file); } catch (e) { img.alt = 'image'; }
+        }
+
+        removeBtn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          if (imagesLocked) return;
+          // remove by matching name+size if available, otherwise by index
+          const key = file && file.name && file.size ? (file.name + '|' + file.size) : null;
+          if (key) {
+            selectedFiles = selectedFiles.filter(f => (f.name + '|' + (f.size || 0)) !== key);
+          } else {
+            selectedFiles.splice(idx, 1);
+          }
+          updateControls();
+          showPreview(selectedFiles);
+        });
+
+        wrapper.appendChild(img);
+        wrapper.appendChild(removeBtn);
+        list.appendChild(wrapper);
       });
+
       previewEl.appendChild(list);
     }
 
+    function updateControls() {
+      const p = zone.querySelector('p');
+      if (p) p.textContent = imagesLocked ? `Images uploaded` : `Selected ${selectedFiles.length} image(s)`;
+      if (selectedFiles.length === 0) {
+        uploadBtn.disabled = true;
+        uploadBtn.style.opacity = '0.5';
+      } else {
+        uploadBtn.disabled = imagesLocked;
+        uploadBtn.style.opacity = imagesLocked ? '0.5' : '1';
+      }
+
+      // when imagesLocked, disable file input to prevent changes
+      try { fileInput.disabled = imagesLocked; } catch (e) { }
+    }
+
+    // Expose a helper to apply server-provided images (URLs or {src,filename})
+    function applyServerImages(images) {
+      if (!Array.isArray(images) || images.length === 0) return;
+      // normalize to objects with src/name
+      selectedFiles = images.map((it, i) => {
+        if (typeof it === 'string') return { src: it, name: `image-${i}`, size: 0 };
+        return { src: it.src || it.url || it.path || '', name: it.filename || it.name || `image-${i}`, size: it.size || 0 };
+      }).filter(f => f.src);
+      imagesLocked = true;
+      showPreview(selectedFiles);
+      updateControls();
+      // visually lock zone and remove file input ability
+      try {
+        zone.style.backgroundColor = '#d4edda';
+        zone.style.borderColor = '#c3e6cb';
+      } catch (e) {}
+      try {
+        // remove any visible remove buttons (showPreview already hides them when imagesLocked true)
+        if (previewEl) previewEl.querySelectorAll('.thumb-remove').forEach(b => b.remove());
+      } catch (e) {}
+      try { fileInput.value = ''; fileInput.disabled = true; } catch (e) {}
+      try { uploadBtn.disabled = true; uploadBtn.style.opacity = '0.5'; uploadBtn.textContent = 'Uploaded'; } catch (e) {}
+
+      // also disable any video upload controls (if present on page) when images are locked / viewing saved ticket
+      try {
+        const vidInput = document.getElementById('video-file');
+        const vidBtn = document.getElementById('upload-btn');
+        if (vidInput) vidInput.disabled = true;
+        if (vidBtn) { vidBtn.disabled = true; vidBtn.style.opacity = '0.5'; }
+      } catch (e) { /* ignore */ }
+    }
+
+    // expose helper to global so populateFromServerTicket and other loaders can apply server images
+    try { window.applyUploadedImages = applyServerImages; } catch (e) { /* ignore if frozen */ }
+
+    function updateControlsInitial() { updateControls(); }
+
     if (trigger) {
-      trigger.addEventListener('click', function (e) { e.preventDefault(); fileInput.click(); });
+      trigger.addEventListener('click', function (e) { e.preventDefault(); if (!imagesLocked) fileInput.click(); });
     }
 
     zone.addEventListener('click', function (e) {
+      if (imagesLocked) return;
       if (e.target !== trigger && e.target !== uploadBtn) fileInput.click();
     });
 
-    zone.addEventListener('dragover', function (e) { e.preventDefault(); zone.classList.add('dragover'); });
-    zone.addEventListener('dragleave', function (e) { e.preventDefault(); zone.classList.remove('dragover'); });
+    zone.addEventListener('dragover', function (e) { if (!imagesLocked) { e.preventDefault(); zone.classList.add('dragover'); } });
+    zone.addEventListener('dragleave', function (e) { if (!imagesLocked) { e.preventDefault(); zone.classList.remove('dragover'); } });
     zone.addEventListener('drop', function (e) {
+      if (imagesLocked) return;
       e.preventDefault(); zone.classList.remove('dragover');
       const fileList = e.dataTransfer && e.dataTransfer.files;
       if (fileList && fileList.length) {
         const arr = Array.from(fileList);
         handleFilesChosen(arr);
-        // guard: setting input.files may throw in some browsers
         try { fileInput.files = fileList; } catch (err) { console.warn('Could not set fileInput.files', err); }
       }
     });
 
     fileInput.addEventListener('change', function (e) {
+      if (imagesLocked) return;
       const fileList = e.target.files;
       if (fileList && fileList.length) handleFilesChosen(Array.from(fileList));
     });
 
     function handleFilesChosen(filesArr) {
+      if (imagesLocked) return;
       // merge and dedupe by name+size to avoid duplicates
       const combined = selectedFiles.concat(filesArr);
       const dedup = [];
       const seen = new Set();
       for (const f of combined) {
-        const key = f.name + '|' + f.size;
+        const key = (f.name || '') + '|' + (f.size || 0);
         if (seen.has(key)) continue;
         seen.add(key);
         // validation
-        if (!f.type.startsWith('image/')) continue;
-        if (f.size > MAX_BYTES) continue;
+        // allow server-provided objects (they may not have a type)
+        if (f instanceof File) {
+          if (!f.type || !f.type.startsWith('image/')) continue;
+          if (f.size > MAX_BYTES) continue;
+        }
         dedup.push(f);
         if (dedup.length >= MAX_FILES) break;
       }
       selectedFiles = dedup;
-      if (selectedFiles.length === 0) {
-        uploadBtn.disabled = true;
-        uploadBtn.style.opacity = '0.5';
-      } else {
-        uploadBtn.disabled = false;
-        uploadBtn.style.opacity = '1';
-      }
-      const p = zone.querySelector('p');
-      if (p) p.textContent = `Selected ${selectedFiles.length} image(s)`;
+      updateControls();
       showPreview(selectedFiles);
     }
 
     uploadBtn.addEventListener('click', function () {
+      if (imagesLocked) return;
       if (!selectedFiles || selectedFiles.length === 0) { alert('Please select one or more images first.'); return; }
       const fd = new FormData();
-      // append multiple files using the same field name "image"
-      selectedFiles.forEach(f => fd.append('image', f));
-      // include ticket id if available (server may expect ticketID / ticketId / id)
+      selectedFiles.forEach(f => fd.append('image', f instanceof File ? f : f.src));
       let ticketId = (window.__SERVER_TICKET__ && window.__SERVER_TICKET__.id) ||
                      document.getElementById('vehicle-ticketId')?.value ||
                      document.getElementById('ticketId')?.value || null;
@@ -366,10 +502,9 @@ document.addEventListener('DOMContentLoaded', function () {
       if (ticketId) {
         fd.append('ticketID', ticketId);
         fd.append('ticketId', ticketId);
-        // also append generic 'id' for maximal compatibility
         fd.append('id', ticketId);
       }
-      // include ticketID if needed: fd.append('ticketID', ticketIdValue);
+
       uploadBtn.textContent = 'Uploading...'; uploadBtn.disabled = true;
 
       fetch('/upload-image', { method: 'POST', body: fd })
@@ -377,20 +512,27 @@ document.addEventListener('DOMContentLoaded', function () {
         .then((data) => {
           if (data && data.success) {
             alert('Images uploaded successfully!');
-            const p = zone.querySelector('p');
-            if (p) p.textContent = 'Upload complete';
+            // lock the preview so user cannot remove/upload more images
+            imagesLocked = true;
+            // hide all remove buttons and style zone to indicate locked state
+            if (previewEl) previewEl.querySelectorAll('.thumb-remove').forEach(b => b.remove());
             zone.style.backgroundColor = '#d4edda';
             zone.style.borderColor = '#c3e6cb';
-            fileInput.value = '';
-            selectedFiles = [];
-            if (previewEl) previewEl.innerHTML = '';
+            // disable inputs and upload button
+            try { fileInput.value = ''; fileInput.disabled = true; } catch (e) {}
+            uploadBtn.disabled = true; uploadBtn.style.opacity = '0.5'; uploadBtn.textContent = 'Uploaded';
+            // update status text
+            updateControls();
           } else {
             alert('Upload failed: ' + (data && data.message ? data.message : 'Unknown'));
           }
         })
         .catch(err => { console.error('Image upload error:', err); alert('Upload failed.'); })
-        .finally(() => { uploadBtn.textContent = 'Upload'; uploadBtn.disabled = false; });
+        .finally(() => { if (!imagesLocked) { uploadBtn.textContent = 'Upload'; uploadBtn.disabled = false; } });
     });
+
+    // initial update
+    updateControlsInitial();
   })();
 
   // --- Recommended Repairs: row wiring, calc, add/remove, block '-' input ---
@@ -761,6 +903,24 @@ document.addEventListener('DOMContentLoaded', function () {
       const totEstimateEl = document.getElementById('totEstimate');
       const signatureData = document.getElementById('signatureData');
 
+      // treat a saved/loaded signature as present if any of:
+      // - signatureData (dataURL) has a value
+      // - server-saved signaturePath / signatureFilename / signatureId hidden inputs have values
+      // - an image was rendered in place of the canvas
+      const signaturePathEl = document.getElementById('signaturePath') || document.querySelector('input[name="signaturePath"]');
+      const signatureFilenameEl = document.getElementById('signatureFilename') || document.querySelector('input[name="signatureFilename"]');
+      const signatureIdEl = document.getElementById('signatureId') || document.querySelector('input[name="signatureId"]');
+      const signatureImg = document.querySelector('img[alt="Customer signature"]');
+
+      const hasSignature =
+        (signatureData && signatureData.value && String(signatureData.value).trim() !== '') ||
+        (signaturePathEl && signaturePathEl.value && String(signaturePathEl.value).trim() !== '') ||
+        (signatureFilenameEl && signatureFilenameEl.value && String(signatureFilenameEl.value).trim() !== '') ||
+        (signatureIdEl && signatureIdEl.value && String(signatureIdEl.value).trim() !== '') ||
+        !!signatureImg;
+
+      if (!hasSignature) errors.push('Customer signature is required.');
+
       // if the user clicked Complete Ticket, we should validate the Digital Courtesy Check first
       const ticketStatusElTop = document.getElementById('ticketStatus');
       const tryingToCompleteTop = ticketStatusElTop && ticketStatusElTop.value === 'complete';
@@ -847,7 +1007,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (tt !== '' && (isNaN(parseFloat(tt)) || parseFloat(tt) < 0)) errors.push('Total Estimate must be a non-negative number.');
       }
 
-      if (!signatureData || !signatureData.value) errors.push('Customer signature is required.');
+      // signature requirement already handled above via `hasSignature`
 
       // recommended repairs table validation
       const repairsTable = document.getElementById('repairs-table');
@@ -1336,7 +1496,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 const headers = Array.from(table.querySelectorAll('thead th')).map(h => (h.textContent || '').trim().toLowerCase());
                 const rowsDom = Array.from(table.querySelectorAll('tbody tr'));
                 rows.forEach(item => {
-                  const name = item.item || item.name || item.label || item.Item || '';
+                  const name = item.item || item.name || item.label || '';
                   if (!name) return;
                   let rowDom = rowsDom.find(r => r.dataset && r.dataset.item === name);
                   if (!rowDom) {
@@ -1365,7 +1525,7 @@ document.addEventListener('DOMContentLoaded', function () {
                       commentsInput.value = parentComments;
                     }
                   }
-                } catch (e) { }
+                } catch (e) {}
                 return;
               }
 
@@ -2328,39 +2488,25 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-document.addEventListener('DOMContentLoaded', () => {
-  const signatureCanvas = document.getElementById('signatureCanvas');
-  const clearBtn = document.getElementById('clearSignature');
-  const ticketId = (window.__SERVER_TICKET__ && window.__SERVER_TICKET__.id) || document.getElementById('vehicle-ticketId')?.value || document.getElementById('ticketId')?.value || '';
-  console.log('Signature save & ticketId:', ticketId, "canvas", !!signatureCanvas, "btn", !!clearBtn);
+// --- Signature save & loader (for customer signature) ---
+(function customerSignatureSaveLoader() {
+  // Make the signature loader runnable immediately if DOM already ready,
+  // otherwise attach to DOMContentLoaded.
+  function initSignatureLoader() {
+    const signatureCanvas = document.getElementById('signatureCanvas');
+    const clearBtn = document.getElementById('clearSignature');
+    console.log('Signature loader init', "canvas", !!signatureCanvas, "btn", !!clearBtn);
 
-  // --- Load saved signature for ticket (if present) ---
-  function loadSavedSignatureForTicket(ticketId) {
-    if (!ticketId) return;
-    const endpoint = '/mechanic/ticket-check';
-    console.log('loadSavedSignatureForTicket: POST', endpoint, { ticketId });
+    // apply a signature (dataURL or server path) into the DOM where the canvas lives and remove the clear button
+    function applySignature(src, meta = {}) {
+      try {
+        // prefer exact IDs (old + any new one you renamed). Update 'YOUR_NEW_CANVAS_ID' if you changed it.
+        const canvas = document.getElementById('signatureCanvas') || document.getElementById('YOUR_NEW_CANVAS_ID');
+        const clear = document.getElementById('clearSignature') || document.getElementById('YOUR_NEW_CLEAR_ID');
+        // container = canvas parent (ensures image replaces in same spot)
+        const container = canvas ? canvas.parentElement : (document.getElementById('signature-container') || document.querySelector('.form-grid') || document.body);
 
-    fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ticketId: String(ticketId) })
-    })
-      .then(res => {
-        if (!res.ok) {
-          console.log('loadSavedSignatureForTicket: fetch failed', res.status);
-          return null;
-        }
-        return res.json().catch(() => null);
-      })
-      .then(json => {
-        if (!json) return;
-        if (!json.success || !json.signature) {
-          console.log('loadSavedSignatureForTicket: no signature in response', json);
-          return;
-        }
-        const sig = json.signature;
-
-        // ensure hidden inputs are present for form submit
+        // ensure hidden inputs exist so form submits include signature info
         const form = document.getElementById('repForm') || document.querySelector('form');
         const ensureHidden = (name, id) => {
           let el = form && form.querySelector(`input[name="${name}"]`);
@@ -2368,7 +2514,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (!el) {
             el = document.createElement('input');
             el.type = 'hidden';
-            el.name = 'signature';
+            el.name = name;
             if (id) el.id = id;
             form && form.appendChild(el);
           }
@@ -2377,51 +2523,159 @@ document.addEventListener('DOMContentLoaded', () => {
         const idEl = ensureHidden('signatureId', 'signatureId');
         const fileEl = ensureHidden('signatureFilename', 'signatureFilename');
         const pathEl = ensureHidden('signaturePath', 'signaturePath');
+        const signatureDataField = document.getElementById('signatureData') || (form && form.querySelector('input[name="signatureData"]'));
 
-        idEl.value = String(sig.id || '');
-        fileEl.value = String(sig.filename || sig.originalName || '');
-        pathEl.value = String(sig.relativePath || sig.path || '');
+        if (meta && meta.id) idEl.value = String(meta.id);
+        if (meta && meta.filename) fileEl.value = String(meta.filename);
+        if (meta && (meta.relativePath || meta.path)) pathEl.value = String(meta.relativePath || meta.path);
 
-        // remove clear button and swap canvas for image
-        const container = document.querySelector('.form-grid') || document;
-        const canvas = container.querySelector('#signatureCanvas');
-        const clearBtn = container.querySelector('#clearSignature');
-        if (clearBtn && clearBtn.parentNode) clearBtn.parentNode.removeChild(clearBtn);
-
+        // create image element
         const img = document.createElement('img');
         img.alt = 'Customer signature';
         img.style.maxWidth = '100%';
         img.style.height = 'auto';
-        if (sig.relativePath || sig.path) img.src = '/' + (sig.relativePath || sig.path).replace(/^\/+/, '');
-        else {
-          const sigDataField = container.querySelector('#signatureData, input[name="signatureData"]');
-          if (sigDataField && sigDataField.value) img.src = sigDataField.value;
+        img.style.display = 'block';
+        img.src = src;
+
+        // if src is dataURL set signatureData hidden
+        if (typeof src === 'string' && src.indexOf('data:') === 0 && signatureDataField) {
+          try { signatureDataField.value = src; } catch (e) { console.warn('failed to set signatureData', e); }
         }
 
+        // replace in-place if canvas found, otherwise append to container
         if (canvas && canvas.parentNode) canvas.parentNode.replaceChild(img, canvas);
-        console.log('loadSavedSignatureForTicket: signature applied for ticket', ticketId);
-      })
-      .catch(err => {
+        else container.appendChild(img);
+
+        if (clear && clear.parentNode) clear.parentNode.removeChild(clear);
+
+        console.log('applySignature: signature applied', meta, 'srcLen=', (src || '').length);
+        return true;
+      } catch (err) {
+        console.error('applySignature error', err);
+        return false;
+      }
+    }
+
+    // load signature info for a given ticket id:
+    //  - first try window.__SERVER_TICKET__ if present (fast)
+    //  - otherwise POST /ticket-check to ask server for saved signature metadata
+    async function loadSavedSignatureForTicket(ticketId) {
+      if (!ticketId) { console.log('loadSavedSignatureForTicket: no ticketId'); return false; }
+      console.log('loadSavedSignatureForTicket:', ticketId);
+
+      // quick check: server-injected ticket object may already contain signature data/path
+      try {
+        const st = window.__SERVER_TICKET__ || null;
+        if (st && (String(st.id) === String(ticketId))) {
+          // tolerant keys
+          const sigData = st.customerSignature || st.signature || st.customer_signature || null;
+          const sigPath = st.signaturePath || st.signature_path || st.signatureURL || st.signatureUrl || st.signature_url || null;
+          const sigMeta = {};
+          if (st.signatureId || st.signature_id) sigMeta.id = st.signatureId || st.signature_id;
+          if (st.signatureFilename || st.signature_filename) sigMeta.filename = st.signatureFilename || st.signature_filename;
+          if (sigData) {
+            console.log('loadSavedSignatureForTicket: using server ticket embedded dataURL');
+            applySignature(sigData, sigMeta);
+            return true;
+          }
+          if (sigPath) {
+            const src = (sigPath.indexOf('data:') === 0) ? sigPath : '/' + String(sigPath).replace(/^\/+/, '');
+            console.log('loadSavedSignatureForTicket: using server ticket embedded path ->', src);
+            applySignature(src, sigMeta);
+            return true;
+          }
+        }
+      } catch (e) { console.warn('server-ticket quick check failed', e); }
+
+      // fallback: ask server endpoint for signature metadata
+      try {
+        const endpoint = '/ticket-check';
+        console.log('loadSavedSignatureForTicket: POST', endpoint, { ticketId });
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ticketId: String(ticketId) })
+        });
+        if (!res.ok) { console.warn('loadSavedSignatureForTicket: server returned', res.status); return false; }
+        let json = null;
+        try { json = await res.json(); } catch (e) { console.warn('loadSavedSignatureForTicket: failed to parse json', e); json = null; }
+        if (!json || !json.success || !json.signature) {
+          console.log('loadSavedSignatureForTicket: no signature payload', json);
+          return false;
+        }
+        const sig = json.signature;
+        // If server returned a path on disk/URL, prefer that; otherwise accept dataURL if provided
+        if (sig.relativePath || sig.path || sig.url) {
+          const src = '/' + (sig.relativePath || sig.path || sig.url).replace(/^\/+/, '');
+          applySignature(src, sig);
+          return true;
+        }
+        if (sig.data || sig.dataUrl || sig.dataURL || sig.base64) {
+          const src = sig.data || sig.dataUrl || sig.dataURL || ('data:' + (sig.mime || 'image/png') + ';base64,' + sig.base64);
+          applySignature(src, sig);
+          return true;
+        }
+
+        console.log('loadSavedSignatureForTicket: signature object present but no usable path/data', sig);
+        return false;
+      } catch (err) {
         console.error('loadSavedSignatureForTicket fetch error', err);
-      });
+        return false;
+      }
+    }
+
+    // find a ticket id from multiple fallbacks (server-injected, hidden inputs, query string)
+    function resolveTicketId() {
+      const id =
+        (window.__SERVER_TICKET__ && window.__SERVER_TICKET__.id) ||
+        document.getElementById('vehicle-ticketId')?.value ||
+        document.getElementById('ticketId')?.value ||
+        document.getElementById('ticketIdHidden')?.value ||
+        '';
+      if (id) return String(id);
+      try {
+        const p = new URLSearchParams(window.location.search);
+        return p.get('id') || p.get('ticketId') || p.get('ticketID') || '';
+      } catch (e) { return ''; }
+    }
+
+    // attempt immediately and retry for a short period until a ticketId exists or signature successfully applied
+    (async function attemptLoadWithRetries() {
+      const maxAttempts = 80; // ~20s with 250ms interval
+      let attempt = 0;
+      let applied = false;
+      const tryOnce = async () => {
+        attempt += 1;
+        const id = resolveTicketId();
+        console.log('signature loader attempt', attempt, 'resolved ticketId=', id);
+        if (!id) return false;
+        try {
+          const ok = await loadSavedSignatureForTicket(id);
+          if (ok) applied = true;
+          return ok;
+        } catch (e) { console.error('signature tryOnce error', e); return false; }
+      };
+
+      // immediate first try
+      if (await tryOnce()) return;
+
+      const iv = setInterval(async () => {
+        if (attempt >= maxAttempts || applied) { clearInterval(iv); if (!applied) console.log('signature loader giving up after', attempt, 'attempts'); return; }
+        try {
+          if (await tryOnce()) {
+            clearInterval(iv);
+            console.log('signature loader: applied on attempt', attempt);
+          }
+        } catch (e) { console.error('signature loader interval error', e); }
+      }, 250);
+    })();
   }
 
-  // Minimal, reliable ticket-id check that calls loadSavedSignatureForTicket once an id is available.
-  const tryLoad = () => {
-    const id =
-      (window.__SERVER_TICKET__ && window.__SERVER_TICKET__.id) ||
-      document.getElementById('vehicle-ticketId')?.value ||
-      document.getElementById('ticketId')?.value ||
-      document.getElementById('ticketIdHidden')?.value ||
-      '';
-    if (id) {
-      // call the existing loader (no-op if already applied)
-      try { loadSavedSignatureForTicket(String(id)); } catch (e) { console.error('loadSavedSignatureForTicket error', e); }
-      return true;
-    }
-    return false;
-  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initSignatureLoader);
+  else initSignatureLoader();
+})();
 
+(function customerPdfDownload() {
   // attempt immediately
   if (!tryLoad()) {
     // if not present yet, listen for changes on likely inputs and try again once
