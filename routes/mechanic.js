@@ -115,16 +115,48 @@ const signatureUpload = multer({
 function ensureAdmin(req, res, next) {
     const sess = req && req.session && req.session.user;
     let role = '';
-    if (sess && sess.stat) role = String(sess.stat).toLowerCase();
-    else if (req && req.cookies && req.cookies.user) {
+    let email = null;
+    if (sess && sess.stat) {
+        role = String(sess.stat).toLowerCase();
+        email = sess.email || null;
+    } else if (req && req.cookies && req.cookies.user) {
         try {
             const c = JSON.parse(req.cookies.user);
-            if (c && c.stat) role = String(c.stat).toLowerCase();
+            if (c) {
+                email = c.email || null;
+                if (c.stat) role = String(c.stat).toLowerCase();
+            }
         } catch (e) { /* ignore */ }
     }
+
+    // If we already know role is admin, allow
     if (role === 'admin') return next();
-    // Not an admin: render customer view with a helpful message
-    return res.render('customerDis', { user: req.session && req.session.user ? req.session.user : null, message: 'You do not have permission to access that page.' });
+
+    // Otherwise, if we have an email, try to fetch role from DB and update session
+    if (email && req.app && req.app.locals && req.app.locals.db) {
+        const db = req.app.locals.db;
+        db.get('SELECT stat, id FROM users WHERE lower(email) = lower(?) LIMIT 1', [email], (err, row) => {
+            if (err) {
+                console.error('ensureAdmin DB error:', err);
+                const safeUser = (req && req.session && req.session.user) ? req.session.user : { email: email, stat: 'customer' };
+                return res.render('customerDis', { user: safeUser, message: 'You do not have permission to access that page.', tickets: [] });
+            }
+            const dbStat = row && row.stat ? String(row.stat).toLowerCase() : '';
+            if (dbStat === 'admin') {
+                // ensure session reflects admin role
+                req.session = req.session || {};
+                req.session.user = Object.assign({}, req.session.user || {}, { id: row && row.id, email: email, stat: 'admin' });
+                return next();
+            }
+            const safeUser = (req && req.session && req.session.user) ? req.session.user : { email: email, stat: dbStat || 'customer' };
+            return res.render('customerDis', { user: safeUser, message: 'You do not have permission to access that page.', tickets: [] });
+        });
+        return;
+    }
+
+    // No email or DB available: block access
+    const safeUser = (req && req.session && req.session.user) ? req.session.user : { email: 'Customer', stat: 'customer' };
+    return res.render('customerDis', { user: safeUser, message: 'You do not have permission to access that page.', tickets: [] });
 }
 
 // apply ensureAdmin to any route that begins with /mechanic
