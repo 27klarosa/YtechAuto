@@ -36,6 +36,13 @@ body {
   padding: 1.5rem 2rem;
 }
 
+.header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
 .site-header h1 {
   margin: 0;
   font-size: 1.5rem;
@@ -54,6 +61,82 @@ body {
 
 .site-header a:hover {
   text-decoration: underline;
+}
+
+/* Local login box in header */
+.header-buttons {
+  display: flex;
+  align-items: center;
+}
+
+.local-login-box {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.06);
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+}
+
+.ms-login-box {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.04);
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  margin-left: 0.5rem;
+}
+
+.ms-login-label {
+  color: var(--header-text);
+  font-size: 0.9rem;
+  font-weight: 600;
+  opacity: 0.95;
+  margin-right: 0.5rem;
+}
+
+.ms-login-actions .btn {
+  margin-left: 0.25rem;
+}
+
+.local-login-label {
+  color: var(--header-text);
+  font-size: 0.9rem;
+  font-weight: 600;
+  opacity: 0.95;
+  margin-right: 0.5rem;
+}
+
+.local-login-actions .btn {
+  margin-left: 0.5rem;
+}
+
+/* Make login/signup visually lighter than header but keep right alignment */
+.btn-login, .btn-signup {
+  background: transparent;
+  color: var(--header-text);
+  border: 1px solid rgba(255,255,255,0.12);
+  padding: 0.35rem 0.6rem;
+  border-radius: 4px;
+}
+
+.btn-ms {
+  background: transparent;
+  color: var(--header-text);
+  border: 1px solid rgba(255,255,255,0.12);
+  padding: 0.35rem 0.6rem;
+  border-radius: 4px;
+}
+
+.btn-login:hover, .btn-signup:hover {
+  background: rgba(255,255,255,0.04);
+}
+
+@media (max-width: 640px) {
+  .local-login-box { display: none; }
 }
 
 /* Landing Page */
@@ -420,6 +503,29 @@ th {
 
 .back-link:hover {
   text-decoration: underline;
+}
+
+/* When `.back-link` is used with `.btn` or inside header buttons,
+   show it as plain blue text (no box) while preserving hover state. */
+.header-buttons .back-link,
+.back-link.btn,
+.back-link.btn-secondary {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  color: var(--accent) !important;
+  text-decoration: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+
+.header-buttons .back-link:hover,
+.back-link.btn:hover,
+.back-link.btn-secondary:hover {
+  text-decoration: underline !important;
+  color: var(--accent-hover) !important;
+  background: transparent !important;
 }
 
 /* Inspection Summary (Customer View) */
