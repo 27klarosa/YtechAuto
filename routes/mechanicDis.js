@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();    
+
 // middleware to ensure admin access; if not admin redirect to home
 function ensureAdmin(req, res, next) {
   const sess = req && req.session && req.session.user;
