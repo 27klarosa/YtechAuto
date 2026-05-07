@@ -1,12 +1,9 @@
 const express = require('express');
 const router = express.Router();
-router.get('/mechanicEdit', (req, res) => {
-    const userCookie = req.cookies.user;
-    if (userCookie) {
-        res.render('mechanicEdit');} 
-    else {
-        res.redirect('/login');
-        }
+const { ensureLoggedIn } = require('../middleware/auth');
+
+router.get('/mechanicEdit', ensureLoggedIn, (req, res) => {
+    res.render('mechanicEdit', { user: req.user });
 });
 
 // return list of incomplete tickets as JSON
