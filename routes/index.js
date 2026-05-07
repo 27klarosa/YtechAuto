@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 
-router.get('/', (req, res) => {
+/*router.get('/', (req, res) => {
     const userCookie = req.cookies.user;
     
     if (userCookie) {
@@ -33,6 +33,11 @@ router.get('/', (req, res) => {
     } else {
         res.redirect('/login');
     }
+});
+*/
+
+router.get('/', (req, res) => {
+    res.render('index');
 });
 
 module.exports = router;
