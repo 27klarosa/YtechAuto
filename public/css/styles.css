@@ -79,6 +79,29 @@ body {
   border-radius: 6px;
 }
 
+.ms-login-box {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.04);
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  margin-left: 0.5rem;
+}
+
+.ms-login-label {
+  color: var(--header-text);
+  font-size: 0.9rem;
+  font-weight: 600;
+  opacity: 0.95;
+  margin-right: 0.5rem;
+}
+
+.ms-login-actions .btn {
+  margin-left: 0.25rem;
+}
+
 .local-login-label {
   color: var(--header-text);
   font-size: 0.9rem;
@@ -93,6 +116,14 @@ body {
 
 /* Make login/signup visually lighter than header but keep right alignment */
 .btn-login, .btn-signup {
+  background: transparent;
+  color: var(--header-text);
+  border: 1px solid rgba(255,255,255,0.12);
+  padding: 0.35rem 0.6rem;
+  border-radius: 4px;
+}
+
+.btn-ms {
   background: transparent;
   color: var(--header-text);
   border: 1px solid rgba(255,255,255,0.12);
