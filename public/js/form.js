@@ -617,9 +617,6 @@ document.addEventListener('DOMContentLoaded', function () {
         .catch(err => { console.error('Image upload error:', err); alert('Upload failed.'); })
         .finally(() => { if (!imagesLocked) { uploadBtn.textContent = 'Upload'; uploadBtn.disabled = false; } });
     });
-
-    // initial update
-    updateControlsInitial();
   })();
 
   // --- Recommended Repairs: row wiring, calc, add/remove, block '-' input ---
@@ -1502,6 +1499,9 @@ document.addEventListener('DOMContentLoaded', function () {
           const period = parts[1];
           const [h, m] = time.split(':');
           const hEl = document.getElementById(prefix + 'Hour');
+          const mEl = document.getElementById(prefix + 'Minute');
+          const pEl = document.getElementById(prefix + 'AmPm');
+          try { if (hEl) { hEl.value = String(parseInt(h, 10)); hEl.dispatchEvent(new Event('change')); } } catch (e) { }
           const mEl = document.getElementById(prefix + 'Minute');
           const pEl = document.getElementById(prefix + 'AmPm');
           try { if (hEl) { hEl.value = String(parseInt(h, 10)); hEl.dispatchEvent(new Event('change')); } } catch (e) { }
@@ -2764,14 +2764,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const preview = document.getElementById('image-preview');
     const zone = document.getElementById('image-upload-zone');
     let container = preview;
-    if (!container) {
-      container = zone && zone.parentNode ? zone.parentNode.querySelector('.image-preview-container') : null;
-      if (!container && zone && zone.parentNode) {
-        container = document.createElement('div');
-        container.className = 'image-preview-container';
-        zone.parentNode.insertBefore(container, zone.nextSibling);
-      }
-    }
+    
     if (!container) {
       console.warn('customerImageLoader: no preview container to render images');
       return;
@@ -2912,6 +2905,12 @@ document.addEventListener('DOMContentLoaded', () => {
   })();
   console.log('customerImageLoader: initialized');
  })();
+
+//video saver and loader (similar pattern to image loader, looking for server data and applying to video elements)
+(function customerVideoLoader() {
+  async function fetchVideosForTicket(ticketId) {
+}
+})();
 
 (function customerPdfDownload() {
   // attempt immediately
