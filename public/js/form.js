@@ -347,16 +347,47 @@ document.addEventListener('DOMContentLoaded', function () {
         if (imagesLocked) removeBtn.style.display = 'none';
 
         // file object (File) -> read; if object has src property (server images), use it
+        // attach diagnostics so we can see whether the image actually loads/draws
+        img.addEventListener('load', function () {
+          console.log('preview image loaded/drawn', {
+            idx,
+            name: (file && (file.name || file.filename)) || null,
+            src: img.src,
+            naturalWidth: img.naturalWidth,
+            naturalHeight: img.naturalHeight
+          });
+        });
+        img.addEventListener('error', function () {
+          console.error('preview image failed to load', {
+            idx,
+            name: (file && (file.name || file.filename)) || null,
+            src: img.src
+          });
+        });
+
         if (file && file.src) {
+          console.log('preview: using provided src for image', { idx, src: file.src, name: file.name || file.filename });
           img.src = file.src;
           img.alt = file.name || img.alt;
         } else if (file instanceof File) {
           const reader = new FileReader();
-          reader.onload = function (e) { img.src = e.target.result; };
+          reader.onload = function (e) {
+            try {
+              console.log('preview: FileReader result for', { name: file.name, size: file.size, resultLength: (e.target.result || '').length });
+            } catch (e) { /* ignore logging failure */ }
+            img.src = e.target.result;
+          };
+          reader.onerror = function (err) {
+            console.error('preview: FileReader error', { name: file.name, err });
+          };
           reader.readAsDataURL(file);
         } else {
           // fallback: treat as URL string
-          try { img.src = String(file); } catch (e) { img.alt = 'image'; }
+          try {
+            const s = String(file);
+            console.log('preview: treating item as URL string', { idx, src: s });
+            img.src = s;
+          } catch (e) { img.alt = 'image'; console.error('preview: failed to set src from fallback', e); }
         }
 
         removeBtn.addEventListener('click', function (e) {
@@ -407,16 +438,8 @@ document.addEventListener('DOMContentLoaded', function () {
       imagesLocked = true;
 
       // ensure we have a visible preview container -- prefer existing previewEl, otherwise make one under the zone
-      let container = previewEl;
-      if (!container) {
-        container = zone.querySelector('.image-preview-container');
-        if (!container) {
-          container = document.createElement('div');
-          container.className = 'image-preview-container';
-          container.style.marginTop = '8px';
-          zone.parentNode && zone.parentNode.insertBefore(container, zone.nextSibling);
-        }
-      }
+      const container = document.getElementById('image-preview')
+      console.log('picture upload area found container for server images', { container });
       // clear and render server images similarly to signature loader (static <img>)
       container.innerHTML = '';
       selectedFiles.forEach((f, idx) => {
@@ -430,6 +453,14 @@ document.addEventListener('DOMContentLoaded', function () {
           let src = String(f.src || '');
           // normalize relative paths to absolute-ish so they load from server root
           if (src && !src.match(/^data:|^https?:|^\//)) src = '/' + src.replace(/^\/+/, '');
+          // attach diagnostics to server-rendered preview images
+          img.addEventListener('load', function () {
+            console.log('server image loaded/drawn', { idx, name: f.name, src: img.src, naturalWidth: img.naturalWidth, naturalHeight: img.naturalHeight });
+          });
+          img.addEventListener('error', function () {
+            console.error('server image failed to load', { idx, name: f.name, src: img.src });
+          });
+          console.log('server: setting image src', { idx, name: f.name, src });
           img.src = src;
           img.className = 'server-image';
           container.appendChild(img);
@@ -482,7 +513,10 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // expose helper to global so populateFromServerTicket and other loaders can apply server images
-    try { window.applyUploadedImages = applyServerImages; } catch (e) { /* ignore if frozen */ }
+    try {
+      window.applyUploadedImages = applyServerImages;
+      console.log('setupImageUpload: window.applyUploadedImages bound');
+    } catch (e) { console.warn('setupImageUpload: failed to bind window.applyUploadedImages', e); }
 
     function updateControlsInitial() { updateControls(); }
 
@@ -1641,7 +1675,6 @@ document.addEventListener('DOMContentLoaded', function () {
                     unmatched.push(name);
                     return;
                   }
-                  if (!rowDom) return;
                   // set left/right/front/rear if present
                   try {
                     ['left', 'right', 'front', 'rear'].forEach(col => {
@@ -2546,10 +2579,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // Make the signature loader runnable immediately if DOM already ready,
   // otherwise attach to DOMContentLoaded.
   function initSignatureLoader() {
-    const signatureCanvas = document.getElementById('signatureCanvas');
-    const clearBtn = document.getElementById('clearSignature');
-    console.log('Signature loader init', "canvas", !!signatureCanvas, "btn", !!clearBtn);
-
     // apply a signature (dataURL or server path) into the DOM where the canvas lives and remove the clear button
     function applySignature(src, meta = {}) {
       try {
@@ -2614,7 +2643,6 @@ document.addEventListener('DOMContentLoaded', () => {
     //  - otherwise POST /ticket-check to ask server for saved signature metadata
     async function loadSavedSignatureForTicket(ticketId) {
       if (!ticketId) { console.log('loadSavedSignatureForTicket: no ticketId'); return false; }
-      console.log('loadSavedSignatureForTicket:', ticketId);
 
       // quick check: server-injected ticket object may already contain signature data/path
       try {
@@ -2694,13 +2722,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // attempt immediately and retry for a short period until a ticketId exists or signature successfully applied
     (async function attemptLoadWithRetries() {
-      const maxAttempts = 80; // ~20s with 250ms interval
+      const maxAttempts = 20; // ~20s with 250ms interval
       let attempt = 0;
       let applied = false;
       const tryOnce = async () => {
         attempt += 1;
         const id = resolveTicketId();
-        console.log('signature loader attempt', attempt, 'resolved ticketId=', id);
         if (!id) return false;
         try {
           const ok = await loadSavedSignatureForTicket(id);
@@ -2727,6 +2754,164 @@ document.addEventListener('DOMContentLoaded', () => {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initSignatureLoader);
   else initSignatureLoader();
 })();
+
+//image saver and loader 
+(function customerImageLoader() {
+  // It can be triggered on DOMContentLoaded and can attempt to find and apply any saved customer images based on ticket ID or other identifiers.
+  // render server image objects/urls into the preview area and create a hidden JSON input
+  function localApplyServerImages(images) {
+    if (!Array.isArray(images) || images.length === 0) return;
+    const preview = document.getElementById('image-preview');
+    const zone = document.getElementById('image-upload-zone');
+    let container = preview;
+    if (!container) {
+      container = zone && zone.parentNode ? zone.parentNode.querySelector('.image-preview-container') : null;
+      if (!container && zone && zone.parentNode) {
+        container = document.createElement('div');
+        container.className = 'image-preview-container';
+        zone.parentNode.insertBefore(container, zone.nextSibling);
+      }
+    }
+    if (!container) {
+      console.warn('customerImageLoader: no preview container to render images');
+      return;
+    }
+
+    const normalized = images.map((it, i) => {
+      if (typeof it === 'string') return { src: it, name: `image-${i}`, size: 0 };
+      return { src: it.src || it.url || it.path || '', name: it.filename || it.name || `image-${i}`, size: it.size || 0 };
+    }).filter(x => x.src);
+
+    container.innerHTML = '';
+    normalized.forEach((f, idx) => {
+      try {
+        const img = document.createElement('img');
+        img.alt = f.name || `image-${idx}`;
+        img.style.maxWidth = '100%';
+        img.style.height = 'auto';
+        img.style.display = 'block';
+        img.style.marginBottom = '6px';
+        let src = String(f.src || '');
+        // normalize relative paths to absolute-ish so they load from server root
+        if (src && !src.match(/^data:|^https?:|^\//)) src = '/' + src.replace(/^\/+/, '');
+        img.addEventListener('load', () => console.log('customerImageLoader: server image loaded', { idx, name: f.name, src: img.src, naturalWidth: img.naturalWidth, naturalHeight: img.naturalHeight }));
+        img.addEventListener('error', () => console.error('customerImageLoader: server image failed to load', { idx, name: f.name, src: img.src }));
+        console.log('customerImageLoader: setting image src', { idx, name: f.name, src });
+        img.src = src;
+        img.className = 'server-image';
+        container.appendChild(img);
+      } catch (e) { console.warn('customerImageLoader: render error', e); }
+    });
+
+    // hidden JSON input for server processing
+    try {
+      const form = document.getElementById('repForm') || document.querySelector('form');
+      if (form) {
+        let hid = form.querySelector('input[name="uploadedImages"]');
+        if (!hid) {
+          hid = document.createElement('input');
+          hid.type = 'hidden';
+          hid.name = 'uploadedImages';
+          form.appendChild(hid);
+        }
+        hid.value = JSON.stringify(normalized.map(f => ({ src: f.src, name: f.name, size: f.size || 0 })));
+      }
+    } catch (e) { /* ignore */ }
+    console.log('customerImageLoader: applied', normalized.length, 'images');
+  }
+
+  // expose helper (prefer existing applyUploadedImages if defined by image upload setup)
+  try {
+    if (!window.applyUploadedImages) window.applyUploadedImages = localApplyServerImages;
+    else {
+      // wrap existing to ensure logs when invoked
+      const orig = window.applyUploadedImages;
+      window.applyUploadedImages = function (imgs) { console.log('customerImageLoader: delegating to window.applyUploadedImages'); try { return orig(imgs); } catch (e) { console.warn('applyUploadedImages threw, falling back', e); return localApplyServerImages(imgs); } };
+    }
+  } catch (e) { console.warn('customerImageLoader: expose helper failed', e); }
+
+  // fetch saved images for ticket from server (POST /ticket-check) if not present on window.__SERVER_TICKET__
+  async function fetchImagesForTicket(ticketId) {
+    if (!ticketId) return null;
+    try {
+      // quick check server-injected object
+      const st = window.__SERVER_TICKET__ || null;
+      if (st && String(st.id) === String(ticketId)) {
+        const imgs = st.images || st.photos || st.customerImages || st.savedImages || st.imagesSaved || null;
+        if (Array.isArray(imgs) && imgs.length) {
+          console.log('customerImageLoader: found images on server ticket object', imgs);
+          return imgs;
+        }
+      }
+
+      // fallback: ask server endpoint for images (reuse ticket-check)
+      const res = await fetch('/ticket-check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ticketId: String(ticketId) }) });
+      if (!res.ok) { console.warn('customerImageLoader: /ticket-check returned', res.status); return null; }
+      let json = null;
+      try { json = await res.json(); } catch (e) { json = null; }
+      if (!json) return null;
+      // server may return images under different keys
+      const imgs = json.images || json.photos || json.savedImages || json.data || json.customerImages || null;
+      if (Array.isArray(imgs) && imgs.length) {
+        console.log('customerImageLoader: /ticket-check returned images', imgs);
+        return imgs;
+      }
+      // sometimes server returns nested object
+      if (json.signature && !Array.isArray(imgs)) return null;
+      return null;
+    } catch (err) {
+      console.error('customerImageLoader: fetchImagesForTicket error', err);
+      return null;
+    }
+  }
+
+  // resolve ticket id from same fallbacks used elsewhere
+  function resolveTicketId() {
+    const id =
+      (window.__SERVER_TICKET__ && window.__SERVER_TICKET__.id) ||
+      document.getElementById('vehicle-ticketId')?.value ||
+      document.getElementById('ticketId')?.value ||
+      document.getElementById('ticketIdHidden')?.value ||
+      '';
+    if (id) return String(id);
+    try {
+      const p = new URLSearchParams(window.location.search);
+      return p.get('id') || p.get('ticketId') || p.get('ticketID') || '';
+    } catch (e) { return ''; }
+  }
+
+  // attempt load with retries until ticketId available or images applied
+  (async function attemptLoadWithRetries() {
+    const maxAttempts = 20;
+    let attempt = 0;
+    let applied = false;
+    async function tryOnce() {
+      attempt++;
+      const id = resolveTicketId();
+      if (!id) return false;
+      try {
+        const imgs = await fetchImagesForTicket(id);
+        if (!imgs || !imgs.length) return false;
+        // prefer global helper if present
+        if (window.applyUploadedImages) {
+          try { window.applyUploadedImages(imgs); applied = true; return true; } catch (e) { console.warn('customerImageLoader: window.applyUploadedImages threw', e); }
+        }
+        localApplyServerImages(imgs);
+        applied = true;
+        return true;
+      } catch (e) { console.error('customerImageLoader tryOnce error', e); return false; }
+    }
+
+    if (await tryOnce()) return;
+    const iv = setInterval(async () => {
+      if (attempt >= maxAttempts || applied) { clearInterval(iv); if (!applied) console.log('customerImageLoader: giving up after', attempt, 'attempts'); return; }
+      try {
+        if (await tryOnce()) { clearInterval(iv); console.log('customerImageLoader: images applied on attempt', attempt); }
+      } catch (e) { console.error('customerImageLoader interval error', e); }
+    }, 500);
+  })();
+  console.log('customerImageLoader: initialized');
+ })();
 
 (function customerPdfDownload() {
   // attempt immediately
