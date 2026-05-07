@@ -761,10 +761,10 @@ router.post('/mechanic/courtesy-check', (req, res) => {
                             });
                         });
                     });
+                });
             });
         });
     });
-});
 router.post('/mechanic/tires', (req, res) => {
     const db = req.app.locals.db;
     if (!db) return res.status(500).json({ error: 'Database not available' });
