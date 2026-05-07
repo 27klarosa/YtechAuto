@@ -2,16 +2,17 @@ const express = require('express');
 const router = express.Router();
 const path = require('path');
 const fs = require('fs');
+const { ensureLoggedIn } = require('../middleware/auth');
 
-router.get('/customer', (req, res) => {
-    const userCookie = req.cookies.user;
+router.get('/customer', ensureLoggedIn, (req, res) => {
+    const session = req.user || req.cookies.user;
     const ticketId = req.query.ticketId;
     
     console.log('debug - Ticket ID from URL:', ticketId);
     
-    if (userCookie) {
+    if (session) {
         try {
-            const user = JSON.parse(userCookie);
+            const user = (typeof session === 'string') ? JSON.parse(session) : session;
             const email = user.email.toLowerCase();
             const db = req.app.locals.db;
             
@@ -242,7 +243,7 @@ router.get('/customer', (req, res) => {
                             }
                             
                             res.render('customer', {
-                                user: user,
+                                        user: user,
                                 ticket: ticket,
                                 repairs: repairs,
                                 vehicle: vehicle || {},

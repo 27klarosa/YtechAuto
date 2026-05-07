@@ -52,6 +52,7 @@ const mechanicDisRouter = require('./routes/mechanicDis');
 const mechanicEditRouter = require('./routes/mechanicEdit');
 const ticketRoute = require('./routes/ticket');
 const authRouter = require('./routes/auth');
+const loginRouter = require('./routes/login');
 
 
 
@@ -62,6 +63,7 @@ app.use('/', customerDisRouter);
 app.use('/', authRouter);
 app.use('/', mechanicDisRouter);
 app.use('/', mechanicEditRouter);
+app.use('/', loginRouter);
 app.use('/', ticketRoute);
                                     
 

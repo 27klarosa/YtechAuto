@@ -1,10 +1,8 @@
 const express = require('express');
 const router = express.Router();
+const { ensureLoggedIn } = require('../middleware/auth');
 
-router.get('/ticket', (req, res) => {
-    const userCookie = req.cookies.user;
-    if (!userCookie) return res.redirect('/login');
-
+router.get('/ticket', ensureLoggedIn, (req, res) => {
     const db = req.app.locals.db;
     if (!db) return res.status(500).send('Database not available');
 
@@ -13,7 +11,7 @@ router.get('/ticket', (req, res) => {
             console.error('Error fetching completed tickets:', err);
             return res.status(500).send('Internal Server Error');
         }
-        return res.render('ticket', { tickets: rows });
+        return res.render('ticket', { tickets: rows, user: req.user });
     });
 });
 

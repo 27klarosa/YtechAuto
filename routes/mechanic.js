@@ -5,6 +5,7 @@ const router = express.Router();
 const sqlite3 = require('sqlite3').verbose();
 const fs = require('fs');
 const e = require('express');
+const { ensureLoggedIn } = require('../middleware/auth');
 
 const videoDir = path.join(__dirname, '..', 'upload', 'videos');
 const imageDir = path.join(__dirname, '..', 'upload', 'images');
@@ -111,14 +112,12 @@ const signatureUpload = multer({
     }
 });
 
-router.get('/mechanic', (req, res) => {
-    const userCookie = req.cookies.user;
-    if (!userCookie) return res.redirect('/login');
-
+router.get('/mechanic', ensureLoggedIn, (req, res) => {
+    const user = req.user;
     const ticketId = req.query.id || req.query.ticketId;
     const db = req.app.locals.db;
     if (!ticketId) {
-        return res.render('mechanic');
+        return res.render('mechanic', { user });
     }
 
     if (!db) return res.status(500).send('Database not available');
