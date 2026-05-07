@@ -224,8 +224,8 @@ document.addEventListener('DOMContentLoaded', function () {
       // keep server compatibility: send under 'video' field (server expects this route)
       formData.append('video', selectedFile);
       let ticketId = (window.__SERVER_TICKET__ && window.__SERVER_TICKET__.id) ||
-                     document.getElementById('vehicle-ticketId')?.value ||
-                     document.getElementById('ticketId')?.value || null;
+        document.getElementById('vehicle-ticketId')?.value ||
+        document.getElementById('ticketId')?.value || null;
       if (!ticketId) {
         try {
           const p = new URLSearchParams(window.location.search);
@@ -260,7 +260,7 @@ document.addEventListener('DOMContentLoaded', function () {
             // if uploaded file was a video, mark so no more videos can be uploaded
             if (isVideoFile(selectedFile)) videoUploaded = true;
             // clear current selection but keep ability to choose other files
-            try { videoFileInput.value = ''; } catch (e) {}
+            try { videoFileInput.value = ''; } catch (e) { }
             selectedFile = null;
             uploadBtn.disabled = true;
             uploadBtn.style.opacity = '0.5';
@@ -495,13 +495,13 @@ document.addEventListener('DOMContentLoaded', function () {
       try {
         zone.style.backgroundColor = '#d4edda';
         zone.style.borderColor = '#c3e6cb';
-      } catch (e) {}
+      } catch (e) { }
       try {
         // remove any visible remove buttons (showPreview already hides them when imagesLocked true)
         if (previewEl) previewEl.querySelectorAll('.thumb-remove').forEach(b => b.remove());
-      } catch (e) {}
-      try { fileInput.value = ''; fileInput.disabled = true; } catch (e) {}
-      try { uploadBtn.disabled = true; uploadBtn.style.opacity = '0.5'; uploadBtn.textContent = 'Uploaded'; } catch (e) {}
+      } catch (e) { }
+      try { fileInput.value = ''; fileInput.disabled = true; } catch (e) { }
+      try { uploadBtn.disabled = true; uploadBtn.style.opacity = '0.5'; uploadBtn.textContent = 'Uploaded'; } catch (e) { }
 
       // also disable any video upload controls (if present on page) when images are locked / viewing saved ticket
       try {
@@ -578,8 +578,8 @@ document.addEventListener('DOMContentLoaded', function () {
       const fd = new FormData();
       selectedFiles.forEach(f => fd.append('image', f instanceof File ? f : f.src));
       let ticketId = (window.__SERVER_TICKET__ && window.__SERVER_TICKET__.id) ||
-                     document.getElementById('vehicle-ticketId')?.value ||
-                     document.getElementById('ticketId')?.value || null;
+        document.getElementById('vehicle-ticketId')?.value ||
+        document.getElementById('ticketId')?.value || null;
       if (!ticketId) {
         try {
           const p = new URLSearchParams(window.location.search);
@@ -606,7 +606,7 @@ document.addEventListener('DOMContentLoaded', function () {
             zone.style.backgroundColor = '#d4edda';
             zone.style.borderColor = '#c3e6cb';
             // disable inputs and upload button
-            try { fileInput.value = ''; fileInput.disabled = true; } catch (e) {}
+            try { fileInput.value = ''; fileInput.disabled = true; } catch (e) { }
             uploadBtn.disabled = true; uploadBtn.style.opacity = '0.5'; uploadBtn.textContent = 'Uploaded';
             // update status text
             updateControls();
@@ -974,7 +974,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     async function validateAndSubmit(e) {
       e.preventDefault();
-      try { console.log('validateAndSubmit invoked'); } catch(e) {}
+      try { console.log('validateAndSubmit invoked'); } catch (e) { }
       const errors = [];
 
       // collect elements used earlier in your validation
@@ -1011,7 +1011,7 @@ document.addEventListener('DOMContentLoaded', function () {
       // if the user clicked Complete Ticket, we should validate the Digital Courtesy Check first
       const ticketStatusElTop = document.getElementById('ticketStatus');
       const tryingToCompleteTop = ticketStatusElTop && ticketStatusElTop.value === 'complete';
-      try { console.log('validateAndSubmit: ticketStatus=', ticketStatusElTop ? ticketStatusElTop.value : '(none)'); } catch(e) {}
+      try { console.log('validateAndSubmit: ticketStatus=', ticketStatusElTop ? ticketStatusElTop.value : '(none)'); } catch (e) { }
       if (tryingToCompleteTop) {
         const courtesy = document.getElementById('courtesy-check');
         if (courtesy) {
@@ -1380,7 +1380,7 @@ document.addEventListener('DOMContentLoaded', function () {
       // mark the form to indicate we're completing and let the form submit handler perform validation
       const status = document.getElementById('ticketStatus');
       if (status) status.value = 'complete';
-      try { console.log('Complete button: submitting form via requestSubmit'); } catch(e) {}
+      try { console.log('Complete button: submitting form via requestSubmit'); } catch (e) { }
       try { form.requestSubmit(); } catch (e) { form.submit(); }
     });
   })();
@@ -1612,7 +1612,7 @@ document.addEventListener('DOMContentLoaded', function () {
                       commentsInput.value = parentComments;
                     }
                   }
-                } catch (e) {}
+                } catch (e) { }
                 return;
               }
 
@@ -1852,12 +1852,12 @@ document.addEventListener('DOMContentLoaded', function () {
                     // populate middle form-grid fields by matching labels
                     const groups = Array.from(sec.querySelectorAll('.form-grid .form-group'));
                     const mapKeys = {
-                      OBD: ['obd','obd/emissions','obd_emissions','obd'],
-                      inspections: ['inspections','inspection','inspected'],
-                      emissionsDue: ['emissionsdue','emissions_due','emissionsdue','emissiondue','emission_due','emission due'],
-                      nextOilChange: ['nextoilchange','nextOilChange','next_oil_change','nextoilchange','next oil change','next oil','nextoil'],
-                      inspectedBy: ['inspectedby','inspectedBy','inspected_by'],
-                      reInspectedBy: ['reinspectedby','reInspectedBy','re_inspected_by']
+                      OBD: ['obd', 'obd/emissions', 'obd_emissions', 'obd'],
+                      inspections: ['inspections', 'inspection', 'inspected'],
+                      emissionsDue: ['emissionsdue', 'emissions_due', 'emissionsdue', 'emissiondue', 'emission_due', 'emission due'],
+                      nextOilChange: ['nextoilchange', 'nextOilChange', 'next_oil_change', 'nextoilchange', 'next oil change', 'next oil', 'nextoil'],
+                      inspectedBy: ['inspectedby', 'inspectedBy', 'inspected_by'],
+                      reInspectedBy: ['reinspectedby', 'reInspectedBy', 're_inspected_by']
                     };
                     Object.keys(mapKeys).forEach(k => {
                       const aliases = mapKeys[k];
@@ -1878,11 +1878,11 @@ document.addEventListener('DOMContentLoaded', function () {
                     try {
                       const parentComments = parent.comments || parent.emissionsComments || parent.comments || '';
                       if (parentComments) {
-                        const commentsGroup = Array.from(sec.querySelectorAll('.form-group.full-width')).find(g => { const l=(g.querySelector('label')&&g.querySelector('label').textContent||'').toLowerCase(); return l.includes('comment'); });
+                        const commentsGroup = Array.from(sec.querySelectorAll('.form-group.full-width')).find(g => { const l = (g.querySelector('label') && g.querySelector('label').textContent || '').toLowerCase(); return l.includes('comment'); });
                         const cinput = commentsGroup && commentsGroup.querySelector('input,textarea');
                         if (cinput) { cinput.value = parentComments; cinput.dispatchEvent(new Event('change')); }
                       }
-                    } catch(e) {}
+                    } catch (e) { }
                   }
 
                   // populate warnings/tags from ticket.sections.emissionsWarnings or fallback keys
@@ -1897,7 +1897,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         list.innerHTML = '';
                         items.forEach((t) => {
                           const chip = document.createElement('div'); chip.className = 'tag-chip'; chip.textContent = t;
-                          const x = document.createElement('button'); x.type='button'; x.className='tag-remove'; x.textContent='×';
+                          const x = document.createElement('button'); x.type = 'button'; x.className = 'tag-remove'; x.textContent = '×';
                           x.addEventListener('click', () => { /* no-op on load */ });
                           chip.appendChild(x); list.appendChild(chip);
                         });
@@ -1911,14 +1911,14 @@ document.addEventListener('DOMContentLoaded', function () {
                   const row = rows[0];
                   if (row) {
                     const mapping = {
-                      OBD: ['obd','obd/emissions','obd_emissions','obd'],
-                      inspections: ['inspections','inspection','inspected'],
-                      emissionsDue: ['emissionsdue','emissions_due','emissionsdue'],
-                      nextOilChange: ['nextoilchange','nextOilChange','next_oil_change','nextOilChange'],
-                      inspectedBy: ['inspectedby','inspectedBy','inspected_by'],
-                      reInspectedBy: ['reinspectedby','reInspectedBy','re_inspected_by','reInspectedBy'],
-                      warnings: ['warnings','warnings'],
-                      comments: ['comments','comment']
+                      OBD: ['obd', 'obd/emissions', 'obd_emissions', 'obd'],
+                      inspections: ['inspections', 'inspection', 'inspected'],
+                      emissionsDue: ['emissionsdue', 'emissions_due', 'emissionsdue'],
+                      nextOilChange: ['nextoilchange', 'nextOilChange', 'next_oil_change', 'nextOilChange'],
+                      inspectedBy: ['inspectedby', 'inspectedBy', 'inspected_by'],
+                      reInspectedBy: ['reinspectedby', 'reInspectedBy', 're_inspected_by', 'reInspectedBy'],
+                      warnings: ['warnings', 'warnings'],
+                      comments: ['comments', 'comment']
                     };
                     Object.keys(mapping).forEach(k => {
                       const keys = mapping[k];
@@ -2372,7 +2372,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
 // --- Emissions: save emissions table, middle info, and warnings to /mechanic/emissions ---
 (function wireEmissionsSave() {
-  const bind = function() {
+  const bind = function () {
     try {
       const saveBtn = document.querySelector('.section-save[data-section="emissions"]');
       const emissionsSection = document.getElementById('emissions');
@@ -2380,7 +2380,7 @@ document.addEventListener('DOMContentLoaded', function () {
       if (saveBtn.dataset.boundEmissionsSave === '1') return;
       saveBtn.dataset.boundEmissionsSave = '1';
 
-      saveBtn.addEventListener('click', async function(e) {
+      saveBtn.addEventListener('click', async function (e) {
         e.preventDefault(); e.stopPropagation();
         const ticketId = (window.__SERVER_TICKET__ && window.__SERVER_TICKET__.id) || document.getElementById('vehicle-ticketId')?.value || document.getElementById('ticketId')?.value || '';
         if (!ticketId) { console.error('Cannot save emissions: missing ticket id. Save Repair Order first.'); return; }
@@ -2424,7 +2424,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // tags (warnings)
         const tagsHidden = document.getElementById('tags-hidden');
         let tags = [];
-        if (tagsHidden && tagsHidden.value) tags = tagsHidden.value.split(',').map(s=>s.trim()).filter(Boolean);
+        if (tagsHidden && tagsHidden.value) tags = tagsHidden.value.split(',').map(s => s.trim()).filter(Boolean);
 
         // parent comments - find the full-width form-group whose label contains 'comment'
         let parentCommentsInput = null;
@@ -2434,7 +2434,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const lbl = (g.querySelector('label') && g.querySelector('label').textContent || '').toLowerCase();
             if (lbl.includes('comment')) { parentCommentsInput = g.querySelector('input[type="text"], textarea'); break; }
           }
-        } catch (e) {}
+        } catch (e) { }
         if (!parentCommentsInput) parentCommentsInput = emissionsSection.querySelector('.form-group.full-width input[type="text"], .form-group.full-width textarea');
         const parentComments = parentCommentsInput ? (parentCommentsInput.value || '').trim() : '';
 
@@ -2461,8 +2461,8 @@ document.addEventListener('DOMContentLoaded', function () {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind); else bind();
 })();
 
- // --- Vehicle Info: force AJAX submit to /mechanic/vehicle-info to avoid interfering with main ticket submit ---
- (function wireVehicleInfoForm() {
+// --- Vehicle Info: force AJAX submit to /mechanic/vehicle-info to avoid interfering with main ticket submit ---
+(function wireVehicleInfoForm() {
   try {
     const vForm = document.getElementById('vehicle-info-form');
     if (!vForm) return;
@@ -2911,7 +2911,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 500);
   })();
   console.log('customerImageLoader: initialized');
- })();
+})();
 
 (function customerPdfDownload() {
   // attempt immediately
