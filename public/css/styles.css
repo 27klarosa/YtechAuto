@@ -617,3 +617,7 @@ th {
     grid-template-columns: 1fr;
   }
 }
+
+hr {
+  margin: 40px 0;
+}
