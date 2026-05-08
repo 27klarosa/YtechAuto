@@ -43,8 +43,10 @@ router.get("/auth/callback", async (req, res) => {
             maxAge: 24 * 60 * 60 * 1000 // 24 hours
         });
         const db = req.app.locals.db;
+        const role = isAdmin(email) ? 'admin' : 'customer';
         if (db) {
-            db.run(`INSERT OR IGNORE INTO users (email) VALUES (?)`, [email], function (err) {
+            // Ensure required NOT NULL columns are populated; password/resetToken default to empty string
+            db.run(`INSERT OR IGNORE INTO users (email, password, resetToken, stat) VALUES (?, ?, ?, ?)`, [email, '', '', role], function (err) {
                 if (err) {
                     console.error('Database error on insert:', err);
                     // proceed without DB update
