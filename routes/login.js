@@ -3,7 +3,6 @@ const express = require("express");
 const crypto = require('crypto');
 const router = express.Router();
 const { sendMail } = require('../middleware/mail');
-const { isAdmin } = require('../helpers/admins');
 
 // Local login route for testing without Azure AD
 
@@ -12,8 +11,7 @@ router.get("/signup", (req, res) => {
 });
 
 router.post("/signup", (req, res) => {
-    const { email, password } = req.body;
-    const role = isAdmin(email) ? 'admin' : 'customer';
+    const { email, password, stat } = req.body;
     const db = req.app.locals.db;
 
     if (!password || typeof password !== 'string' || password.length < 6) {
@@ -32,7 +30,7 @@ router.post("/signup", (req, res) => {
 
     const stored = hashPassword(password);
 
-    db.run('INSERT INTO users (email, password, stat, resetToken) VALUES (?, ?, ?, ?)', [email, stored, role, ''], function(err) {
+    db.run('INSERT INTO users (email, password, stat, resetToken) VALUES (?, ?, ?, ?)', [email, stored, stat, ''], function(err) {
         if (err) {
             console.error('Database error during signup:', err);
             return res.status(500).send('Internal Server Error');
@@ -53,9 +51,11 @@ router.post("/loginPage", (req, res) => {
     db.get('SELECT id, stat, password AS storedPassword FROM users WHERE email = ? LIMIT 1', [email], (err, row) => {
         if (err) {
             console.error('Database error during login:', err);
-            return res.status(500).send('Internal Server Error');
+            return res.status(409).send('<script>alert("Invalid Email or Password"); window.history.back();</script>');
+
         }
-        if (!row) return res.status(401).send('Invalid email or password');
+        if (!row) return res.status(409).send('<script>alert("Invalid Email or Password"); window.history.back();</script>');
+
 
         const userId = row.id;
         const role = row.stat ? String(row.stat).toLowerCase() : 'customer';
@@ -90,7 +90,8 @@ router.post("/loginPage", (req, res) => {
         };
 
         const ok = verify(password, stored);
-        if (!ok) return res.status(401).send('Invalid email or password');
+        if (!ok) return res.status(409).send('<script>alert("Invalid Email or Password"); window.history.back();</script>');
+
 
         // If stored password was plaintext, upgrade to hashed form
         if (stored && stored.indexOf('$') === -1) {
