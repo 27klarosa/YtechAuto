@@ -30,7 +30,7 @@ router.post("/signup", (req, res) => {
 
     const stored = hashPassword(password);
 
-    db.run('INSERT INTO users (email, password, stat, resetToken) VALUES (?, ?, ?, ?)', [email, stored, stat, ''], function(err) {
+    db.run('INSERT INTO users (email, password, stat) VALUES (?, ?, ?)', [email, stored, role], function(err) {
         if (err) {
             console.error('Database error during signup:', err);
             return res.status(500).send('Internal Server Error');
