@@ -46,7 +46,7 @@ router.get("/auth/callback", async (req, res) => {
         const role = isAdmin(email) ? 'admin' : 'customer';
         if (db) {
             // Ensure required NOT NULL columns are populated; password/resetToken default to empty string
-            db.run(`INSERT OR IGNORE INTO users (email, password, resetToken, stat) VALUES (?, ?, ?, ?)`, [email, '', '', role], function (err) {
+            db.run(`INSERT OR IGNORE INTO users (email, password, stat) VALUES (?, ?, ?)`, [email, '', role], function (err) {
                 if (err) {
                     console.error('Database error on insert:', err);
                     // proceed without DB update

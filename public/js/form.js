@@ -2240,14 +2240,27 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (idx === -1 || !row.cells[idx]) return '';
                 const cell = row.cells[idx];
                 const input = cell.querySelector('select, input, textarea');
-                if (input) return input.value || '';
-                return (cell.textContent || '').trim();
+                if (input) {
+                  // try direct assign
+                  input.value = val;
+                  // if select didn't match, try fuzzy match on options
+                  if (input.tagName && input.tagName.toLowerCase() === 'select') {
+                    const norm = s => (s || '').toString().toLowerCase().trim();
+                    if (norm(input.value) !== norm(val)) {
+                      const opt = Array.from(input.options).find(o => norm(o.text) === norm(val) || norm(o.value) === norm(val));
+                      if (opt) input.value = opt.value;
+                    }
+                  }
+                  input.dispatchEvent(new Event('change'));
+                } else {
+                  // no input; leave text alone (do not overwrite '-')
+                }
               };
-              const Spec = getCell(specIdx);
-              const actual = getCell(actualIdx);
-              const status = getCell(statusIdx);
-              const comments = getCell(commentsIdx);
-              items.push({ item: itemLabel, Spec, actual, status, comments });
+
+              setCellVal(specIdx, r.Spec || r.spec || '');
+              setCellVal(actualIdx, r.actual || r.Actual || r.value || '');
+              setCellVal(statusIdx, r.status || r.Status || '');
+              setCellVal(commentsIdx, r.comments || r.Notes || r.notes || '');
             } catch (e) { /* ignore row */ }
           });
         }
@@ -2375,8 +2388,8 @@ document.addEventListener('DOMContentLoaded', function () {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind); else bind();
 })();
 
- // --- Vehicle Info: force AJAX submit to /mechanic/vehicle-info to avoid interfering with main ticket submit ---
- (function wireVehicleInfoForm() {
+// --- Vehicle Info: force AJAX submit to /mechanic/vehicle-info to avoid interfering with main ticket submit ---
+(function wireVehicleInfoForm() {
   try {
     const vForm = document.getElementById('vehicle-info-form');
     if (!vForm) return;
@@ -2769,6 +2782,7 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log('bindId: already bound', id);
       return;
     }
+
     console.log('bindId: binding click for', id);
     btn.addEventListener('click', (ev) => {
       ev.preventDefault();
@@ -2784,12 +2798,36 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   document.addEventListener('DOMContentLoaded', () => {
-    console.log('PDF diagnostics: DOMContentLoaded - attempting to bind buttons');
-    bindId('downloadPage');
-    bindId('downloadMechPage');
+    console.log('PDF diagnostics: DOMContentLoaded - attempting to bind mechanic-only download');
+    // Only bind mechanic download button on mechanic pages and only when ticket.stat === 'complete'
+    const mechBtn = document.getElementById('downloadMechPage');
+    if (!mechBtn) {
+      console.log('PDF diagnostics: no downloadMechPage button found on this page — nothing to bind');
+      return;
+    }
 
-    // helpful debug: print whether html2pdf already present
-    console.log('PDF diagnostics: html2pdf present=', !!window.html2pdf);
+    // resolve ticket object from window or hidden input
+    let ticket = window.__SERVER_TICKET__ || null;
+    if (!ticket) {
+      const hidden = document.getElementById('server-ticket');
+      if (hidden && hidden.value) {
+        try { ticket = JSON.parse(hidden.value); } catch (e) { ticket = null; }
+      }
+    }
+    const stat = ticket && (ticket.stat || ticket.ticketStatus || ticket.status);
+    const isComplete = stat && String(stat).toLowerCase() === 'complete';
+
+    if (isComplete) {
+      console.log('PDF diagnostics: ticket is complete — binding downloadMechPage');
+      bindId('downloadMechPage');
+    } else {
+      // visually disable the mechanic download link when not allowed
+      try {
+        mechBtn.style.pointerEvents = 'none';
+        mechBtn.style.opacity = '0.6';
+        mechBtn.setAttribute('aria-disabled', 'true');
+      } catch (e) { /* ignore styling failures */ }
+      console.log('PDF diagnostics: mechanic download present but ticket not complete — left disabled');
+    }
   });
-
 })();
