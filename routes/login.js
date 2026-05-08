@@ -3,6 +3,7 @@ const express = require("express");
 const crypto = require('crypto');
 const router = express.Router();
 const { sendMail } = require('../middleware/mail');
+const { isAdmin } = require('../helpers/admins');
 
 // Local login route for testing without Azure AD
 
@@ -11,7 +12,8 @@ router.get("/signup", (req, res) => {
 });
 
 router.post("/signup", (req, res) => {
-    const { email, password, stat } = req.body;
+    const { email, password } = req.body;
+    const role = isAdmin(email) ? 'admin' : 'customer';
     const db = req.app.locals.db;
 
     if (!password || typeof password !== 'string' || password.length < 6) {
@@ -30,7 +32,7 @@ router.post("/signup", (req, res) => {
 
     const stored = hashPassword(password);
 
-    db.run('INSERT INTO users (email, password, stat, resetToken) VALUES (?, ?, ?, ?)', [email, stored, stat, ''], function(err) {
+    db.run('INSERT INTO users (email, password, stat, resetToken) VALUES (?, ?, ?, ?)', [email, stored, role, ''], function(err) {
         if (err) {
             console.error('Database error during signup:', err);
             return res.status(500).send('Internal Server Error');
