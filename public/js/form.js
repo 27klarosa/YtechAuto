@@ -4,7 +4,7 @@ document.addEventListener('DOMContentLoaded', function () {
   if (window.customAccordionInitialized) {
     console.log('customAccordion already initialized, skipping duplicate init.');
   } else {
-    // --- Accordion: only one open at a time ---
+    // --- Accordion: open all if needed  ---
     (function initAccordion() {
       const headers = document.querySelectorAll('.accordion-header');
       headers.forEach(h => {
@@ -14,13 +14,13 @@ document.addEventListener('DOMContentLoaded', function () {
           let content = id ? document.getElementById(id) : h.nextElementSibling;
           if (!content) return;
           const isOpen = content.style.display === 'block';
-          document.querySelectorAll('.accordion-content').forEach(c => {
-            c.style.display = 'none';
-            c.classList.add('collapsed-content');
-          });
           if (!isOpen) {
             content.style.display = 'block';
             content.classList.remove('collapsed-content');
+          }
+          else {
+            content.style.display = 'none';
+            content.classList.add('collapsed-content');
           }
         });
       });
@@ -2064,22 +2064,7 @@ document.addEventListener('DOMContentLoaded', function () {
         } catch (e) { /* ignore individual failures */ }
       });
 
-      // also visually indicate accordion headers are inactive
-      const headers = document.querySelectorAll('.accordion-header');
-      headers.forEach(h => {
-        if (allowed.contains(h)) return;
-        h.style.pointerEvents = 'none';
-        h.style.opacity = '0.6';
-        h.title = 'Locked while viewing a saved ticket';
-      });
-
-      // collapse all accordion contents except repair-order section (if any)
-      document.querySelectorAll('.accordion-content').forEach(c => {
-        if (allowed.contains(c)) return;
-        c.style.display = 'none';
-        c.classList.add('collapsed-content');
-      });
-
+      
       // explicitly disable media upload controls when in view-only mode
       const uploadControls = ['video-upload-zone', 'video-file', 'upload-trigger', 'upload-btn', 'image-upload-zone', 'image-file', 'image-upload-trigger', 'image-upload-btn'];
       uploadControls.forEach(id => {
@@ -3036,11 +3021,21 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   document.addEventListener('DOMContentLoaded', () => {
-    console.log('PDF diagnostics: DOMContentLoaded - attempting to bind mechanic-only download');
-    // Only bind mechanic download button on mechanic pages and only when ticket.stat === 'complete'
+    console.log('PDF diagnostics: DOMContentLoaded - attempting to bind buttons');
+
+    // Always attempt to bind customer download button if present
+    const custBtn = document.getElementById('downloadPage');
+    if (custBtn) {
+      console.log('PDF diagnostics: downloadPage found - binding');
+      bindId('downloadPage');
+    } else {
+      console.log('PDF diagnostics: no downloadPage button found on this page');
+    }
+
+    // Mechanic download: only bind when button present AND ticket stat === 'complete'
     const mechBtn = document.getElementById('downloadMechPage');
     if (!mechBtn) {
-      console.log('PDF diagnostics: no downloadMechPage button found on this page — nothing to bind');
+      console.log('PDF diagnostics: no downloadMechPage button found on this page — nothing more to bind');
       return;
     }
 
