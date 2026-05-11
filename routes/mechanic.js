@@ -752,10 +752,10 @@ router.post('/mechanic/courtesy-check', (req, res) => {
                             });
                         });
                     });
-                });
             });
         });
     });
+});
 router.post('/mechanic/tires', (req, res) => {
     const db = req.app.locals.db;
     if (!db) return res.status(500).json({ error: 'Database not available' });
@@ -1378,7 +1378,6 @@ router.post('/upload-image', imageUpload.array('image'), (req, res) => {
         });
     });
 });
-
 
 router.post('/ticket-check', (req, res) => {     
     const db = req.app && req.app.locals && req.app.locals.db;
