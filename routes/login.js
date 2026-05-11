@@ -17,7 +17,7 @@ router.post("/signup", (req, res) => {
     const db = req.app.locals.db;
 
     if (!password || typeof password !== 'string' || password.length < 6) {
-        return res.status(400).send('Password must be at least 6 characters');
+        return res.status(400).send('<script>alert("Password must be at least 6 characters"); window.history.back();</script>');
     }
 
     // hash the password with PBKDF2 + random salt
@@ -35,7 +35,7 @@ router.post("/signup", (req, res) => {
     db.run('INSERT INTO users (email, password, stat) VALUES (?, ?, ?)', [email, stored, role], function(err) {
         if (err) {
             console.error('Database error during signup:', err);
-            return res.status(500).send('Internal Server Error');
+            return res.status(500).send('<script>alert("Internal Server Error"); window.history.back();</script>');
         }
         res.redirect('/loginPage');
     });
@@ -46,9 +46,9 @@ router.get("/loginPage", (req, res) => {
 });
 
 router.post("/loginPage", (req, res) => {
-    const { email, password } = req.body;
+    const { email, password } = req.body || {};
     const db = req.app.locals.db;
-    if (!password || !email) return res.status(400).send('Email and password are required');
+    if (!password || !email) return res.status(400).send('<script>alert("Email and password are required"); window.history.back();</script>');
 
     db.get('SELECT id, stat, password AS storedPassword FROM users WHERE email = ? LIMIT 1', [email], (err, row) => {
         if (err) {
@@ -148,9 +148,9 @@ router.post("/loginPage", (req, res) => {
     router.get('/reset-password', (req, res) => {
         const token = req.query.token || '';
         const db = req.app.locals.db;
-        if (!token || !db) return res.status(400).send('Invalid request');
+        if (!token || !db) return res.status(400).send('<script>alert("Invalid request"); window.history.back();</script>');
         db.get('SELECT id, email FROM users WHERE resetToken = ? LIMIT 1', [String(token)], (err, row) => {
-            if (err || !row) return res.status(400).send('Invalid or expired token');
+            if (err || !row) return res.status(400).send('<script>alert("Invalid or expired token"); window.history.back();</script>');
             return res.render('resetPassword', { token: String(token), email: row.email });
         });
     });
@@ -159,11 +159,11 @@ router.post("/loginPage", (req, res) => {
     router.post('/reset-password', (req, res) => {
         const { token, password, confirm } = req.body || {};
         const db = req.app.locals.db;
-        if (!token || !password || !confirm || password !== confirm) return res.status(400).send('Invalid input');
-        if (typeof password !== 'string' || password.length < 6) return res.status(400).send('Password too short');
+        if (!token || !password || !confirm || password !== confirm) return res.status(400).send('<script>alert("Invalid input"); window.history.back();</script>');
+        if (typeof password !== 'string' || password.length < 6) return res.status(400).send('<script>alert("Password too short"); window.history.back();</script>');
 
         db.get('SELECT id FROM users WHERE resetToken = ? LIMIT 1', [String(token)], (err, row) => {
-            if (err || !row) return res.status(400).send('Invalid or expired token');
+            if (err || !row) return res.status(400).send('<script>alert("Invalid or expired token"); window.history.back();</script>');
             const userId = row.id;
             // hash password
             try {
@@ -176,13 +176,13 @@ router.post("/loginPage", (req, res) => {
                 db.run('UPDATE users SET password = ?, resetToken = ? WHERE id = ?', [storedNew, '', userId], (uErr) => {
                     if (uErr) {
                         console.error('Failed to update password:', uErr);
-                        return res.status(500).send('Failed to reset password');
+                        return res.status(500).send('<script>alert("Failed to reset password"); window.history.back();</script>');
                     }
                     return res.redirect('/loginPage');
                 });
-            } catch (e) {
+                } catch (e) {
                 console.error('Password hashing error', e);
-                return res.status(500).send('Failed to reset password');
+                return res.status(500).send('<script>alert("Failed to reset password"); window.history.back();</script>');
             }
         });
     });

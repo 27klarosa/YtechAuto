@@ -111,7 +111,7 @@ router.get('/mechanic', ensureLoggedIn, (req, res) => {
         return res.render('mechanic', { user });
     }
 
-    if (!db) return res.status(500).send('Database not available');
+    if (!db) return res.status(500).send('<script>alert("Database not available"); window.history.back();</script>');
 
     // treat edit mode: if the query param `edit` is provided, respect it; otherwise default to edit mode for DB-loaded tickets
     const editParam = typeof req.query.edit !== 'undefined' ? String(req.query.edit).toLowerCase() : undefined;
@@ -120,9 +120,9 @@ router.get('/mechanic', ensureLoggedIn, (req, res) => {
     db.get('SELECT * FROM tickets WHERE id = ?', [ticketId], (err, ticket) => {
         if (err) {
             console.error('Error fetching ticket:', err);
-            return res.status(500).send('Internal Server Error');
+            return res.status(500).send('<script>alert("Internal Server Error"); window.history.back();</script>');
         }
-        if (!ticket) return res.status(404).send('Ticket not found');
+        if (!ticket) return res.status(404).send('<script>alert("Ticket not found"); window.history.back();</script>');
 
         db.all('SELECT * FROM recRepairs WHERE ticketId = ?', [ticketId], (err2, repairs) => {
             if (err2) {
@@ -292,7 +292,7 @@ router.get('/mechanic', ensureLoggedIn, (req, res) => {
 
 router.post('/mechanic', async (req, res) => {
     const db = req.app.locals.db;
-    if (!db) return res.status(500).send('Database not available');
+    if (!db) return res.status(500).send('<script>alert("Database not available"); window.history.back();</script>');
 
     // normalize body
     const body = (typeof req.body === 'string') ? (() => { try { return JSON.parse(req.body); } catch(e){ return {}; } })() : (req.body || {});
@@ -322,7 +322,7 @@ router.post('/mechanic', async (req, res) => {
     console.log('incomingTicketId:', incomingTicketId);
 
     if (!roNum) {
-        return res.status(400).send('Repair Order number (roNum) is required');
+        return res.status(400).send('<script>alert("Repair Order number (roNum) is required"); window.history.back();</script>');
     }
 
     // parse repairs array from several possible field names (handles JSON string or object from multipart)
@@ -485,7 +485,7 @@ router.post('/mechanic', async (req, res) => {
 
         if (repairsProvided) {
             saveRecRepairs(targetId, repairs, (rErr) => {
-                if (rErr) { console.error('Failed saving recRepairs on save:', rErr); return res.status(500).send('Failed to save repairs'); }
+                if (rErr) { console.error('Failed saving recRepairs on save:', rErr); return res.status(500).send('<script>alert("Failed to save repairs"); window.history.back();</script>'); }
                 return afterRepairs();
             });
         } else {
@@ -500,7 +500,7 @@ router.post('/mechanic', async (req, res) => {
         db.run(updateSql, params, function(updErr) {
             if (updErr) {
                 console.error('Failed to update ticket:', updErr);
-                return res.status(500).send('Failed to update ticket: ' + (updErr.message || updErr));
+                return res.status(500).send('<script>alert("Failed to update ticket: ' + (updErr.message || updErr) + '"); window.history.back();</script>');
             }
             // perform child saves (repairs + signature) then redirect
             return finalizeSave(targetId);
@@ -511,9 +511,9 @@ router.post('/mechanic', async (req, res) => {
     const tryInsertNew = () => {
         const checkSql = `SELECT id FROM tickets WHERE repairOrderNumber = ? LIMIT 1`;
         db.get(checkSql, [roNum], (chkErr, existing) => {
-            if (chkErr) {
+                if (chkErr) {
                 console.error('Failed checking existing RO:', chkErr);
-                return res.status(500).send('DB error');
+                return res.status(500).send('<script>alert("DB error"); window.history.back();</script>');
             }
             if (existing) {
                 // duplicate exists and this is a new-ticket attempt -> inform user and stop
@@ -526,7 +526,7 @@ router.post('/mechanic', async (req, res) => {
             db.run(insertSql, params, function(insErr) {
                 if (insErr) {
                     console.error('Failed to insert new ticket:', insErr);
-                    return res.status(500).send('Failed to create ticket: ' + (insErr.message || insErr));
+                    return res.status(500).send('<script>alert("Failed to create ticket: ' + (insErr.message || insErr) + '"); window.history.back();</script>');
                 }
                 const newId = this.lastID;
                 // finalize repairs/signature save and redirect
@@ -540,16 +540,16 @@ router.post('/mechanic', async (req, res) => {
         db.get('SELECT id FROM tickets WHERE id = ?', [incomingTicketId], (gErr, row) => {
             if (gErr) {
                 console.error('DB error fetching ticket for update:', gErr);
-                return res.status(500).send('DB error');
+                return res.status(500).send('<script>alert("DB error"); window.history.back();</script>');
             }
             if (!row) {
-                return res.status(404).send('Ticket to update not found');
+                return res.status(404).send('<script>alert("Ticket to update not found"); window.history.back();</script>');
             }
             // If roNum collides with another ticket (different id), block the change
             db.get('SELECT id FROM tickets WHERE repairOrderNumber = ? LIMIT 1', [roNum], (chkErr, found) => {
                 if (chkErr) {
                     console.error('Failed checking RO on update:', chkErr);
-                    return res.status(500).send('DB error');
+                    return res.status(500).send('<script>alert("DB error"); window.history.back();</script>');
                 }
                 if (found && found.id !== Number(incomingTicketId)) {
                     return res.status(409).send('<script>alert("The RONum already exist"); window.history.back();</script>');
@@ -605,7 +605,7 @@ router.post('/mechanic/vehicle-info', (req, res) => {
 
 router.post('/mechanic/courtesy-check', (req, res) => {
     const db = req.app.locals.db;
-    if (!db) return res.status(500).send('Database not available');
+    if (!db) return res.status(500).send('<script>alert("Database not available"); window.history.back();</script>');
 
     // Accept JSON body { ticketId, items: [ { item, status, notes }, ... ], comments? }
     // or form field 'payload' containing that JSON string.
@@ -821,7 +821,7 @@ router.post('/mechanic/tires', (req, res) => {
 
 router.post('/mechanic/steering-suspension', (req, res) => {
     const db = req.app.locals.db;
-    if (!db) return res.status(500).send('Database not available');
+    if (!db) return res.status(500).send('<script>alert("Database not available"); window.history.back();</script>');
 
     // normalize body / payload
     let body = req.body || {};
@@ -858,7 +858,7 @@ router.post('/mechanic/steering-suspension', (req, res) => {
         if (parsed.length) items = parsed;
     }
 
-    if (!ticketId) return res.status(400).send('ticketId required');
+    if (!ticketId) return res.status(400).send('<script>alert("ticketId required"); window.history.back();</script>');
     items = Array.isArray(items) ? items : [];
 
     db.serialize(() => {
@@ -866,7 +866,7 @@ router.post('/mechanic/steering-suspension', (req, res) => {
         db.get('SELECT id FROM steeringSuspension WHERE ticketID = ?', [ticketId], (err, row) => {
             if (err) {
                 console.error('Find steering parent error:', err);
-                return res.status(500).send('DB error');
+                return res.status(500).send('<script>alert("DB error"); window.history.back();</script>');
             }
 
             const createChildren = (parentId) => {
@@ -885,9 +885,9 @@ router.post('/mechanic/steering-suspension', (req, res) => {
                     }
                     stmt.finalize((finalErr) => {
                         if (finalErr) {
-                            console.error('Failed insert steering children:', finalErr);
-                            return res.status(500).send('DB insert error');
-                        }
+                                console.error('Failed insert steering children:', finalErr);
+                                return res.status(500).send('<script>alert("DB insert error"); window.history.back();</script>');
+                            }
                         // update parent comments if provided and column exists (or add it)
                         if (typeof comments !== 'undefined' && comments !== null && comments !== '') {
                             db.all(`PRAGMA table_info('steeringSuspension')`, [], (piErr, cols) => {
@@ -926,7 +926,7 @@ router.post('/mechanic/steering-suspension', (req, res) => {
                 db.run('INSERT INTO steeringSuspension (ticketID, item) VALUES (?, ?)', [ticketId, 'Steering & Suspension'], function (insErr) {
                     if (insErr) {
                         console.error('Failed create steering parent:', insErr);
-                        return res.status(500).send('DB insert error');
+                        return res.status(500).send('<script>alert("DB insert error"); window.history.back();</script>');
                     }
                     createChildren(this.lastID);
                 });
