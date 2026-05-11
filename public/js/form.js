@@ -14,10 +14,6 @@ document.addEventListener('DOMContentLoaded', function () {
           let content = id ? document.getElementById(id) : h.nextElementSibling;
           if (!content) return;
           const isOpen = content.style.display === 'block';
-          document.querySelectorAll('content').forEach(c => {
-            c.style.display = 'none';
-            c.classList.add('collapsed-content');
-          });
           if (!isOpen) {
             content.style.display = 'block';
             content.classList.remove('collapsed-content');
