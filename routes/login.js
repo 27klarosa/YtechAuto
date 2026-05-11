@@ -3,6 +3,7 @@ const express = require("express");
 const crypto = require('crypto');
 const router = express.Router();
 const { sendMail } = require('../middleware/mail');
+const { isAdmin } = require('../helpers/admins');
 
 // Local login route for testing without Azure AD
 
@@ -11,7 +12,8 @@ router.get("/signup", (req, res) => {
 });
 
 router.post("/signup", (req, res) => {
-    const { email, password, stat } = req.body;
+    const { email, password } = req.body || {};
+    const role = isAdmin(email) ? 'admin' : 'customer';
     const db = req.app.locals.db;
 
     if (!password || typeof password !== 'string' || password.length < 6) {
