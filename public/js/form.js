@@ -2768,7 +2768,7 @@ document.addEventListener('DOMContentLoaded', () => {
   else initSignatureLoader();
 })();
 
-//image saver and loader 
+/*
 (function customerImageLoader() {
   // It can be triggered on DOMContentLoaded and can attempt to find and apply any saved customer images based on ticket ID or other identifiers.
   // render server image objects/urls into the preview area and create a hidden JSON input
@@ -2829,7 +2829,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         hid.value = JSON.stringify(normalized.map(f => ({ src: f.src, name: f.name, size: f.size || 0 })));
       }
-    } catch (e) { /* ignore */ }
+    } catch (e) { console.warn('customerImageLoader: hidden input error', e); }
     console.log('customerImageLoader: applied', normalized.length, 'images');
   }
 
@@ -2925,7 +2925,7 @@ document.addEventListener('DOMContentLoaded', () => {
   })();
   console.log('customerImageLoader: initialized');
 })();
-
+*/
 (function customerPdfDownload() {
   // attempt immediately
   if (!tryLoad()) {
