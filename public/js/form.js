@@ -953,7 +953,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   })();
 
-  // helper: create a local filename/path for the signature PNG (no upload)
+  // create a local filename/path for the signature PNG (no upload)
   function createSignatureFileInfo() {
     const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
     const filename = 'signature-' + unique + '.png';
