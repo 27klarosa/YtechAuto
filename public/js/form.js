@@ -3036,11 +3036,21 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   document.addEventListener('DOMContentLoaded', () => {
-    console.log('PDF diagnostics: DOMContentLoaded - attempting to bind mechanic-only download');
-    // Only bind mechanic download button on mechanic pages and only when ticket.stat === 'complete'
+    console.log('PDF diagnostics: DOMContentLoaded - attempting to bind buttons');
+
+    // Always attempt to bind customer download button if present
+    const custBtn = document.getElementById('downloadPage');
+    if (custBtn) {
+      console.log('PDF diagnostics: downloadPage found - binding');
+      bindId('downloadPage');
+    } else {
+      console.log('PDF diagnostics: no downloadPage button found on this page');
+    }
+
+    // Mechanic download: only bind when button present AND ticket stat === 'complete'
     const mechBtn = document.getElementById('downloadMechPage');
     if (!mechBtn) {
-      console.log('PDF diagnostics: no downloadMechPage button found on this page — nothing to bind');
+      console.log('PDF diagnostics: no downloadMechPage button found on this page — nothing more to bind');
       return;
     }
 
