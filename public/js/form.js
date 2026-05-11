@@ -22,6 +22,10 @@ document.addEventListener('DOMContentLoaded', function () {
             content.style.display = 'block';
             content.classList.remove('collapsed-content');
           }
+          else {
+            content.style.display = 'none';
+            content.classList.add('collapsed-content');
+          }
         });
       });
       window.customAccordionInitialized = true;
