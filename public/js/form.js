@@ -4,7 +4,7 @@ document.addEventListener('DOMContentLoaded', function () {
   if (window.customAccordionInitialized) {
     console.log('customAccordion already initialized, skipping duplicate init.');
   } else {
-    // --- Accordion: only one open at a time ---
+    // --- Accordion: open all if needed  ---
     (function initAccordion() {
       const headers = document.querySelectorAll('.accordion-header');
       headers.forEach(h => {
@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded', function () {
           let content = id ? document.getElementById(id) : h.nextElementSibling;
           if (!content) return;
           const isOpen = content.style.display === 'block';
-          document.querySelectorAll('.accordion-content').forEach(c => {
+          document.querySelectorAll('content').forEach(c => {
             c.style.display = 'none';
             c.classList.add('collapsed-content');
           });
@@ -2064,22 +2064,7 @@ document.addEventListener('DOMContentLoaded', function () {
         } catch (e) { /* ignore individual failures */ }
       });
 
-      // also visually indicate accordion headers are inactive
-      const headers = document.querySelectorAll('.accordion-header');
-      headers.forEach(h => {
-        if (allowed.contains(h)) return;
-        h.style.pointerEvents = 'none';
-        h.style.opacity = '0.6';
-        h.title = 'Locked while viewing a saved ticket';
-      });
-
-      // collapse all accordion contents except repair-order section (if any)
-      document.querySelectorAll('.accordion-content').forEach(c => {
-        if (allowed.contains(c)) return;
-        c.style.display = 'none';
-        c.classList.add('collapsed-content');
-      });
-
+      
       // explicitly disable media upload controls when in view-only mode
       const uploadControls = ['video-upload-zone', 'video-file', 'upload-trigger', 'upload-btn', 'image-upload-zone', 'image-file', 'image-upload-trigger', 'image-upload-btn'];
       uploadControls.forEach(id => {
