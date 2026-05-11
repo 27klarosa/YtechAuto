@@ -1,6 +1,5 @@
 /**
  * Auto Repair Ticket System - Mockup Scripts
- * Video play/download work; other buttons are non-functional mockups.
  */
 (function () {
   'use strict';
