@@ -2753,164 +2753,25 @@ document.addEventListener('DOMContentLoaded', () => {
   else initSignatureLoader();
 })();
 
-/*
-(function customerImageLoader() {
-  // It can be triggered on DOMContentLoaded and can attempt to find and apply any saved customer images based on ticket ID or other identifiers.
-  // render server image objects/urls into the preview area and create a hidden JSON input
-  function localApplyServerImages(images) {
-    if (!Array.isArray(images) || images.length === 0) return;
-    const preview = document.getElementById('image-preview');
-    const zone = document.getElementById('image-upload-zone');
-    let container = preview;
-    if (!container) {
-      container = zone && zone.parentNode ? zone.parentNode.querySelector('.image-preview-container') : null;
-      if (!container && zone && zone.parentNode) {
-        container = document.createElement('div');
-        container.className = 'image-preview-container';
-        zone.parentNode.insertBefore(container, zone.nextSibling);
-      }
-    }
-    if (!container) {
-      console.warn('customerImageLoader: no preview container to render images');
-      return;
-    }
+//video and image loader
+const videoUploadZone = document.getElementById("video-upload-zone");
+const imageUploadZone = document.getElementById("image-upload-zone");
 
-    const normalized = images.map((it, i) => {
-      if (typeof it === 'string') return { src: it, name: `image-${i}`, size: 0 };
-      return { src: it.src || it.url || it.path || '', name: it.filename || it.name || `image-${i}`, size: it.size || 0 };
-    }).filter(x => x.src);
-
-    container.innerHTML = '';
-    normalized.forEach((f, idx) => {
-      try {
-        const img = document.createElement('img');
-        img.alt = f.name || `image-${idx}`;
-        img.style.maxWidth = '100%';
-        img.style.height = 'auto';
-        img.style.display = 'block';
-        img.style.marginBottom = '6px';
-        let src = String(f.src || '');
-        // normalize relative paths to absolute-ish so they load from server root
-        if (src && !src.match(/^data:|^https?:|^\//)) src = '/' + src.replace(/^\/+/, '');
-        img.addEventListener('load', () => console.log('customerImageLoader: server image loaded', { idx, name: f.name, src: img.src, naturalWidth: img.naturalWidth, naturalHeight: img.naturalHeight }));
-        img.addEventListener('error', () => console.error('customerImageLoader: server image failed to load', { idx, name: f.name, src: img.src }));
-        console.log('customerImageLoader: setting image src', { idx, name: f.name, src });
-        img.src = src;
-        img.className = 'server-image';
-        container.appendChild(img);
-      } catch (e) { console.warn('customerImageLoader: render error', e); }
-    });
-
-    // hidden JSON input for server processing
-    try {
-      const form = document.getElementById('repForm') || document.querySelector('form');
-      if (form) {
-        let hid = form.querySelector('input[name="uploadedImages"]');
-        if (!hid) {
-          hid = document.createElement('input');
-          hid.type = 'hidden';
-          hid.name = 'uploadedImages';
-          form.appendChild(hid);
-        }
-        hid.value = JSON.stringify(normalized.map(f => ({ src: f.src, name: f.name, size: f.size || 0 })));
-      }
-    } catch (e) { console.warn('customerImageLoader: hidden input error', e); }
-    console.log('customerImageLoader: applied', normalized.length, 'images');
+videoUploadZone.addEventListener("change", (e) => {
+  const video = e.target.files[0];
+  if (video) {
+    displayMediaPreview(video, "video");
   }
+});
 
-  // expose helper (prefer existing applyUploadedImages if defined by image upload setup)
-  try {
-    if (!window.applyUploadedImages) window.applyUploadedImages = localApplyServerImages;
-    else {
-      // wrap existing to ensure logs when invoked
-      const orig = window.applyUploadedImages;
-      window.applyUploadedImages = function (imgs) { console.log('customerImageLoader: delegating to window.applyUploadedImages'); try { return orig(imgs); } catch (e) { console.warn('applyUploadedImages threw, falling back', e); return localApplyServerImages(imgs); } };
-    }
-  } catch (e) { console.warn('customerImageLoader: expose helper failed', e); }
-
-  // fetch saved images for ticket from server (POST /ticket-check) if not present on window.__SERVER_TICKET__
-  async function fetchImagesForTicket(ticketId) {
-    if (!ticketId) return null;
-    try {
-      // quick check server-injected object
-      const st = window.__SERVER_TICKET__ || null;
-      if (st && String(st.id) === String(ticketId)) {
-        const imgs = st.images || st.photos || st.customerImages || st.savedImages || st.imagesSaved || null;
-        if (Array.isArray(imgs) && imgs.length) {
-          console.log('customerImageLoader: found images on server ticket object', imgs);
-          return imgs;
-        }
-      }
-
-      // fallback: ask server endpoint for images (reuse ticket-check)
-      const res = await fetch('/ticket-check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ticketId: String(ticketId) }) });
-      if (!res.ok) { console.warn('customerImageLoader: /ticket-check returned', res.status); return null; }
-      let json = null;
-      try { json = await res.json(); } catch (e) { json = null; }
-      if (!json) return null;
-      // server may return images under different keys
-      const imgs = json.images || json.photos || json.savedImages || json.data || json.customerImages || null;
-      if (Array.isArray(imgs) && imgs.length) {
-        console.log('customerImageLoader: /ticket-check returned images', imgs);
-        return imgs;
-      }
-      // sometimes server returns nested object
-      if (json.signature && !Array.isArray(imgs)) return null;
-      return null;
-    } catch (err) {
-      console.error('customerImageLoader: fetchImagesForTicket error', err);
-      return null;
-    }
+imageUploadZone.addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (file) {
+    const imageURL = URL.createObjectURL(file);
+    // Do something with the imageURL, like previewing the image
   }
+});
 
-  // resolve ticket id from same fallbacks used elsewhere
-  function resolveTicketId() {
-    const id =
-      (window.__SERVER_TICKET__ && window.__SERVER_TICKET__.id) ||
-      document.getElementById('vehicle-ticketId')?.value ||
-      document.getElementById('ticketId')?.value ||
-      document.getElementById('ticketIdHidden')?.value ||
-      '';
-    if (id) return String(id);
-    try {
-      const p = new URLSearchParams(window.location.search);
-      return p.get('id') || p.get('ticketId') || p.get('ticketID') || '';
-    } catch (e) { return ''; }
-  }
-
-  // attempt load with retries until ticketId available or images applied
-  (async function attemptLoadWithRetries() {
-    const maxAttempts = 20;
-    let attempt = 0;
-    let applied = false;
-    async function tryOnce() {
-      attempt++;
-      const id = resolveTicketId();
-      if (!id) return false;
-      try {
-        const imgs = await fetchImagesForTicket(id);
-        if (!imgs || !imgs.length) return false;
-        // prefer global helper if present
-        if (window.applyUploadedImages) {
-          try { window.applyUploadedImages(imgs); applied = true; return true; } catch (e) { console.warn('customerImageLoader: window.applyUploadedImages threw', e); }
-        }
-        localApplyServerImages(imgs);
-        applied = true;
-        return true;
-      } catch (e) { console.error('customerImageLoader tryOnce error', e); return false; }
-    }
-
-    if (await tryOnce()) return;
-    const iv = setInterval(async () => {
-      if (attempt >= maxAttempts || applied) { clearInterval(iv); if (!applied) console.log('customerImageLoader: giving up after', attempt, 'attempts'); return; }
-      try {
-        if (await tryOnce()) { clearInterval(iv); console.log('customerImageLoader: images applied on attempt', attempt); }
-      } catch (e) { console.error('customerImageLoader interval error', e); }
-    }, 500);
-  })();
-  console.log('customerImageLoader: initialized');
-})();
-*/
 (function customerPdfDownload() {
   // attempt immediately
   if (!tryLoad()) {
