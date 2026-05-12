@@ -160,7 +160,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   })();
 
-  // --- Video upload --- (modified to persist and relocate input on success)
+  // --- Video upload ---
   (function setupVideoUpload() {
     const uploadZone = document.getElementById('video-upload-zone');
     const videoFileInput = document.getElementById('video-file');
@@ -259,39 +259,12 @@ document.addEventListener('DOMContentLoaded', function () {
             uploadZone.style.borderColor = '#c3e6cb';
             // if uploaded file was a video, mark so no more videos can be uploaded
             if (isVideoFile(selectedFile)) videoUploaded = true;
-
-            // persist uploaded video metadata to localStorage so preview survives refresh
-            try {
-              const savedKey = 'ytech_media_' + (ticketId || 'local');
-              const existing = JSON.parse(localStorage.getItem(savedKey) || '{}');
-              existing.videos = existing.videos || [];
-              // prefer server-provided URL from response
-              const vurl = (json && (json.url || json.fileUrl || json.path || json.filePath)) || null;
-              const entry = vurl ? { url: vurl, name: selectedFile.name } : { name: selectedFile.name };
-              existing.videos.push(entry);
-              localStorage.setItem(savedKey, JSON.stringify(existing));
-            } catch (e) { console.warn('Could not save uploaded video to localStorage', e); }
-
-            // move the file input next to the upload button so the file object persists and user can choose replacements,
-            // then remove the upload zone from the big visual area
-            try {
-              if (videoFileInput && uploadBtn && videoFileInput.parentNode !== uploadBtn.parentNode) {
-                uploadBtn.parentNode.insertBefore(videoFileInput, uploadBtn);
-                videoFileInput.style.display = 'none';
-              }
-              if (uploadZone && uploadZone.parentNode) uploadZone.parentNode.removeChild(uploadZone);
-            } catch (e) { console.warn('Could not relocate video input', e); }
-
             // clear current selection but keep ability to choose other files
             try { videoFileInput.value = ''; } catch (e) { }
             selectedFile = null;
             uploadBtn.disabled = true;
             uploadBtn.style.opacity = '0.5';
             uploadBtn.textContent = 'Upload';
-            // hide upload controls and any trigger
-            try { if (uploadBtn) uploadBtn.style.display = 'none'; if (uploadTrigger) uploadTrigger.style.display = 'none'; } catch (e) {}
-            // remove any per-video remove buttons from preview
-            try { if (videoPreviewContainer) Array.from(videoPreviewContainer.querySelectorAll('button')).forEach(b => { if ((b.title || '').toLowerCase() === 'remove') b.remove(); }); } catch (e) {}
           } else {
             alert('Upload failed: ' + (json && json.message ? json.message : 'Unknown'));
             uploadBtn.disabled = false;
@@ -457,10 +430,9 @@ document.addEventListener('DOMContentLoaded', function () {
     // helper: remove/hide the image upload "choose file" zone after images are uploaded
     function removeImageUploadZone() {
       try {
-        // move the file input next to the upload button so users can still change files later
-        if (fileInput && uploadBtn && fileInput.parentNode !== uploadBtn.parentNode) {
-          uploadBtn.parentNode.insertBefore(fileInput, uploadBtn);
-          // keep input enabled but hidden — upload button / trigger opens it
+        // hide/disable the file input so it no longer shows as an interactive chooser
+        if (fileInput) {
+          fileInput.disabled = true;
           fileInput.style.display = 'none';
         }
         // remove the visible zone element from the DOM
@@ -543,12 +515,8 @@ document.addEventListener('DOMContentLoaded', function () {
       } catch (e) { }
       try { fileInput.value = ''; fileInput.disabled = true; } catch (e) { }
       try { uploadBtn.disabled = true; uploadBtn.style.opacity = '0.5'; uploadBtn.textContent = 'Uploaded'; } catch (e) { }
-      // remove the visual upload chooser and hide upload controls when server images are present
-      try {
-        removeImageUploadZone();
-        if (uploadBtn) uploadBtn.style.display = 'none';
-        if (trigger) trigger.style.display = 'none';
-      } catch (e) { /* ignore */ }
+      // remove the visual upload chooser when server images are present
+      try { removeImageUploadZone(); } catch (e) { /* ignore */ }
     }
 
     // expose helper to global so populateFromServerTicket and other loaders can apply server images
@@ -638,42 +606,17 @@ document.addEventListener('DOMContentLoaded', function () {
         .then((data) => {
           if (data && data.success) {
             alert('Images uploaded successfully!');
-            // persist uploaded image metadata (server response) to localStorage so previews survive refresh
-            try {
-              const savedKey = 'ytech_media_' + (ticketId || 'local');
-              const existing = JSON.parse(localStorage.getItem(savedKey) || '{}');
-              existing.images = data.images || data.files || data.uploaded || existing.images || [];
-              // normalize to array of {src, name}
-              existing.images = existing.images.map(it => {
-                if (typeof it === 'string') return { src: it, name: (it.split('/').pop() || it) };
-                return { src: it.url || it.src || it.path || '', name: it.filename || it.name || (it.url && it.url.split('/').pop()) || '' };
-              }).filter(i => i.src);
-              localStorage.setItem(savedKey, JSON.stringify(existing));
-            } catch (e) { console.warn('Could not save uploaded images to localStorage', e); }
-
-            // lock the preview so user cannot remove/upload more images (but keep the input relocated so they can change later)
+            // lock the preview so user cannot remove/upload more images
             imagesLocked = true;
             // hide all remove buttons and style zone to indicate locked state
             if (previewEl) previewEl.querySelectorAll('.thumb-remove').forEach(b => b.remove());
             zone.style.backgroundColor = '#d4edda';
             zone.style.borderColor = '#c3e6cb';
-            // move file input next to upload button and remove the big visual zone so object references persist
-            try { 
-              if (fileInput && uploadBtn && fileInput.parentNode !== uploadBtn.parentNode) {
-                uploadBtn.parentNode.insertBefore(fileInput, uploadBtn);
-                fileInput.style.display = 'none';
-              }
-              if (zone && zone.parentNode) zone.parentNode.removeChild(zone);
-            } catch (e) { /* ignore */ }
-            // disable inputs and upload button (UI reflects 'uploaded' state)
+            // remove the visual "choose file" upload zone now that images are uploaded
+            try { removeImageUploadZone(); } catch (e) { /* ignore */ }
+            // disable inputs and upload button
             try { fileInput.value = ''; fileInput.disabled = true; } catch (e) { }
             uploadBtn.disabled = true; uploadBtn.style.opacity = '0.5'; uploadBtn.textContent = 'Uploaded';
-            // hide upload controls and any change-trigger so user doesn't see the chooser anymore
-            try { if (uploadBtn) uploadBtn.style.display = 'none'; if (trigger) trigger.style.display = 'none'; } catch (e) { }
-            // ensure preview remove buttons are gone
-            try { if (previewEl) previewEl.querySelectorAll('.thumb-remove').forEach(b => b.remove()); } catch (e) {}
-            // also remove any small '×' buttons rendered elsewhere
-            try { document.querySelectorAll('.thumb-remove').forEach(b => b.remove()); } catch (e) {}
             // update status text
             updateControls();
           } else {
@@ -683,6 +626,9 @@ document.addEventListener('DOMContentLoaded', function () {
         .catch(err => { console.error('Image upload error:', err); alert('Upload failed.'); })
         .finally(() => { if (!imagesLocked) { uploadBtn.textContent = 'Upload'; uploadBtn.disabled = false; } });
     });
+
+    // initial update
+    updateControlsInitial();
   })();
 
   // --- Recommended Repairs: row wiring, calc, add/remove, block '-' input ---
@@ -1510,7 +1456,6 @@ document.addEventListener('DOMContentLoaded', function () {
               tbody.appendChild(tr);
               // fill values
               try { tr.querySelector('.rp-desc').value = r.repairDescription || ''; } catch (e) { }
-             
               try { tr.querySelector('.rp-qty').value = (r.qty != null) ? r.qty : ''; } catch (e) { }
               try { tr.querySelector('.rp-um').value = r.partNumber || ''; } catch (e) { }
               try { tr.querySelector('.rp-partprice').value = (r.partPrice != null) ? r.partPrice : ''; } catch (e) { }
@@ -2610,8 +2555,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // Manage selected files arrays and object URLs so we can revoke them
   let selectedVideoFiles = [];
   let selectedImageFiles = [];
-  let createdVideoObjectUrls = []; // only holds object URLs we created from File objects
-  let createdImageObjectUrls = [];
+  let videoObjectUrls = [];
+  let imageObjectUrls = [];
 
   function revokeUrls(urls) {
     urls.forEach(u => { try { URL.revokeObjectURL(u); } catch (e) { } });
@@ -2619,9 +2564,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Render video previews (flex wrapped)
   function renderVideoPreviews() {
-    // revoke only the object URLs we created last time
-    revokeUrls(createdVideoObjectUrls);
-    createdVideoObjectUrls = [];
+    revokeUrls(videoObjectUrls);
+    videoObjectUrls = selectedVideoFiles.map(f => URL.createObjectURL(f));
 
     if (!videoPreviewContainer) return;
     videoPreviewContainer.innerHTML = '';
@@ -2637,24 +2581,13 @@ document.addEventListener('DOMContentLoaded', () => {
       wrap.style.flex = '0 0 240px';
       wrap.style.maxWidth = '100%';
       wrap.style.boxSizing = 'border-box';
-      wrap.style.position = 'relative';
-      wrap.style.marginBottom = '8px';
 
       const v = document.createElement('video');
       v.controls = true;
       v.style.width = '100%';
       v.style.height = 'auto';
-      v.title = file.name || file.filename || (`video-${idx + 1}`);
-
-      // determine source: File -> createObjectURL, else use provided src/url
-      let src;
-      if (file instanceof File) {
-        src = URL.createObjectURL(file);
-        createdVideoObjectUrls.push(src);
-      } else {
-        src = file.src || file.url || file;
-      }
-      v.src = src;
+      v.src = videoObjectUrls[idx];
+      v.title = file.name || '';
 
       const meta = document.createElement('div');
       meta.style.fontSize = '12px';
@@ -2662,14 +2595,14 @@ document.addEventListener('DOMContentLoaded', () => {
       meta.style.overflow = 'hidden';
       meta.style.textOverflow = 'ellipsis';
       meta.style.whiteSpace = 'nowrap';
-      meta.textContent = file.name || (file.url && file.url.split('/').pop()) || (`video-${idx + 1}`);
+      meta.textContent = file.name || `video-${idx + 1}`;
 
       const removeBtn = document.createElement('button');
       removeBtn.type = 'button';
       removeBtn.textContent = '×';
       removeBtn.title = 'Remove';
       removeBtn.style.position = 'absolute';
-      removeBtn.style.top = '6px';
+      removeBtn.style.margin = '6px';
       removeBtn.style.right = '6px';
       removeBtn.style.background = 'rgba(0,0,0,0.6)';
       removeBtn.style.color = '#fff';
@@ -2678,19 +2611,20 @@ document.addEventListener('DOMContentLoaded', () => {
       removeBtn.style.width = '24px';
       removeBtn.style.height = '24px';
       removeBtn.style.cursor = 'pointer';
-      removeBtn.style.zIndex = '2';
 
       // container that positions remove button relative to video
       const pos = document.createElement('div');
       pos.style.position = 'relative';
       pos.appendChild(v);
+      // place remove button only if not disabled (UI may lock uploads elsewhere)
       pos.appendChild(removeBtn);
 
       removeBtn.addEventListener('click', () => {
         selectedVideoFiles.splice(idx, 1);
+        // rebuild FileList via DataTransfer (modern browsers)
         try {
           const dt = new DataTransfer();
-          selectedVideoFiles.filter(f => f instanceof File).forEach(f => dt.items.add(f));
+          selectedVideoFiles.forEach(f => dt.items.add(f));
           if (videoinput) videoinput.files = dt.files;
         } catch (e) { console.warn('Could not update videoinput.files', e); }
         renderVideoPreviews();
@@ -2706,8 +2640,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Render image previews (flex wrapped, scaled thumbnails)
   function renderImagePreviews() {
-    revokeUrls(createdImageObjectUrls);
-    createdImageObjectUrls = [];
+    revokeUrls(imageObjectUrls);
+    imageObjectUrls = selectedImageFiles.map(f => URL.createObjectURL(f));
 
     if (!imagePreviewContainer) return;
     imagePreviewContainer.innerHTML = '';
@@ -2735,15 +2669,7 @@ document.addEventListener('DOMContentLoaded', () => {
       img.style.objectFit = 'cover';
       img.style.display = 'block';
       img.alt = file.name || '';
-
-      // determine source
-      if (file instanceof File) {
-        const obj = URL.createObjectURL(file);
-        createdImageObjectUrls.push(obj);
-        img.src = obj;
-      } else {
-        img.src = file.src || file.url || file;
-      }
+      img.src = imageObjectUrls[idx];
 
       const removeBtn = document.createElement('button');
       removeBtn.type = 'button';
@@ -2766,7 +2692,7 @@ document.addEventListener('DOMContentLoaded', () => {
         selectedImageFiles.splice(idx, 1);
         try {
           const dt = new DataTransfer();
-          selectedImageFiles.filter(f => f instanceof File).forEach(f => dt.items.add(f));
+          selectedImageFiles.forEach(f => dt.items.add(f));
           if (imageinput) imageinput.files = dt.files;
         } catch (e) { console.warn('Could not update imageinput.files', e); }
         renderImagePreviews();
@@ -2790,9 +2716,9 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
       // merge with existing but avoid duplicates by name+size
-      const seen = new Set(selectedVideoFiles.map(f => `${f.name}|${f.size || 0}`));
+      const seen = new Set(selectedVideoFiles.map(f => `${f.name}|${f.size}`));
       for (const f of files) {
-        const key = `${f.name}|${f.size || 0}`;
+        const key = `${f.name}|${f.size}`;
         if (!seen.has(key)) { selectedVideoFiles.push(f); seen.add(key); }
       }
       renderVideoPreviews();
@@ -2811,9 +2737,9 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
       // merge/dedupe by name+size
-      const seen = new Set(selectedImageFiles.map(f => `${f.name}|${f.size || 0}`));
+      const seen = new Set(selectedImageFiles.map(f => `${f.name}|${f.size}`));
       for (const f of files) {
-        const key = `${f.name}|${f.size || 0}`;
+        const key = `${f.name}|${f.size}`;
         if (!seen.has(key)) { selectedImageFiles.push(f); seen.add(key); }
       }
       // limit guard (optional): keep up to 50 images to avoid memory blowup
@@ -2825,51 +2751,6 @@ document.addEventListener('DOMContentLoaded', () => {
       relocateInputAndRemoveZone(imageinput, 'image-upload-btn', imageUploadZone);
     });
   }
-
-  // Load persisted uploaded media (images/videos) from localStorage for current ticket
-  (function loadPersistedMedia() {
-    try {
-      const getTicketId = () => {
-        return (window.__SERVER_TICKET__ && window.__SERVER_TICKET__.id) ||
-          document.getElementById('vehicle-ticketId')?.value ||
-          document.getElementById('ticketId')?.value || (new URLSearchParams(window.location.search).get('id')) || 'local';
-      };
-      const ticketId = getTicketId();
-      const key = 'ytech_media_' + (ticketId || 'local');
-      const payload = JSON.parse(localStorage.getItem(key) || 'null');
-      if (!payload) return;
-      // images: add to selectedImageFiles as {src, name} so renderImagePreviews will use provided URL
-      if (Array.isArray(payload.images) && payload.images.length) {
-        selectedImageFiles = selectedImageFiles.concat(payload.images.map(it => ({ src: it.src || it.url || '', name: it.name || (it.url && it.url.split('/').pop()) || '' })).filter(i => i.src));
-        renderImagePreviews();
-        // relocate input so UI matches uploaded state
-        try { relocateInputAndRemoveZone(imageinput, 'image-upload-btn', imageUploadZone); } catch (e) { }
-        // hide image upload controls and remove per-thumb "×" controls
-        try {
-          const imgUploadBtn = document.getElementById('image-upload-btn');
-          const imgTrigger = document.getElementById('image-upload-trigger');
-          if (imgUploadBtn) imgUploadBtn.style.display = 'none';
-          if (imgTrigger) imgTrigger.style.display = 'none';
-          if (imagePreviewContainer) imagePreviewContainer.querySelectorAll('.thumb-remove').forEach(b => b.remove());
-        } catch (e) { /* ignore */ }
-      }
-      // videos: add to selectedVideoFiles as {src/url,name}
-      if (Array.isArray(payload.videos) && payload.videos.length) {
-        selectedVideoFiles = selectedVideoFiles.concat(payload.videos.map(it => ({ src: it.url || it.src || '', name: it.name || (it.url && it.url.split('/').pop()) || '' })).filter(i => i.src));
-        renderVideoPreviews();
-        try { relocateInputAndRemoveZone(videoinput, 'upload-btn', videoUploadZone); } catch (e) { }
-        // hide video upload controls and remove per-video remove buttons
-        try {
-          const vidUploadBtn = document.getElementById('upload-btn');
-          const vidTrigger = document.getElementById('upload-trigger');
-          if (vidUploadBtn) vidUploadBtn.style.display = 'none';
-          if (vidTrigger) vidTrigger.style.display = 'none';
-          if (videoPreviewContainer) Array.from(videoPreviewContainer.querySelectorAll('button')).forEach(b => { if ((b.title || '').toLowerCase() === 'remove') b.remove(); });
-        } catch (e) { /* ignore */ }
-      }
-    } catch (e) { console.warn('loadPersistedMedia failed', e); }
-  })();
-
 });
 
 
