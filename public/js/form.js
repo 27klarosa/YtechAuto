@@ -2753,24 +2753,74 @@ document.addEventListener('DOMContentLoaded', () => {
   else initSignatureLoader();
 })();
 
-//video and image loader
-const videoUploadZone = document.getElementById("video-upload-zone");
-const imageUploadZone = document.getElementById("image-upload-zone");
+// --- video and image loader (fixed) ---
+document.addEventListener('DOMContentLoaded', () => {
+  const videoUploadZone = document.getElementById('video-upload-zone');
+  const imageUploadZone = document.getElementById('image-upload-zone');
+  const videoinput = document.getElementById('video-file');
+  const imageinput = document.getElementById('image-file');
+  const videoPreviewContainer = document.getElementById('video-preview');
+  const imagePreviewContainer = document.getElementById('image-preview');
 
-videoUploadZone.addEventListener("change", (e) => {
-  const video = e.target.files[0];
-  if (video) {
-    displayMediaPreview(video, "video");
+  // helper to move file input before a button then remove zone
+  function relocateInputAndRemoveZone(inputEl, uploadBtnId, zoneEl) {
+    try {
+      const uploadBtn = document.getElementById(uploadBtnId);
+      if (inputEl && uploadBtn && inputEl.parentNode !== uploadBtn.parentNode) {
+        uploadBtn.parentNode.insertBefore(inputEl, uploadBtn);
+        inputEl.style.display = 'none';
+      }
+      if (zoneEl && zoneEl.parentNode) zoneEl.parentNode.removeChild(zoneEl);
+    } catch (e) { console.warn('relocateInputAndRemoveZone failed', e); }
+  }
+
+  // Video preview
+  if (videoinput) {
+    let currentVideoUrl = null;
+    videoinput.addEventListener('change', (e) => {
+      const file = (e.target.files && e.target.files[0]) || null;
+      if (!file) return;
+      if (currentVideoUrl) URL.revokeObjectURL(currentVideoUrl);
+      currentVideoUrl = URL.createObjectURL(file);
+
+      if (videoPreviewContainer) {
+        videoPreviewContainer.innerHTML = '';
+        const v = document.createElement('video');
+        v.controls = true;
+        v.style.maxWidth = '100%';
+        v.src = currentVideoUrl;
+        videoPreviewContainer.appendChild(v);
+      }
+
+      // move input and remove visual zone so file object persists
+      relocateInputAndRemoveZone(videoinput, 'upload-btn', videoUploadZone);
+    });
+  }
+
+  // Image preview
+  if (imageinput) {
+    let currentImageUrl = null;
+    imageinput.addEventListener('change', (e) => {
+      const file = (e.target.files && e.target.files[0]) || null;
+      if (!file) return;
+      if (currentImageUrl) URL.revokeObjectURL(currentImageUrl);
+      currentImageUrl = URL.createObjectURL(file);
+
+      if (imagePreviewContainer) {
+        imagePreviewContainer.innerHTML = '';
+        const img = document.createElement('img');
+        img.style.maxWidth = '100%';
+        img.style.display = 'block';
+        img.src = currentImageUrl;
+        imagePreviewContainer.appendChild(img);
+      }
+
+      // move input and remove visual zone so file object persists
+      relocateInputAndRemoveZone(imageinput, 'image-upload-btn', imageUploadZone);
+    });
   }
 });
 
-imageUploadZone.addEventListener("change", (e) => {
-  const file = e.target.files[0];
-  if (file) {
-    const imageURL = URL.createObjectURL(file);
-    // Do something with the imageURL, like previewing the image
-  }
-});
 
 (function customerPdfDownload() {
   // attempt immediately
