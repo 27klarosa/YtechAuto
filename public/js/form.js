@@ -24,6 +24,11 @@ document.addEventListener('DOMContentLoaded', function () {
           }
         });
       });
+      const allContent = document.querySelectorAll('.accordion-content');
+allContent.forEach(content => {
+    content.style.display = 'block';
+    content.classList.remove('collapsed-content');
+});
       window.customAccordionInitialized = true;
     })();
   }
