@@ -18,7 +18,7 @@ router.get('/customer', ensureLoggedIn, (req, res) => {
             
             if (!db) {
                 console.error('Database connection not available');
-                return res.status(500).send('Database error');
+                return res.status(500).send('<script>alert("Database error"); window.history.back();</script>');
             }
             
             if (!ticketId) {
@@ -33,7 +33,7 @@ router.get('/customer', ensureLoggedIn, (req, res) => {
                    [ticketId, email, 'complete'], (err, ticket) => {
                 if (err) {
                     console.error('Database error:', err.message);
-                    return res.status(500).send('Database error');
+                    return res.status(500).send('<script>alert("Database error"); window.history.back();</script>');
                 }
                 
                 if (!ticket) {
