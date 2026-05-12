@@ -427,6 +427,19 @@ document.addEventListener('DOMContentLoaded', function () {
       try { fileInput.disabled = imagesLocked; } catch (e) { }
     }
 
+    // helper: remove/hide the image upload "choose file" zone after images are uploaded
+    function removeImageUploadZone() {
+      try {
+        // hide/disable the file input so it no longer shows as an interactive chooser
+        if (fileInput) {
+          fileInput.disabled = true;
+          fileInput.style.display = 'none';
+        }
+        // remove the visible zone element from the DOM
+        if (zone && zone.parentNode) zone.parentNode.removeChild(zone);
+      } catch (e) { console.warn('removeImageUploadZone failed', e); }
+    }
+
     // Expose a helper to apply server-provided images (URLs or {src,filename})
     function applyServerImages(images) {
       if (!Array.isArray(images) || images.length === 0) return;
@@ -502,14 +515,8 @@ document.addEventListener('DOMContentLoaded', function () {
       } catch (e) { }
       try { fileInput.value = ''; fileInput.disabled = true; } catch (e) { }
       try { uploadBtn.disabled = true; uploadBtn.style.opacity = '0.5'; uploadBtn.textContent = 'Uploaded'; } catch (e) { }
-
-      // also disable any video upload controls (if present on page) when images are locked / viewing saved ticket
-      try {
-        const vidInput = document.getElementById('video-file');
-        const vidBtn = document.getElementById('upload-btn');
-        if (vidInput) vidInput.disabled = true;
-        if (vidBtn) { vidBtn.disabled = true; vidBtn.style.opacity = '0.5'; }
-      } catch (e) { /* ignore */ }
+      // remove the visual upload chooser when server images are present
+      try { removeImageUploadZone(); } catch (e) { /* ignore */ }
     }
 
     // expose helper to global so populateFromServerTicket and other loaders can apply server images
@@ -605,6 +612,8 @@ document.addEventListener('DOMContentLoaded', function () {
             if (previewEl) previewEl.querySelectorAll('.thumb-remove').forEach(b => b.remove());
             zone.style.backgroundColor = '#d4edda';
             zone.style.borderColor = '#c3e6cb';
+            // remove the visual "choose file" upload zone now that images are uploaded
+            try { removeImageUploadZone(); } catch (e) { /* ignore */ }
             // disable inputs and upload button
             try { fileInput.value = ''; fileInput.disabled = true; } catch (e) { }
             uploadBtn.disabled = true; uploadBtn.style.opacity = '0.5'; uploadBtn.textContent = 'Uploaded';
@@ -2146,7 +2155,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
           if (res.ok) {
             let payload = null;
-            try { payload = await res.json(); } catch (err) { payload = null; }
+            try { payload = await res.json(); } catch (e) { payload = null; }
             if (payload && payload.success) {
               console.log('Courtesy check saved');
               return;
@@ -2156,7 +2165,7 @@ document.addEventListener('DOMContentLoaded', function () {
           }
 
           let errPayload = null;
-          try { errPayload = await res.json(); } catch (err) { errPayload = null; }
+          try { errPayload = await res.json(); } catch (e) { errPayload = null; }
           console.error('Courtesy check save failed', res.status, errPayload);
         } catch (err) {
           console.error('Courtesy check save failed', err);
@@ -2245,7 +2254,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
           if (res.ok) {
             let payload = null;
-            try { payload = await res.json(); } catch (err) { payload = null; }
+            try { payload = await res.json(); } catch (e) { payload = null; }
             if (payload && payload.success) {
               console.log('Steering & Suspension saved');
               return;
@@ -2255,7 +2264,7 @@ document.addEventListener('DOMContentLoaded', function () {
           }
 
           let errPayload = null;
-          try { errPayload = await res.json(); } catch (err) { errPayload = null; }
+          try { errPayload = await res.json(); } catch (e) { errPayload = null; }
           console.error('Steering save failed', res.status, errPayload);
         } catch (err) {
           console.error('Steering save failed', err);
@@ -2430,7 +2439,14 @@ document.addEventListener('DOMContentLoaded', function () {
           const fullGroups = Array.from(emissionsSection.querySelectorAll('.form-group.full-width'));
           for (const g of fullGroups) {
             const lbl = (g.querySelector('label') && g.querySelector('label').textContent || '').toLowerCase();
-            if (lbl.includes('comment')) { parentCommentsInput = g.querySelector('input[type="text"], textarea'); break; }
+            if (!lbl) continue;
+            const matched = aliases.some(a => lbl.includes(a.toLowerCase()) || a.toLowerCase().includes(lbl));
+            if (matched) {
+              const inp = g.querySelector('input,select,textarea');
+              if (inp && (parent[k] != null && parent[k] !== '')) {
+                try { inp.value = parent[k]; inp.dispatchEvent(new Event('change')); } catch (e) { }
+              }
+            }
           }
         } catch (e) { }
         if (!parentCommentsInput) parentCommentsInput = emissionsSection.querySelector('.form-group.full-width input[type="text"], .form-group.full-width textarea');
@@ -2513,248 +2529,6 @@ document.addEventListener('DOMContentLoaded', function () {
 })();
 
 document.addEventListener('DOMContentLoaded', () => {
-  const tiresForm = document.getElementById('tires-form');
-  if (tiresForm) {
-    tiresForm.addEventListener('submit', async (ev) => {
-      ev.preventDefault();
-      ev.stopPropagation();
-
-      // ensure ticketId present
-      const ticketInput = document.getElementById('tires-ticketId');
-      if (!ticketInput || !ticketInput.value) {
-        // try fallback from server ticket object
-        if (window.__SERVER_TICKET__ && window.__SERVER_TICKET__.id) {
-          if (ticketInput) ticketInput.value = window.__SERVER_TICKET__.id;
-          else tiresForm.appendChild(Object.assign(document.createElement('input'), { type: 'hidden', name: 'ticketId', value: window.__SERVER_TICKET__.id }));
-        } else {
-          console.error('Tires save failed: missing ticketId');
-          alert('Cannot save tires: ticketId missing.');
-          return;
-        }
-      }
-
-      // convert form to plain object and send JSON so server's express.json() can parse it
-      const fd = new FormData(tiresForm);
-      const obj = {};
-      fd.forEach((value, key) => {
-        // handle multiple values for same key
-        if (Object.prototype.hasOwnProperty.call(obj, key)) {
-          if (!Array.isArray(obj[key])) obj[key] = [obj[key]];
-          obj[key].push(value);
-        } else {
-          obj[key] = value;
-        }
-      });
-
-      // ensure ticketId included (fallback to server-inserted object)
-      if (!obj.ticketId && window.__SERVER_TICKET__ && window.__SERVER_TICKET__.id) obj.ticketId = window.__SERVER_TICKET__.id;
-
-      try {
-        const res = await fetch(tiresForm.action, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(obj)
-        });
-        if (res.status === 204) {
-          console.log('Tires saved (204).');
-          return;
-        }
-        if (!res.ok) throw new Error(`Tires save failed: ${res.status}`);
-        // optionally parse OK JSON
-        let json = null;
-        try { json = await res.json(); } catch (e) { json = null; }
-        console.log('Tires save response', res.status, json);
-      } catch (err) {
-        console.error(err);
-        alert('Tires save failed. See console for details.');
-      }
-    }, { capture: true });
-  }
-});
-
-// --- Signature save & loader (for customer signature) ---
-(function customerSignatureSaveLoader() {
-  // Make the signature loader runnable immediately if DOM already ready,
-  // otherwise attach to DOMContentLoaded.
-  function initSignatureLoader() {
-    // apply a signature (dataURL or server path) into the DOM where the canvas lives and remove the clear button
-    function applySignature(src, meta = {}) {
-      try {
-        // prefer exact IDs (old + any new one you renamed). Update 'YOUR_NEW_CANVAS_ID' if you changed it.
-        const canvas = document.getElementById('signatureCanvas') || document.getElementById('YOUR_NEW_CANVAS_ID');
-        const clear = document.getElementById('clearSignature') || document.getElementById('YOUR_NEW_CLEAR_ID');
-        // container = canvas parent (ensures image replaces in same spot)
-        const container = canvas ? canvas.parentElement : (document.getElementById('signature-container') || document.querySelector('.form-grid') || document.body);
-
-        // ensure hidden inputs exist so form submits include signature info
-        const form = document.getElementById('repForm') || document.querySelector('form');
-        const ensureHidden = (name, id) => {
-          let el = form && form.querySelector(`input[name="${name}"]`);
-          if (!el) el = document.getElementById(id);
-          if (!el) {
-            el = document.createElement('input');
-            el.type = 'hidden';
-            el.name = name;
-            if (id) el.id = id;
-            form && form.appendChild(el);
-          }
-          return el;
-        };
-        const idEl = ensureHidden('signatureId', 'signatureId');
-        const fileEl = ensureHidden('signatureFilename', 'signatureFilename');
-        const pathEl = ensureHidden('signaturePath', 'signaturePath');
-        const signatureDataField = document.getElementById('signatureData') || (form && form.querySelector('input[name="signatureData"]'));
-
-        if (meta && meta.id) idEl.value = String(meta.id);
-        if (meta && meta.filename) fileEl.value = String(meta.filename);
-        if (meta && (meta.relativePath || meta.path)) pathEl.value = String(meta.relativePath || meta.path);
-
-        // create image element
-        const img = document.createElement('img');
-        img.alt = 'Customer signature';
-        img.style.maxWidth = '100%';
-        img.style.height = 'auto';
-        img.style.display = 'block';
-        img.src = src;
-
-        // if src is dataURL set signatureData hidden
-        if (typeof src === 'string' && src.indexOf('data:') === 0 && signatureDataField) {
-          try { signatureDataField.value = src; } catch (e) { console.warn('failed to set signatureData', e); }
-        }
-
-        // replace in-place if canvas found, otherwise append to container
-        if (canvas && canvas.parentNode) canvas.parentNode.replaceChild(img, canvas);
-        else container.appendChild(img);
-
-        if (clear && clear.parentNode) clear.parentNode.removeChild(clear);
-
-        console.log('applySignature: signature applied', meta, 'srcLen=', (src || '').length);
-        return true;
-      } catch (err) {
-        console.error('applySignature error', err);
-        return false;
-      }
-    }
-
-    // load signature info for a given ticket id:
-    //  - first try window.__SERVER_TICKET__ if present (fast)
-    //  - otherwise POST /ticket-check to ask server for saved signature metadata
-    async function loadSavedSignatureForTicket(ticketId) {
-      if (!ticketId) { console.log('loadSavedSignatureForTicket: no ticketId'); return false; }
-
-      // quick check: server-injected ticket object may already contain signature data/path
-      try {
-        const st = window.__SERVER_TICKET__ || null;
-        if (st && (String(st.id) === String(ticketId))) {
-          // tolerant keys
-          const sigData = st.customerSignature || st.signature || st.customer_signature || null;
-          const sigPath = st.signaturePath || st.signature_path || st.signatureURL || st.signatureUrl || st.signature_url || null;
-          const sigMeta = {};
-          if (st.signatureId || st.signature_id) sigMeta.id = st.signatureId || st.signature_id;
-          if (st.signatureFilename || st.signature_filename) sigMeta.filename = st.signatureFilename || st.signature_filename;
-          if (sigData) {
-            console.log('loadSavedSignatureForTicket: using server ticket embedded dataURL');
-            applySignature(sigData, sigMeta);
-            return true;
-          }
-          if (sigPath) {
-            const src = (sigPath.indexOf('data:') === 0) ? sigPath : '/' + String(sigPath).replace(/^\/+/, '');
-            console.log('loadSavedSignatureForTicket: using server ticket embedded path ->', src);
-            applySignature(src, sigMeta);
-            return true;
-          }
-        }
-      } catch (e) { console.warn('server-ticket quick check failed', e); }
-
-      // fallback: ask server endpoint for signature metadata
-      try {
-        const endpoint = '/ticket-check';
-        console.log('loadSavedSignatureForTicket: POST', endpoint, { ticketId });
-        const res = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ticketId: String(ticketId) })
-        });
-        if (!res.ok) { console.warn('loadSavedSignatureForTicket: server returned', res.status); return false; }
-        let json = null;
-        try { json = await res.json(); } catch (e) { console.warn('loadSavedSignatureForTicket: failed to parse json', e); json = null; }
-        if (!json || !json.success || !json.signature) {
-          console.log('loadSavedSignatureForTicket: no signature payload', json);
-          return false;
-        }
-        const sig = json.signature;
-        // If server returned a path on disk/URL, prefer that; otherwise accept dataURL if provided
-        if (sig.relativePath || sig.path || sig.url) {
-          const src = '/' + (sig.relativePath || sig.path || sig.url).replace(/^\/+/, '');
-          applySignature(src, sig);
-          return true;
-        }
-        if (sig.data || sig.dataUrl || sig.dataURL || sig.base64) {
-          const src = sig.data || sig.dataUrl || sig.dataURL || ('data:' + (sig.mime || 'image/png') + ';base64,' + sig.base64);
-          applySignature(src, sig);
-          return true;
-        }
-
-        console.log('loadSavedSignatureForTicket: signature object present but no usable path/data', sig);
-        return false;
-      } catch (err) {
-        console.error('loadSavedSignatureForTicket fetch error', err);
-        return false;
-      }
-    }
-
-    // find a ticket id from multiple fallbacks (server-injected, hidden inputs, query string)
-    function resolveTicketId() {
-      const id =
-        (window.__SERVER_TICKET__ && window.__SERVER_TICKET__.id) ||
-        document.getElementById('vehicle-ticketId')?.value ||
-        document.getElementById('ticketId')?.value ||
-        document.getElementById('ticketIdHidden')?.value ||
-        '';
-      if (id) return String(id);
-      try {
-        const p = new URLSearchParams(window.location.search);
-        return p.get('id') || p.get('ticketId') || p.get('ticketID') || '';
-      } catch (e) { return ''; }
-    }
-
-    // attempt immediately and retry for a short period until a ticketId exists or signature successfully applied
-    (async function attemptLoadWithRetries() {
-      const maxAttempts = 20; // ~20s with 250ms interval
-      let attempt = 0;
-      let applied = false;
-      const tryOnce = async () => {
-        attempt += 1;
-        const id = resolveTicketId();
-        if (!id) return false;
-        try {
-          const ok = await loadSavedSignatureForTicket(id);
-          if (ok) applied = true;
-          return ok;
-        } catch (e) { console.error('signature tryOnce error', e); return false; }
-      };
-
-      // immediate first try
-      if (await tryOnce()) return;
-
-      const iv = setInterval(async () => {
-        if (attempt >= maxAttempts || applied) { clearInterval(iv); if (!applied) console.log('signature loader giving up after', attempt, 'attempts'); return; }
-        try {
-          if (await tryOnce()) {
-            clearInterval(iv);
-            console.log('signature loader: applied on attempt', attempt);
-          }
-        } catch (e) { console.error('signature loader interval error', e); }
-      }, 250);
-    })();
-  }
-
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initSignatureLoader);
-  else initSignatureLoader();
-})();
-
-// --- video and image loader (fixed) ---
-document.addEventListener('DOMContentLoaded', () => {
   const videoUploadZone = document.getElementById('video-upload-zone');
   const imageUploadZone = document.getElementById('image-upload-zone');
   const videoinput = document.getElementById('video-file');
@@ -2774,46 +2548,204 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (e) { console.warn('relocateInputAndRemoveZone failed', e); }
   }
 
-  // Video preview
+  // Ensure inputs accept multiple files
+  try { if (videoinput) videoinput.multiple = true; } catch (e) {}
+  try { if (imageinput) imageinput.multiple = true; } catch (e) {}
+
+  // Manage selected files arrays and object URLs so we can revoke them
+  let selectedVideoFiles = [];
+  let selectedImageFiles = [];
+  let videoObjectUrls = [];
+  let imageObjectUrls = [];
+
+  function revokeUrls(urls) {
+    urls.forEach(u => { try { URL.revokeObjectURL(u); } catch (e) { } });
+  }
+
+  // Render video previews (flex wrapped)
+  function renderVideoPreviews() {
+    revokeUrls(videoObjectUrls);
+    videoObjectUrls = selectedVideoFiles.map(f => URL.createObjectURL(f));
+
+    if (!videoPreviewContainer) return;
+    videoPreviewContainer.innerHTML = '';
+
+    const container = document.createElement('div');
+    container.style.display = 'flex';
+    container.style.flexWrap = 'wrap';
+    container.style.gap = '8px';
+    container.style.alignItems = 'flex-start';
+
+    selectedVideoFiles.forEach((file, idx) => {
+      const wrap = document.createElement('div');
+      wrap.style.flex = '0 0 240px';
+      wrap.style.maxWidth = '100%';
+      wrap.style.boxSizing = 'border-box';
+
+      const v = document.createElement('video');
+      v.controls = true;
+      v.style.width = '100%';
+      v.style.height = 'auto';
+      v.src = videoObjectUrls[idx];
+      v.title = file.name || '';
+
+      const meta = document.createElement('div');
+      meta.style.fontSize = '12px';
+      meta.style.marginTop = '4px';
+      meta.style.overflow = 'hidden';
+      meta.style.textOverflow = 'ellipsis';
+      meta.style.whiteSpace = 'nowrap';
+      meta.textContent = file.name || `video-${idx + 1}`;
+
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.textContent = '×';
+      removeBtn.title = 'Remove';
+      removeBtn.style.position = 'absolute';
+      removeBtn.style.margin = '6px';
+      removeBtn.style.right = '6px';
+      removeBtn.style.background = 'rgba(0,0,0,0.6)';
+      removeBtn.style.color = '#fff';
+      removeBtn.style.border = 'none';
+      removeBtn.style.borderRadius = '12px';
+      removeBtn.style.width = '24px';
+      removeBtn.style.height = '24px';
+      removeBtn.style.cursor = 'pointer';
+
+      // container that positions remove button relative to video
+      const pos = document.createElement('div');
+      pos.style.position = 'relative';
+      pos.appendChild(v);
+      // place remove button only if not disabled (UI may lock uploads elsewhere)
+      pos.appendChild(removeBtn);
+
+      removeBtn.addEventListener('click', () => {
+        selectedVideoFiles.splice(idx, 1);
+        // rebuild FileList via DataTransfer (modern browsers)
+        try {
+          const dt = new DataTransfer();
+          selectedVideoFiles.forEach(f => dt.items.add(f));
+          if (videoinput) videoinput.files = dt.files;
+        } catch (e) { console.warn('Could not update videoinput.files', e); }
+        renderVideoPreviews();
+      });
+
+      wrap.appendChild(pos);
+      wrap.appendChild(meta);
+      container.appendChild(wrap);
+    });
+
+    videoPreviewContainer.appendChild(container);
+  }
+
+  // Render image previews (flex wrapped, scaled thumbnails)
+  function renderImagePreviews() {
+    revokeUrls(imageObjectUrls);
+    imageObjectUrls = selectedImageFiles.map(f => URL.createObjectURL(f));
+
+    if (!imagePreviewContainer) return;
+    imagePreviewContainer.innerHTML = '';
+
+    const container = document.createElement('div');
+    container.style.display = 'flex';
+    container.style.flexWrap = 'wrap';
+    container.style.gap = '8px';
+    container.style.alignItems = 'flex-start';
+
+    selectedImageFiles.forEach((file, idx) => {
+      const wrapper = document.createElement('div');
+      wrapper.style.position = 'relative';
+      wrapper.style.width = '120px';
+      wrapper.style.height = '90px';
+      wrapper.style.flex = '0 0 120px';
+      wrapper.style.boxSizing = 'border-box';
+      wrapper.style.overflow = 'hidden';
+      wrapper.style.borderRadius = '4px';
+      wrapper.style.background = '#f6f6f6';
+
+      const img = document.createElement('img');
+      img.style.width = '100%';
+      img.style.height = '100%';
+      img.style.objectFit = 'cover';
+      img.style.display = 'block';
+      img.alt = file.name || '';
+      img.src = imageObjectUrls[idx];
+
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'thumb-remove';
+      removeBtn.textContent = '×';
+      removeBtn.title = 'Remove';
+      removeBtn.style.position = 'absolute';
+      removeBtn.style.top = '6px';
+      removeBtn.style.right = '6px';
+      removeBtn.style.background = 'rgba(0,0,0,0.6)';
+      removeBtn.style.color = '#fff';
+      removeBtn.style.border = 'none';
+      removeBtn.style.borderRadius = '12px';
+      removeBtn.style.width = '24px';
+      removeBtn.style.height = '24px';
+      removeBtn.style.cursor = 'pointer';
+      removeBtn.style.zIndex = '2';
+
+      removeBtn.addEventListener('click', () => {
+        selectedImageFiles.splice(idx, 1);
+        try {
+          const dt = new DataTransfer();
+          selectedImageFiles.forEach(f => dt.items.add(f));
+          if (imageinput) imageinput.files = dt.files;
+        } catch (e) { console.warn('Could not update imageinput.files', e); }
+        renderImagePreviews();
+      });
+
+      wrapper.appendChild(img);
+      wrapper.appendChild(removeBtn);
+      container.appendChild(wrapper);
+    });
+
+    imagePreviewContainer.appendChild(container);
+  }
+
+  // Video input change -> multiple previews
   if (videoinput) {
-    let currentVideoUrl = null;
     videoinput.addEventListener('change', (e) => {
-      const file = (e.target.files && e.target.files[0]) || null;
-      if (!file) return;
-      if (currentVideoUrl) URL.revokeObjectURL(currentVideoUrl);
-      currentVideoUrl = URL.createObjectURL(file);
-
-      if (videoPreviewContainer) {
-        videoPreviewContainer.innerHTML = '';
-        const v = document.createElement('video');
-        v.controls = true;
-        v.style.maxWidth = '100%';
-        v.src = currentVideoUrl;
-        videoPreviewContainer.appendChild(v);
+      const files = Array.from(e.target.files || []);
+      if (!files.length) {
+        selectedVideoFiles = [];
+        videoPreviewContainer && (videoPreviewContainer.innerHTML = '');
+        return;
       }
-
+      // merge with existing but avoid duplicates by name+size
+      const seen = new Set(selectedVideoFiles.map(f => `${f.name}|${f.size}`));
+      for (const f of files) {
+        const key = `${f.name}|${f.size}`;
+        if (!seen.has(key)) { selectedVideoFiles.push(f); seen.add(key); }
+      }
+      renderVideoPreviews();
       // move input and remove visual zone so file object persists
       relocateInputAndRemoveZone(videoinput, 'upload-btn', videoUploadZone);
     });
   }
 
-  // Image preview
+  // Image input change -> multiple previews (thumbnails)
   if (imageinput) {
-    let currentImageUrl = null;
     imageinput.addEventListener('change', (e) => {
-      const file = (e.target.files && e.target.files[0]) || null;
-      if (!file) return;
-      if (currentImageUrl) URL.revokeObjectURL(currentImageUrl);
-      currentImageUrl = URL.createObjectURL(file);
-
-      if (imagePreviewContainer) {
-        imagePreviewContainer.innerHTML = '';
-        const img = document.createElement('img');
-        img.style.maxWidth = '100%';
-        img.style.display = 'block';
-        img.src = currentImageUrl;
-        imagePreviewContainer.appendChild(img);
+      const files = Array.from(e.target.files || []);
+      if (!files.length) {
+        selectedImageFiles = [];
+        imagePreviewContainer && (imagePreviewContainer.innerHTML = '');
+        return;
       }
+      // merge/dedupe by name+size
+      const seen = new Set(selectedImageFiles.map(f => `${f.name}|${f.size}`));
+      for (const f of files) {
+        const key = `${f.name}|${f.size}`;
+        if (!seen.has(key)) { selectedImageFiles.push(f); seen.add(key); }
+      }
+      // limit guard (optional): keep up to 50 images to avoid memory blowup
+      if (selectedImageFiles.length > 50) selectedImageFiles = selectedImageFiles.slice(0, 50);
+
+      renderImagePreviews();
 
       // move input and remove visual zone so file object persists
       relocateInputAndRemoveZone(imageinput, 'image-upload-btn', imageUploadZone);
