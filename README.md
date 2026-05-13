@@ -102,16 +102,5 @@ npm install -g nodemon
 nodemon app
 ```
 
-## Testing a repair validation failure locally
-1. Open the mechanic form and add a recommended repair row but leave `Labor Hours` blank (or other required field).
-2. Submit — you should see a friendly alert message (client-side) or a sanitized server message such as `MissingLaborHours` instead of a raw SQLite error.
-
-## Useful commands
-- Install deps: `npm install`
-- Init DB: `node scripts/initDatabase.js`
-- Run server: `node app` (or `nodemon app` during development)
-
----
-
 
 
