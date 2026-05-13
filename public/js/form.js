@@ -400,6 +400,13 @@ document.addEventListener('DOMContentLoaded', function () {
           } else {
             selectedFiles.splice(idx, 1);
           }
+          // keep the input.files in sync when possible (so any other preview logic that uses fileInput.files stays accurate)
+          try {
+            const dt = new DataTransfer();
+            selectedFiles.forEach(f => { if (f instanceof File) dt.items.add(f); });
+            fileInput.files = dt.files;
+          } catch (e) { /* ignore if platform doesn't allow programmatic FileList changes */ }
+
           updateControls();
           showPreview(selectedFiles);
         });
@@ -568,6 +575,15 @@ document.addEventListener('DOMContentLoaded', function () {
         if (dedup.length >= MAX_FILES) break;
       }
       selectedFiles = dedup;
+
+      // keep file input.files in sync with selectedFiles (so other preview code that relies on input.files works)
+      try {
+        const dt = new DataTransfer();
+        selectedFiles.forEach(f => { if (f instanceof File) dt.items.add(f); });
+        // if there are only server-provided objects (no File instances) we can't populate FileList — that's OK
+        if (dt.items.length) fileInput.files = dt.files;
+      } catch (e) { /* ignore */ }
+
       updateControls();
       showPreview(selectedFiles);
     }
@@ -575,8 +591,17 @@ document.addEventListener('DOMContentLoaded', function () {
     uploadBtn.addEventListener('click', function () {
       if (imagesLocked) return;
       if (!selectedFiles || selectedFiles.length === 0) { alert('Please select one or more images first.'); return; }
+
+      // prefer current input.files if present (keeps behavior consistent when other preview/remove code updated input.files)
+      let filesToUpload = [];
+      try {
+        if (fileInput && fileInput.files && fileInput.files.length) filesToUpload = Array.from(fileInput.files);
+      } catch (e) { filesToUpload = []; }
+
+      if (!filesToUpload.length) filesToUpload = Array.isArray(selectedFiles) ? selectedFiles.slice() : [];
+
       const fd = new FormData();
-      selectedFiles.forEach(f => fd.append('image', f instanceof File ? f : f.src));
+      filesToUpload.forEach(f => fd.append('image', f instanceof File ? f : f.src));
       let ticketId = (window.__SERVER_TICKET__ && window.__SERVER_TICKET__.id) ||
         document.getElementById('vehicle-ticketId')?.value ||
         document.getElementById('ticketId')?.value || null;
@@ -617,9 +642,6 @@ document.addEventListener('DOMContentLoaded', function () {
         .catch(err => { console.error('Image upload error:', err); alert('Upload failed.'); })
         .finally(() => { if (!imagesLocked) { uploadBtn.textContent = 'Upload'; uploadBtn.disabled = false; } });
     });
-
-    // initial update
-    updateControlsInitial();
   })();
 
   // --- Recommended Repairs: row wiring, calc, add/remove, block '-' input ---
@@ -2005,6 +2027,92 @@ document.addEventListener('DOMContentLoaded', function () {
             }
           }
         } catch (err) { console.warn('populate courtesy error', err); }
+        // --- Load server-provided images & videos for this ticket (if present) ---
+        try {
+          // images can be under multiple possible keys: ticket.images, ticket.photos, ticket.media.images
+          const svcImages = ticket.images || ticket.photos || (ticket.media && ticket.media.images) || null;
+          if (Array.isArray(svcImages) && svcImages.length) {
+            // normalize to array of src strings or objects with src
+            const imgs = svcImages.map(it => {
+              if (!it) return null;
+              if (typeof it === 'string') return String(it);
+              return String(it.src || it.url || it.path || it.relativePath || '');
+            }).filter(Boolean);
+            if (imgs.length) {
+              // prefer existing helper if bound by setupImageUpload
+              if (typeof window.applyUploadedImages === 'function') {
+                try { window.applyUploadedImages(imgs); } catch (e) { console.warn('applyUploadedImages failed', e); }
+              } else {
+                // fallback: render into #image-preview directly
+                const container = document.getElementById('image-preview');
+                if (container) {
+                  container.innerHTML = '';
+                  imgs.forEach((src, i) => {
+                    let url = String(src);
+                    if (!url.match(/^data:|^https?:|^\//)) url = '/' + url.replace(/^\/+/, '');
+                    const img = document.createElement('img');
+                    img.src = url;
+                    img.alt = `image-${i}`;
+                    img.style.maxWidth = '100%';
+                    img.style.height = 'auto';
+                    img.style.display = 'block';
+                    img.style.marginBottom = '6px';
+                    container.appendChild(img);
+                  });
+                }
+              }
+            }
+          }
+
+          // videos can be under ticket.videos, ticket.videoFiles, ticket.media.videos
+          const svcVideos = ticket.videos || ticket.videoFiles || (ticket.media && ticket.media.videos) || null;
+          if (Array.isArray(svcVideos) && svcVideos.length) {
+            const vContainer = document.getElementById('video-preview');
+            if (vContainer) {
+              vContainer.innerHTML = '';
+              const videoMetaList = [];
+              svcVideos.forEach((v, idx) => {
+                let src = '';
+                let name = `video-${idx}`;
+                if (!v) return;
+                if (typeof v === 'string') src = v;
+                else { src = v.src || v.url || v.path || v.relativePath || ''; name = v.filename || v.name || name; }
+                if (!src) return;
+                if (!src.match(/^data:|^https?:|^\//)) src = '/' + String(src).replace(/^\/+/, '');
+
+                const wrapper = document.createElement('div');
+                wrapper.style.position = 'relative';
+                wrapper.style.marginBottom = '8px';
+                const videoEl = document.createElement('video');
+                videoEl.controls = true;
+                videoEl.style.width = '320px';
+                videoEl.style.maxWidth = '100%';
+                videoEl.style.height = '180px';
+                videoEl.src = src;
+                wrapper.appendChild(videoEl);
+                vContainer.appendChild(wrapper);
+
+                videoMetaList.push({ src, name });
+              });
+
+              // write metadata into a hidden input so server receives info about previously uploaded videos
+              try {
+                const form = document.getElementById('repForm') || document.querySelector('form');
+                if (form && videoMetaList.length) {
+                  let hid = form.querySelector('input[name="uploadedVideos"]');
+                  if (!hid) {
+                    hid = document.createElement('input');
+                    hid.type = 'hidden';
+                    hid.name = 'uploadedVideos';
+                    form.appendChild(hid);
+                  }
+                  hid.value = JSON.stringify(videoMetaList);
+                }
+              } catch (e) { console.warn('writing uploadedVideos hidden input failed', e); }
+            }
+          }
+        } catch (err) { console.warn('populate media error', err); }
+
       } catch (e) { console.error('Error applying server ticket to form', e); }
     }
 
@@ -2324,7 +2432,29 @@ document.addEventListener('DOMContentLoaded', function () {
                   }
                   input.dispatchEvent(new Event('change'));
                 } else {
-                  // no input; leave text alone (do not overwrite '-')
+                  // no input; leave text alone (do not overwrite plain text dashes); try to find a select elsewhere in the row that corresponds to this header
+                  try {
+                    const headerCells = Array.from(sec.querySelectorAll('thead th')).map(h => (h.textContent || '').toLowerCase());
+                    // find select in same row whose header includes the column name
+                    const sel = Array.from(rowDom.querySelectorAll('select')).find(s => {
+                      try {
+                        const selIdx = Array.from(rowDom.cells).indexOf(s.closest('td'));
+                        const hdr = headerCells[selIdx] || '';
+                        return hdr.includes(col);
+                      } catch (e) { return false; }
+                    });
+                    if (sel) {
+                      try {
+                        sel.value = val;
+                        const norm = s => (s || '').toString().toLowerCase().trim();
+                        if (norm(sel.value) !== norm(val)) {
+                          const opt = Array.from(sel.options).find(o => norm(o.text) === norm(val) || norm(o.value) === norm(val));
+                          if (opt) sel.value = opt.value;
+                        }
+                        sel.dispatchEvent(new Event('change'));
+                      } catch (e) { }
+                    }
+                  } catch (e) { /* ignore fallback */ }
                 }
               };
 
@@ -2836,19 +2966,35 @@ document.addEventListener('DOMContentLoaded', () => {
         removeBtn.style.lineHeight = '22px';
         removeBtn.style.fontSize = '16px';
 
-        removeBtn.addEventListener('click', (e) => {
+        removeBtn.addEventListener('click', function (e) {
           e.stopPropagation();
           try {
+            // Update input.files by removing the clicked file, then re-render previews.
+            const current = Array.from(imageinput.files || []);
+            if (!current.length) {
+              // nothing to do
+              return;
+            }
+
+            // prefer matching by name+size key when available
+            const key = (file && file.name && file.size) ? (file.name + '|' + file.size) : null;
+            let newFiles;
+            if (key) {
+              newFiles = current.filter(f => (f.name + '|' + (f.size || 0)) !== key);
+            } else {
+              newFiles = current.filter((_, j) => j !== idx);
+            }
+
+            // write new FileList back to input
             const dt = new DataTransfer();
-            Array.from(imageinput.files || []).forEach((f, i) => { if (i !== idx) dt.items.add(f); });
+            newFiles.forEach(f => dt.items.add(f));
             imageinput.files = dt.files;
+
+            // re-render previews and update zone text
             renderImagePreviews(imageinput.files);
             updateImageZoneText();
           } catch (err) {
-            // fallback: remove by index from internal list if used elsewhere
-            imageinput.value = '';
-            imagePreviewContainer.innerHTML = '';
-            updateImageZoneText();
+            console.warn('Failed to remove image', err);
           }
         });
 
@@ -2866,8 +3012,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const count = imageinput.files ? imageinput.files.length : 0;
         if (p) p.textContent = count ? `Selected ${count} image(s)` : 'Drop images here or click to upload';
         // indicate limit
-        if (count >= MAX_IMAGES) {
-          if (p) p.textContent += ` (max ${MAX_IMAGES})`;
+        if (count >= MAX_FILES) {
+          if (p) p.textContent += ` (max ${MAX_FILES})`;
         }
       } catch (e) { /* ignore */ }
     }
@@ -2879,8 +3025,9 @@ document.addEventListener('DOMContentLoaded', () => {
         updateImageZoneText();
         return;
       }
+
       // enforce max
-      const allowed = files.slice(0, MAX_IMAGES);
+      const allowed = files.slice(0, MAX_FILES);
       if (allowed.length !== files.length) {
         // overwrite input.files to keep it consistent
         try {
@@ -2948,11 +3095,17 @@ document.addEventListener('DOMContentLoaded', () => {
       removeBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         try {
-          // clear the file input (single file)
+          // clear and fully release the video resource to avoid blob: GET after removal
+          v.pause();
+          v.removeAttribute('src');
+          v.load && v.load();
+          try { URL.revokeObjectURL(url); } catch (_) { /* ignore */ }
+
+          // clear the file input and the preview DOM
           videoinput.value = '';
           videoPreviewContainer.innerHTML = '';
-          // if using relocate behavior earlier, we don't remove upload zone here
-          // re-enable upload button if present
+
+          // re-disable upload button if present
           const uploadBtn = document.getElementById('upload-btn');
           if (uploadBtn) { uploadBtn.disabled = true; uploadBtn.style.opacity = '0.5'; }
         } catch (err) {
@@ -2981,8 +3134,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
       renderVideoPreview(file);
 
-      // relocate input near upload button so file persists and remove visual zone
-      relocateInputAndRemoveZone(videoinput, 'upload-btn', videoUploadZone);
+      // keep the upload zone visible — do not relocate or remove the video upload zone
+      // (users can continue to upload/change videos from the same zone)
     });
 
     // initial if already has file
@@ -2995,6 +3148,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // attempt immediately
   if (!tryLoad()) {
     // if not present yet, listen for changes on likely inputs and try again once
+
     const watch = document.querySelector('#vehicle-ticketId, #ticketId, #ticketIdHidden');
     if (watch) {
       const onChange = () => { tryLoad(); watch.removeEventListener('change', onChange); };
@@ -3010,6 +3164,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // remove any previous binding marker so this block can be reloaded during dev
   if (window.__PDF_BINDINGS_DIAG_LOADED__) {
     console.log('PDF bindings (diag) already loaded');
+   
     return;
   }
   window.__PDF_BINDINGS_DIAG_LOADED__ = true;
