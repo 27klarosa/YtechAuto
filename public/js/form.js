@@ -1110,14 +1110,27 @@ allContent.forEach(content => {
           const qty = r.querySelector('.rp-qty')?.value.trim() || '';
           const partPrice = r.querySelector('.rp-partprice')?.value.trim() || '';
           const laborHours = r.querySelector('.rp-laborhours')?.value.trim() || '';
+          // ignore fully blank rows
           if (!desc && !qty && !partPrice && !laborHours) return;
-          if (qty === '') errors.push(`Row ${idx + 1}: Qty is required when adding a repair line.`);
-          else {
-            const qn = Number(qty);
-            if (!Number.isInteger(qn) || qn < 0) errors.push(`Row ${idx + 1}: Qty must be a non-negative integer.`);
+          // description is required when the row has any data
+          if (!desc) {
+            errors.push('Missing Description in Recommended Repairs');
           }
-          if (partPrice !== '' && (isNaN(parseFloat(partPrice)) || parseFloat(partPrice) < 0)) errors.push(`Row ${idx + 1}: Part Price must be a non-negative number.`);
-          if (laborHours !== '' && (isNaN(parseFloat(laborHours)) || parseFloat(laborHours) < 0)) errors.push(`Row ${idx + 1}: Labor Hours must be a non-negative number.`);
+          // require at least one of qty / partPrice / laborHours
+          if (qty === '' && partPrice === '' && laborHours === '') {
+            errors.push('Missing Qty, Part Price, or Labor Hours in Recommended Repairs');
+          } else {
+            if (qty !== '') {
+              const qn = Number(qty);
+              if (!Number.isInteger(qn) || qn < 0) errors.push('Invalid Qty in Recommended Repairs');
+            }
+            if (partPrice !== '') {
+              if (isNaN(parseFloat(partPrice)) || parseFloat(partPrice) < 0) errors.push('Invalid Part Price in Recommended Repairs');
+            }
+            if (laborHours !== '') {
+              if (isNaN(parseFloat(laborHours)) || parseFloat(laborHours) < 0) errors.push('Invalid Labor Hours in Recommended Repairs');
+            }
+          }
         });
       }
 
