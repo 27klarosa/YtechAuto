@@ -2753,7 +2753,7 @@ document.addEventListener('DOMContentLoaded', () => {
   else initSignatureLoader();
 })();
 
-// --- video and image loader (fixed) ---
+// --- video and image loader (fixed & improved) ---
 document.addEventListener('DOMContentLoaded', () => {
   const videoUploadZone = document.getElementById('video-upload-zone');
   const imageUploadZone = document.getElementById('image-upload-zone');
@@ -2774,50 +2774,219 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (e) { console.warn('relocateInputAndRemoveZone failed', e); }
   }
 
-  // Video preview
-  if (videoinput) {
-    let currentVideoUrl = null;
-    videoinput.addEventListener('change', (e) => {
-      const file = (e.target.files && e.target.files[0]) || null;
-      if (!file) return;
-      if (currentVideoUrl) URL.revokeObjectURL(currentVideoUrl);
-      currentVideoUrl = URL.createObjectURL(file);
-
-      if (videoPreviewContainer) {
-        videoPreviewContainer.innerHTML = '';
-        const v = document.createElement('video');
-        v.controls = true;
-        v.style.maxWidth = '100%';
-        v.src = currentVideoUrl;
-        videoPreviewContainer.appendChild(v);
-      }
-
-      // move input and remove visual zone so file object persists
-      relocateInputAndRemoveZone(videoinput, 'upload-btn', videoUploadZone);
-    });
-  }
-
-  // Image preview
+  // ---------- Images (flex layout, multiple, removable) ----------
   if (imageinput) {
-    let currentImageUrl = null;
-    imageinput.addEventListener('change', (e) => {
-      const file = (e.target.files && e.target.files[0]) || null;
-      if (!file) return;
-      if (currentImageUrl) URL.revokeObjectURL(currentImageUrl);
-      currentImageUrl = URL.createObjectURL(file);
+    const MAX_IMAGES = 6; // allow a "few" images
+    imageinput.multiple = true;
 
-      if (imagePreviewContainer) {
-        imagePreviewContainer.innerHTML = '';
+    function renderImagePreviews(fileList) {
+      if (!imagePreviewContainer) return;
+      imagePreviewContainer.innerHTML = '';
+
+      const files = Array.from(fileList || []);
+      const wrapperList = document.createElement('div');
+      wrapperList.style.display = 'flex';
+      wrapperList.style.flexWrap = 'wrap';
+      wrapperList.style.gap = '8px';
+      wrapperList.style.alignItems = 'flex-start';
+
+      files.forEach((file, idx) => {
+        const item = document.createElement('div');
+        item.style.position = 'relative';
+        item.style.width = '140px';
+        item.style.height = '100px';
+        item.style.flex = '0 0 auto';
+        item.style.border = '1px solid #e0e0e0';
+        item.style.borderRadius = '6px';
+        item.style.overflow = 'hidden';
+        item.title = file.name || '';
+
         const img = document.createElement('img');
-        img.style.maxWidth = '100%';
-        img.style.display = 'block';
-        img.src = currentImageUrl;
-        imagePreviewContainer.appendChild(img);
-      }
+        img.style.width = '100%';
+        img.style.height = '100%';
+        img.style.objectFit = 'cover';
+        img.alt = file.name || '';
 
-      // move input and remove visual zone so file object persists
+        // load preview (File or server-provided object with .src)
+        if (file instanceof File) {
+          const url = URL.createObjectURL(file);
+          img.src = url;
+          img.addEventListener('load', () => { try { URL.revokeObjectURL(url); } catch (_) { } });
+        } else if (file && file.src) {
+          img.src = file.src;
+        } else {
+          img.src = String(file);
+        }
+
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.textContent = '×';
+        removeBtn.title = 'Remove image';
+        removeBtn.style.position = 'absolute';
+        removeBtn.style.top = '6px';
+        removeBtn.style.right = '6px';
+        removeBtn.style.width = '26px';
+        removeBtn.style.height = '26px';
+        removeBtn.style.border = 'none';
+        removeBtn.style.borderRadius = '13px';
+        removeBtn.style.background = 'rgba(0,0,0,0.6)';
+        removeBtn.style.color = '#fff';
+        removeBtn.style.cursor = 'pointer';
+        removeBtn.style.padding = '0';
+        removeBtn.style.lineHeight = '22px';
+        removeBtn.style.fontSize = '16px';
+
+        removeBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          try {
+            const dt = new DataTransfer();
+            Array.from(imageinput.files || []).forEach((f, i) => { if (i !== idx) dt.items.add(f); });
+            imageinput.files = dt.files;
+            renderImagePreviews(imageinput.files);
+            updateImageZoneText();
+          } catch (err) {
+            // fallback: remove by index from internal list if used elsewhere
+            imageinput.value = '';
+            imagePreviewContainer.innerHTML = '';
+            updateImageZoneText();
+          }
+        });
+
+        item.appendChild(img);
+        item.appendChild(removeBtn);
+        wrapperList.appendChild(item);
+      });
+
+      imagePreviewContainer.appendChild(wrapperList);
+    }
+
+    function updateImageZoneText() {
+      try {
+        const p = imageUploadZone && imageUploadZone.querySelector('p');
+        const count = imageinput.files ? imageinput.files.length : 0;
+        if (p) p.textContent = count ? `Selected ${count} image(s)` : 'Drop images here or click to upload';
+        // indicate limit
+        if (count >= MAX_IMAGES) {
+          if (p) p.textContent += ` (max ${MAX_IMAGES})`;
+        }
+      } catch (e) { /* ignore */ }
+    }
+
+    imageinput.addEventListener('change', (e) => {
+      const files = Array.from(e.target.files || []);
+      if (!files.length) {
+        imagePreviewContainer && (imagePreviewContainer.innerHTML = '');
+        updateImageZoneText();
+        return;
+      }
+      // enforce max
+      const allowed = files.slice(0, MAX_IMAGES);
+      if (allowed.length !== files.length) {
+        // overwrite input.files to keep it consistent
+        try {
+          const dt = new DataTransfer();
+          allowed.forEach(f => dt.items.add(f));
+          imageinput.files = dt.files;
+        } catch (err) { /* ignore */ }
+      }
+      renderImagePreviews(imageinput.files);
+      updateImageZoneText();
+
+      // move input and remove visual zone so file objects survive if desired
       relocateInputAndRemoveZone(imageinput, 'image-upload-btn', imageUploadZone);
     });
+
+    // initial render if there are files already (e.g. server-applied)
+    if (imageinput.files && imageinput.files.length) {
+      renderImagePreviews(imageinput.files);
+      updateImageZoneText();
+    }
+  }
+
+  // ---------- Video (single file allowed) ----------
+  if (videoinput) {
+    videoinput.multiple = false; // enforce single video
+    function renderVideoPreview(file) {
+      if (!videoPreviewContainer) return;
+      videoPreviewContainer.innerHTML = '';
+      if (!file) return;
+
+      const wrapper = document.createElement('div');
+      wrapper.style.position = 'relative';
+      wrapper.style.width = '320px';
+      wrapper.style.maxWidth = '100%';
+      wrapper.style.height = '180px';
+      wrapper.style.border = '1px solid #e0e0e0';
+      wrapper.style.borderRadius = '6px';
+      wrapper.style.overflow = 'hidden';
+
+      const v = document.createElement('video');
+      v.controls = true;
+      v.style.width = '100%';
+      v.style.height = '100%';
+      v.style.objectFit = 'cover';
+      const url = URL.createObjectURL(file);
+      v.src = url;
+      v.addEventListener('loadeddata', () => { try { URL.revokeObjectURL(url); } catch (_) { } });
+
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.textContent = '×';
+      removeBtn.title = 'Remove video';
+      removeBtn.style.position = 'absolute';
+      removeBtn.style.top = '6px';
+      removeBtn.style.right = '6px';
+      removeBtn.style.width = '28px';
+      removeBtn.style.height = '28px';
+      removeBtn.style.border = 'none';
+      removeBtn.style.borderRadius = '14px';
+      removeBtn.style.background = 'rgba(0,0,0,0.6)';
+      removeBtn.style.color = '#fff';
+      removeBtn.style.cursor = 'pointer';
+      removeBtn.style.fontSize = '16px';
+      removeBtn.style.padding = '0';
+      removeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        try {
+          // clear the file input (single file)
+          videoinput.value = '';
+          videoPreviewContainer.innerHTML = '';
+          // if using relocate behavior earlier, we don't remove upload zone here
+          // re-enable upload button if present
+          const uploadBtn = document.getElementById('upload-btn');
+          if (uploadBtn) { uploadBtn.disabled = true; uploadBtn.style.opacity = '0.5'; }
+        } catch (err) {
+          console.warn('Failed to remove video file', err);
+        }
+      });
+
+      wrapper.appendChild(v);
+      wrapper.appendChild(removeBtn);
+      videoPreviewContainer.appendChild(wrapper);
+    }
+
+    videoinput.addEventListener('change', (e) => {
+      const file = (e.target.files && e.target.files[0]) || null;
+      if (!file) {
+        renderVideoPreview(null);
+        return;
+      }
+      // simple type check (accept common video types)
+      const isVideo = (file.type && file.type.startsWith('video/')) || /\.(mp4|mov|avi|mkv|webm|3gp|mpeg)$/i.test(file.name || '');
+      if (!isVideo) {
+        alert('Please select a video file.');
+        videoinput.value = '';
+        return;
+      }
+
+      renderVideoPreview(file);
+
+      // relocate input near upload button so file persists and remove visual zone
+      relocateInputAndRemoveZone(videoinput, 'upload-btn', videoUploadZone);
+    });
+
+    // initial if already has file
+    if (videoinput.files && videoinput.files[0]) renderVideoPreview(videoinput.files[0]);
   }
 });
 
@@ -2882,6 +3051,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const target = document.querySelector('main.main-content') || document.body;
+   
     if (!target) {
       console.error('generatePdf: target element not found (main.main-content or body)');
       alert('PDF target element missing. See console.');
