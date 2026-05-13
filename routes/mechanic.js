@@ -401,6 +401,36 @@ router.post('/mechanic', async (req, res) => {
     if (!Array.isArray(repairs)) repairs = [];
     const recommendedRepairsText = JSON.stringify(repairs);
 
+    // Validate repairs helper: returns null if valid, or an error string describing problems
+    const validateRepairs = (repairsArr) => {
+        try {
+            const errors = [];
+            if (Array.isArray(repairsArr)) {
+                repairsArr.forEach((r, idx) => {
+                    const missing = [];
+                    const desc = (r.repairDescription || r.description || r.desc || r.name || '');
+                    if (!desc || String(desc).trim() === '') missing.push('description');
+
+                    // partsTotal and laborTotal are allowed to be missing
+                    const hasQty = (typeof r.qty !== 'undefined' && r.qty !== null && String(r.qty).trim() !== '');
+                    const hasPartNumber = (typeof r.partNumber !== 'undefined' && r.partNumber !== null && String(r.partNumber).trim() !== '');
+                    const hasPartPrice = (typeof r.partPrice !== 'undefined' && r.partPrice !== null && String(r.partPrice).trim() !== '');
+                    const hasLaborHours = (typeof r.laborHours !== 'undefined' && r.laborHours !== null && String(r.laborHours).trim() !== '');
+                    if (!hasQty && !hasPartNumber && !hasPartPrice && !hasLaborHours) {
+                        missing.push('one of qty, partNumber, partPrice, laborHours');
+                    }
+
+                    if (missing.length) errors.push(`Repair #${idx + 1}: missing ${missing.join(', ')}`);
+                });
+            }
+            if (errors.length) return errors.join('; ');
+            return null;
+        } catch (e) {
+            console.error('validateRepairs error', e);
+            return 'Invalid repairs data';
+        }
+    };
+
     // Determine whether the client actually submitted repair lines (vs leaving the repairs out)
     let repairsProvided = false;
     // If we parsed any repairs, that's a clear sign
@@ -428,6 +458,36 @@ router.post('/mechanic', async (req, res) => {
 
     const saveRecRepairs = (ticketId, repairsArr, cb) => {
         // Always remove existing recRepairs for this ticket first so updates that remove lines clear DB
+        // validate repairsArr before attempting DB operations
+        try {
+            const errors = [];
+            if (Array.isArray(repairsArr)) {
+                repairsArr.forEach((r, idx) => {
+                    const missing = [];
+                    const desc = (r.repairDescription || r.description || r.desc || r.name || '');
+                    if (!desc || String(desc).trim() === '') missing.push('description');
+
+                    // partsTotal and laborTotal are allowed to be missing (per requirement)
+                    // require at least one of these auxiliary fields to be present so the line isn't empty:
+                    const hasQty = (typeof r.qty !== 'undefined' && r.qty !== null && String(r.qty).trim() !== '');
+                    const hasPartNumber = (typeof r.partNumber !== 'undefined' && r.partNumber !== null && String(r.partNumber).trim() !== '');
+                    const hasPartPrice = (typeof r.partPrice !== 'undefined' && r.partPrice !== null && String(r.partPrice).trim() !== '');
+                    const hasLaborHours = (typeof r.laborHours !== 'undefined' && r.laborHours !== null && String(r.laborHours).trim() !== '');
+                    if (!hasQty && !hasPartNumber && !hasPartPrice && !hasLaborHours) {
+                        missing.push('one of qty, partNumber, partPrice, laborHours');
+                    }
+
+                    if (missing.length) {
+                        errors.push(`Repair #${idx + 1}: missing ${missing.join(', ')}`);
+                    }
+                });
+            }
+            if (errors.length) return cb && cb(new Error(errors.join('; ')));
+        } catch (vErr) {
+            console.error('Validation error for recRepairs:', vErr);
+            return cb && cb(new Error('Invalid repairs data'));
+        }
+
         db.run('DELETE FROM recRepairs WHERE ticketId = ?', [ticketId], (delErr) => {
             if (delErr) console.warn('Failed to delete old recRepairs for ticket', ticketId, delErr);
 
@@ -455,7 +515,23 @@ router.post('/mechanic', async (req, res) => {
                     if (failed) return;
                     if (iErr) {
                         failed = true;
-                        stmt.finalize(() => cb && cb(iErr));
+                        // Map common sqlite constraint errors to user-friendly messages to avoid leaking SQL details
+                        stmt.finalize(() => {
+                            try {
+                                const msg = String(iErr.message || '');
+                                let friendly = 'Failed to save repairs';
+                                if (msg.indexOf('NOT NULL constraint failed') !== -1 || (iErr.code && String(iErr.code).indexOf('SQLITE_CONSTRAINT') !== -1)) {
+                                    // look for specific column names to provide a concise code-like message
+                                    if (msg.indexOf('recRepairs.laborHours') !== -1 || msg.indexOf('laborHours') !== -1) friendly = 'MissingLaborHours';
+                                    else if (msg.indexOf('recRepairs.qty') !== -1 || msg.indexOf('qty') !== -1) friendly = 'MissingQty';
+                                    else if (msg.indexOf('recRepairs.repairDescription') !== -1 || msg.indexOf('repairDescription') !== -1 || msg.indexOf('description') !== -1) friendly = 'MissingDescription';
+                                    else friendly = 'MissingFieldInRecommendedRepairs';
+                                }
+                                return cb && cb(new Error(friendly));
+                            } catch (mapErr) {
+                                return cb && cb(iErr);
+                            }
+                        });
                         return;
                     }
                     pending -= 1;
@@ -468,7 +544,7 @@ router.post('/mechanic', async (req, res) => {
     };
 
     // finalize save actions: save recRepairs (if provided) then save signature (if provided), then redirect
-    const finalizeSave = (targetId) => {
+    const finalizeSave = (targetId, isNew = false) => {
         const afterRepairs = () => {
             if (body.signature && typeof body.signature === 'string' && body.signature.trim() !== '') {
                 saveSignatureFromDataUrl(db, body.signature, custName, targetId)
@@ -485,7 +561,20 @@ router.post('/mechanic', async (req, res) => {
 
         if (repairsProvided) {
             saveRecRepairs(targetId, repairs, (rErr) => {
-                if (rErr) { console.error('Failed saving recRepairs on save:', rErr); return res.status(500).send('<script>alert("Failed to save repairs"); window.history.back();</script>'); }
+                if (rErr) {
+                    console.error('Failed saving recRepairs on save:', rErr);
+                    const msg = (rErr && rErr.message) ? String(rErr.message) : 'Failed to save repairs';
+                    if (isNew) {
+                        // cleanup inserted ticket since child save failed
+                        db.run('DELETE FROM tickets WHERE id = ?', [targetId], (delErr) => {
+                            if (delErr) console.error('Failed to cleanup ticket after recRepairs error:', delErr);
+                            return res.status(400).send('<script>alert("' + msg.replace(/\"/g, '\\"') + '"); window.history.back();</script>');
+                        });
+                    } else {
+                        return res.status(400).send('<script>alert("' + msg.replace(/\"/g, '\\"') + '"); window.history.back();</script>');
+                    }
+                    return;
+                }
                 return afterRepairs();
             });
         } else {
@@ -495,6 +584,14 @@ router.post('/mechanic', async (req, res) => {
 
     // Helper: perform update for existing ticket id
     const performUpdate = (targetId) => {
+        // Validate repairs before updating ticket; abort update if invalid
+        if (repairsProvided) {
+            const vErr = validateRepairs(repairs);
+            if (vErr) {
+                console.error('Repair validation failed before update:', vErr);
+                return res.status(400).send('<script>alert("' + String(vErr).replace(/\"/g, '\\"') + '"); window.history.back();</script>');
+            }
+        }
         const updateSql = `UPDATE tickets SET repairOrderNumber = ?, date = ?, techName = ?, timeIn = ?, timeOut = ?, totalTime = ?, customerName = ?, customerAddress = ?, customerPhone = ?, customerEmail = ?, concern = ?, diagnosis = ?, recommendedRepairs = ?, dateSigned = ?, stat = ? WHERE id = ?`;
         const params = [roNum, roDate, technician, timeArrive, timeOut, totTime, custName, custAdd, custPhone, custEmail, concern, diagnosis, recommendedRepairsText, sDate, ticketStatus, targetId];
         db.run(updateSql, params, function(updErr) {
@@ -503,12 +600,20 @@ router.post('/mechanic', async (req, res) => {
                 return res.status(500).send('<script>alert("Failed to update ticket: ' + (updErr.message || updErr) + '"); window.history.back();</script>');
             }
             // perform child saves (repairs + signature) then redirect
-            return finalizeSave(targetId);
+            return finalizeSave(targetId, false);
         });
     };
 
     // Creating new ticket: first check for duplicate repairOrderNumber
     const tryInsertNew = () => {
+        // Validate repairs before inserting ticket; abort insert if invalid
+        if (repairsProvided) {
+            const vErr = validateRepairs(repairs);
+            if (vErr) {
+                console.error('Repair validation failed before insert:', vErr);
+                return res.status(400).send('<script>alert("' + String(vErr).replace(/\"/g, '\\"') + '"); window.history.back();</script>');
+            }
+        }
         const checkSql = `SELECT id FROM tickets WHERE repairOrderNumber = ? LIMIT 1`;
         db.get(checkSql, [roNum], (chkErr, existing) => {
                 if (chkErr) {
@@ -529,8 +634,8 @@ router.post('/mechanic', async (req, res) => {
                     return res.status(500).send('<script>alert("Failed to create ticket: ' + (insErr.message || insErr) + '"); window.history.back();</script>');
                 }
                 const newId = this.lastID;
-                // finalize repairs/signature save and redirect
-                return finalizeSave(newId);
+                // finalize repairs/signature save and redirect (isNew=true)
+                return finalizeSave(newId, true);
             });
         });
     };
