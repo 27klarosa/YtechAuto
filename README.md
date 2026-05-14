@@ -22,7 +22,6 @@ A small Node.js / Express app for managing repair orders and mechanic/customer w
 1. Install dependencies
 
 ```powershell
-cd "c:\Users\Carlos.Ort-Patrick\OneDrive - York County School of Technology\Documents\GitHub\YtechAuto"
 npm install
 ```
 
@@ -104,3 +103,111 @@ nodemon app
 
 
 
+## Development workflow (how to download, set up, and run in development mode)
+
+1. Clone the repository locally:
+
+```powershell
+git clone https://github.com/seawind101/YtechAuto.git
+cd YtechAuto
+```
+
+2. Install dependencies:
+
+```powershell
+npm install
+```
+
+3. Create a `.env` in the project root. At minimum set `PORT` and `ADMIN`:
+
+```
+PORT=3000
+ADMIN=admin@example.com
+```
+
+4. Initialize the database (creates SQLite file and tables):
+
+```powershell
+node scripts/initDatabase.js
+```
+
+5. Run in development mode (auto-restart on changes):
+
+```powershell
+npm install -g nodemon
+nodemon app
+```
+
+6. Open the app in your browser at `http://localhost:3000`.
+
+Notes:
+- Use the browser DevTools console to inspect client-side logs produced by `public/js/form.js`.
+- Edit files in `routes/`, `views/`, or `public/js/` then save — `nodemon` will restart the server automatically.
+
+## Production deployment (recommended steps)
+
+These are general deployment recommendations. Adjust for your host (IIS, Windows Server, Linux, Docker, Heroku, etc.).
+
+1. Prepare production environment variables (do not commit `.env`):
+
+```
+NODE_ENV=production
+PORT=3000
+ADMIN=admin@example.com
+```
+
+2. Ensure the production machine has Node.js installed. Optional: build static assets if you add any build step.
+
+3. Initialize or migrate the database on the production host:
+
+```bash
+node scripts/initDatabase.js
+# or run any migration scripts you maintain
+```
+
+4. Use a process manager to run the app (keeps it running and restarts on crash). Example with `pm2` (Linux/Windows supported):
+
+```bash
+npm install -g pm2
+pm2 start app.js --name ytechauto
+pm2 save
+pm2 startup
+```
+
+5. Put the app behind a reverse proxy / TLS terminator (recommended):
+- Linux: use Nginx to forward HTTPS to your Node app's port.
+- Windows: use IIS ARR or an external reverse proxy. Alternatively, host in Docker and use Traefik.
+
+6. Secure file and DB permissions and protect your `.env` file (do not share credentials publicly).
+
+7. Monitor logs (pm2 logs or a centralized log service) and set up backups for the SQLite DB file.
+
+## GitHub repo workflow (recommended)
+
+Use a branch-based workflow with code review via pull requests (PRs):
+
+- `main` protected: keep `main` as the production-ready branch. Enable branch protection and require PR reviews before merging.
+- Feature branches: create short-lived branches named `feature/xxx` or `fix/xxx` from `main`.
+- Pull Requests: open a PR targeting `main` with a clear description and link to issues if applicable. Request at least one reviewer.
+- Code style & linting: run linters and tests locally before pushing. Consider adding GitHub Actions to run `npm test` and linting on push/PR.
+- Merge: use squash-merge or merge commits per your preference; protect `main` so only PRs can be merged.
+
+Example basic Git flow (PowerShell):
+
+```powershell
+# update main
+git checkout main
+git pull origin main
+
+# create feature
+git checkout -b feature/my-change
+# make changes, commit
+git add .
+git commit -m "Add mechanic repairs validation improvements"
+git push origin feature/my-change
+# open PR on GitHub web UI
+```
+
+CI/CD suggestions:
+- Add a GitHub Actions workflow to run Node tests and lint on PRs.
+- Optionally, add a deployment action that runs on merge to `main` to deploy to your server (SSH/rsync, Docker push, or a cloud provider API).
