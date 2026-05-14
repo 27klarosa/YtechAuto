@@ -235,6 +235,23 @@ router.get('/customer', ensureLoggedIn, (req, res) => {
                                 video = null;
                             }
 
+                            // fetch pictures for this ticket (all images)
+                            let pictures = [];
+                            try {
+                                const pics = await dbAll(`SELECT * FROM pictures WHERE ticketID = ? ORDER BY id DESC`, [ticketId]);
+                                if (Array.isArray(pics) && pics.length > 0) {
+                                    pictures = pics.map(p => {
+                                        const item = Object.assign({}, p);
+                                        if (item.relativePath) item.webPath = '/' + String(item.relativePath).replace(/\\/g, '/').replace(/^\/+/, '');
+                                        else if (item.filename) item.webPath = '/upload/images/' + item.filename;
+                                        return item;
+                                    });
+                                }
+                            } catch (picErr) {
+                                console.error('Failed fetching pictures for ticket:', picErr);
+                                pictures = [];
+                            }
+
                             if (video) {
                                 console.log('video DB row:', video);
                                 const expected = path.join(__dirname, '..', video.relativePath || '');
@@ -252,6 +269,7 @@ router.get('/customer', ensureLoggedIn, (req, res) => {
                                      badItems: uniq(badItems)
                                 },
                                 video: video,
+                                images: pictures,
                                 totals: {
                                     partsSubtotal: partsSubtotal.toFixed(2),
                                     laborSubtotal: laborSubtotal.toFixed(2),
