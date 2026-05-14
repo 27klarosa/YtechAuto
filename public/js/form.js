@@ -1469,309 +1469,210 @@ document.addEventListener('DOMContentLoaded', function () {
           try { if (pEl) { pEl.value = period; pEl.dispatchEvent(new Event('change')); } } catch (e) { }
         }
 
-        setTimeSelects('timeIn', ticket.timeIn);
-        setTimeSelects('timeOut', ticket.timeOut);
-        // populate other sections from ticket.sections by table name
-        try {
-          const sections = ticket.sections || {};
-          const tableKeys = Object.keys(sections || {});
-          if (tableKeys.length) {
-            tableKeys.forEach(tname => {
-              if (!tname) return;
-              const key = String(tname).toLowerCase();
-              const rows = sections[tname] || sections[key] || [];
-              if (!rows || !rows.length) return;
+    setTimeSelects('timeIn', ticket.timeIn);
+    setTimeSelects('timeOut', ticket.timeOut);
+    // populate other sections from ticket.sections by table name
+    try {
+      const sections = ticket.sections || {};
+      const tableKeys = Object.keys(sections || {});
+      if (tableKeys.length) {
+        tableKeys.forEach(tname => {
+          if (!tname) return;
+          const key = String(tname).toLowerCase();
+          const rows = sections[tname] || sections[key] || [];
+          if (!rows || !rows.length) return;
 
-              // helper to set inputs/selects inside a container by matching name/id (case-insensitive)
-              function setFormValuesFromRow(container, row) {
-                try {
-                  const inputs = Array.from(container.querySelectorAll('input,select,textarea'));
-                  Object.keys(row).forEach(k => {
-                    if (k == null) return;
-                    const lk = String(k).toLowerCase();
-                    const v = row[k] == null ? '' : row[k];
-                    // find by name or id (case-insensitive)
-                    const el = inputs.find(i => ((i.name && i.name.toLowerCase() === lk) || (i.id && i.id.toLowerCase() === lk)));
-                    if (el) { try { el.value = v; el.dispatchEvent(new Event('change')); } catch (e) { } }
-                  });
-                } catch (e) { console.warn('setFormValuesFromRow error', e); }
-              }
+          // helper to set inputs/selects inside a container by matching name/id (case-insensitive)
+          function setFormValuesFromRow(container, row) {
+            try {
+              const inputs = Array.from(container.querySelectorAll('input,select,textarea'));
+              Object.keys(row).forEach(k => {
+                if (k == null) return;
+                const lk = String(k).toLowerCase();
+                const v = row[k] == null ? '' : row[k];
+                // find by name or id (case-insensitive)
+                const el = inputs.find(i => ((i.name && i.name.toLowerCase() === lk) || (i.id && i.id.toLowerCase() === lk)));
+                if (el) { try { el.value = v; el.dispatchEvent(new Event('change')); } catch (e) { } }
+              });
+            } catch (e) { console.warn('setFormValuesFromRow error', e); }
+          }
 
-              // mapping by table name
-              if (key === 'vechicleinfo' || key === 'vehicleinfo' || key === 'vehicle_info') {
-                const form = document.getElementById('vehicle-info-form');
-                if (form) setFormValuesFromRow(form, rows[0]);
-                return;
-              }
+          // mapping by table name
+          if (key === 'vechicleinfo' || key === 'vehicleinfo' || key === 'vehicle_info') {
+            const form = document.getElementById('vehicle-info-form');
+            if (form) setFormValuesFromRow(form, rows[0]);
+            return;
+          }
 
-              if (key === 'recrepairs' || key === 'recrepair' || key === 'recrepairs' || key === 'recrepairs' || key === 'recrepairs') {
-                // populate repairs table similarly to ticket.repairs
-                const tbody = document.querySelector('#repairs-table tbody');
-                if (!tbody) return;
-                tbody.innerHTML = '';
-                rows.forEach(r => {
-                  const tr = document.createElement('tr');
-                  tr.innerHTML = `
-                    <td><input type="text" class="rp-desc" placeholder="Description"></td>
-                    <td><input type="number" min="0" class="rp-qty" placeholder="1" style="width:4em"></td>
-                    <td><input type="text" class="rp-um" placeholder="Part #"></td>
-                    <td><input type="number" min="0" step="0.01" class="rp-partprice" placeholder="0.00"></td>
-                    <td><input type="text" class="rp-partstotal" placeholder="0.00" readonly tabindex="-1" aria-readonly="true"></td>
-                    <td><input type="number" min="0" step="0.01" class="rp-laborhours" placeholder="0.00"></td>
-                    <td><input type="text" class="rp-labortotal" placeholder="0.00" readonly tabindex="-1" aria-readonly="true"></td>
-                    <td><button type="button" class="remove-repair-line">Remove</button></td>
-                  `;
-                  tbody.appendChild(tr);
-                  try { tr.querySelector('.rp-desc').value = r.repairDescription || r.item || ''; } catch (e) { }
-                  try { tr.querySelector('.rp-qty').value = r.qty || ''; } catch (e) { }
-                  try { tr.querySelector('.rp-um').value = r.partNumber || r.part || ''; } catch (e) { }
-                  try { tr.querySelector('.rp-partprice').value = (r.partPrice != null) ? r.partPrice : ''; } catch (e) { }
-                  try { tr.querySelector('.rp-partstotal').value = (r.partsTotal != null) ? r.partsTotal : ''; } catch (e) { }
-                  try { tr.querySelector('.rp-laborhours').value = (r.laborHours != null) ? r.laborHours : ''; } catch (e) { }
-                  try { tr.querySelector('.rp-labortotal').value = (r.laborTotal != null) ? r.laborTotal : ''; } catch (e) { }
-                  try { if (typeof ensureRowClasses === 'function') ensureRowClasses(tr); } catch (e) { }
-                  try { if (typeof wireRow === 'function') wireRow(tr); } catch (e) { }
+          if (key === 'recrepairs' || key === 'recrepair' || key === 'recrepairs' || key === 'recrepairs' || key === 'recrepairs') {
+            // populate repairs table similarly to ticket.repairs
+            const tbody = document.querySelector('#repairs-table tbody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+            rows.forEach(r => {
+              const tr = document.createElement('tr');
+              tr.innerHTML = `
+                <td><input type="text" class="rp-desc" placeholder="Description"></td>
+                <td><input type="number" min="0" class="rp-qty" placeholder="1" style="width:4em"></td>
+                <td><input type="text" class="rp-um" placeholder="Part #"></td>
+                <td><input type="number" min="0" step="0.01" class="rp-partprice" placeholder="0.00"></td>
+                <td><input type="text" class="rp-partstotal" placeholder="0.00" readonly tabindex="-1" aria-readonly="true"></td>
+                <td><input type="number" min="0" step="0.01" class="rp-laborhours" placeholder="0.00"></td>
+                <td><input type="text" class="rp-labortotal" placeholder="0.00" readonly tabindex="-1" aria-readonly="true"></td>
+                <td><button type="button" class="remove-repair-line">Remove</button></td>
+              `;
+              tbody.appendChild(tr);
+              try { tr.querySelector('.rp-desc').value = r.repairDescription || r.item || ''; } catch (e) { }
+              try { tr.querySelector('.rp-qty').value = r.qty || ''; } catch (e) { }
+              try { tr.querySelector('.rp-um').value = r.partNumber || r.part || ''; } catch (e) { }
+              try { tr.querySelector('.rp-partprice').value = (r.partPrice != null) ? r.partPrice : ''; } catch (e) { }
+              try { tr.querySelector('.rp-partstotal').value = (r.partsTotal != null) ? r.partsTotal : ''; } catch (e) { }
+              try { tr.querySelector('.rp-laborhours').value = (r.laborHours != null) ? r.laborHours : ''; } catch (e) { }
+              try { tr.querySelector('.rp-labortotal').value = (r.laborTotal != null) ? r.laborTotal : ''; } catch (e) { }
+              try { if (typeof ensureRowClasses === 'function') ensureRowClasses(tr); } catch (e) { }
+              try { if (typeof wireRow === 'function') wireRow(tr); } catch (e) { }
+            });
+            try { if (typeof updateSubtotals === 'function') updateSubtotals(); } catch (e) { }
+            return;
+          }
+
+          if (key === 'courtytable' || key === 'courtytableitems' || key === 'courtesytable' || key === 'courtesytableitems' || key === 'courtesy') {
+            const courtesySection = document.getElementById('courtesy-check');
+            const table = courtesySection ? courtesySection.querySelector('table') : document.querySelector('#courtesy-table');
+            if (!table) return;
+            const headers = Array.from(table.querySelectorAll('thead th')).map(h => (h.textContent || '').trim().toLowerCase());
+            const rowsDom = Array.from(table.querySelectorAll('tbody tr'));
+            rows.forEach(item => {
+              const name = item.item || item.name || item.label || '';
+              if (!name) return;
+              let rowDom = rowsDom.find(r => r.dataset && r.dataset.item === name);
+              if (!rowDom) {
+                rowDom = rowsDom.find(r => {
+                  const first = r.cells && r.cells[0];
+                  return first && first.textContent && first.textContent.trim() === name.trim();
                 });
-                try { if (typeof updateSubtotals === 'function') updateSubtotals(); } catch (e) { }
-                return;
               }
-
-              if (key === 'courtytable' || key === 'courtytableitems' || key === 'courtesytable' || key === 'courtesytableitems' || key === 'courtesy') {
-                const courtesySection = document.getElementById('courtesy-check');
-                const table = courtesySection ? courtesySection.querySelector('table') : document.querySelector('#courtesy-table');
-                if (!table) return;
-                const headers = Array.from(table.querySelectorAll('thead th')).map(h => (h.textContent || '').trim().toLowerCase());
-                const rowsDom = Array.from(table.querySelectorAll('tbody tr'));
-                rows.forEach(item => {
-                  const name = item.item || item.name || item.label || '';
-                  if (!name) return;
-                  let rowDom = rowsDom.find(r => r.dataset && r.dataset.item === name);
-                  if (!rowDom) {
-                    rowDom = rowsDom.find(r => {
-                      const first = r.cells && r.cells[0];
-                      return first && first.textContent && first.textContent.trim() === name.trim();
-                    });
-                  }
-                  if (!rowDom) return;
-                  // status -> second column select, notes -> third column input
-                  try {
-                    const status = item.status || item.Status || '';
-                    const notes = item.notes || item.Notes || item.comments || '';
-                    const sel = rowDom.querySelector('select');
-                    if (sel && status) { sel.value = status; sel.dispatchEvent(new Event('change')); }
-                    const noteIn = rowDom.querySelector('input[type="text"]');
-                    if (noteIn && notes) noteIn.value = notes;
-                  } catch (e) { }
-                });
-                // set parent comments (full-width) if the server provided them via joined rows
-                try {
-                  const parentComments = (rows[0] && (rows[0].courtesyComments || rows[0].comments)) || '';
-                  if (parentComments) {
-                    const commentsInput = (courtesySection && courtesySection.querySelector('.form-group.full-width input[type="text"], .form-group.full-width textarea')) || document.querySelector('.form-group.full-width input[type="text"], .form-group.full-width textarea');
-                    if (commentsInput) {
-                      commentsInput.value = parentComments;
-                    }
-                  }
-                } catch (e) { }
-                return;
-              }
-
-              if (key === 'tires') {
-                const sec = document.getElementById('tires');
-                if (!sec) return;
-                const groups = Array.from(sec.querySelectorAll('.form-group'));
-                // take first row
-                const r = rows[0];
-                if (!r) return;
-                groups.forEach(g => {
-                  const lab = (g.querySelector('label') && g.querySelector('label').textContent || '').toLowerCase();
-                  const input = g.querySelector('input,select');
-                  if (!input) return;
-                  if (lab.includes('size')) input.value = r.size || r.Size || '';
-                  else if (lab.includes('speed')) input.value = r.speedRating || r.SpeedRating || r.speedrating || '';
-                  else if (lab.includes('lf')) input.value = r.LF || r.lf || '';
-                  else if (lab.includes('rf')) input.value = r.RF || r.rf || '';
-                  else if (lab.includes('lr')) input.value = r.LR || r.lr || '';
-                  else if (lab.includes('rr')) input.value = r.RR || r.rr || '';
-                  else if (lab.includes('sp')) input.value = r.SP || r.sp || '';
-                  else if (lab.includes('tread')) input.value = r.treadDepth32 || r.treadDepth || r.treadDepth32 || '';
-                  else if (lab.includes('rotation')) input.value = r.rotationDue || r.rotation || '';
-                  else if (lab.includes('balance')) input.value = r.balance || '';
-                  else if (lab.includes('alignment')) input.value = r.alignment || '';
-                  else if (lab.includes('comments')) input.value = r.comments || '';
-                });
-                return;
-              }
-
-              if (key === 'steeringsuspension' || key === 'steeringsuspensiontable' || key === 'steering' || key === 'steering_suspension') {
-                const sec = document.getElementById('steering');
-                if (!sec) return;
-                const rowsDom = Array.from(sec.querySelectorAll('tbody tr'));
-                // helper to normalize labels for tolerant matching
-                const normalize = s => (s || '').toString().toLowerCase().replace(/[^a-z0-9]/g, '').trim();
-                const unmatched = [];
-                rows.forEach(r => {
-                  const name = r.item || r.Item || r.itemName || r.name || r.label || '';
-                  if (!name) return;
-                  const targetNorm = normalize(name);
-                  let rowDom = rowsDom.find(rr => {
-                    try {
-                      const txt = (rr.cells && rr.cells[0] && rr.cells[0].textContent) ? rr.cells[0].textContent : '';
-                      const tnorm = normalize(txt);
-                      return tnorm === targetNorm;
-                    } catch (e) { return false; }
-                  });
-                  if (!rowDom) {
-                    // try partial or reverse match
-                    rowDom = rowsDom.find(rr => {
-                      try {
-                        const txt = (rr.cells && rr.cells[0] && rr.cells[0].textContent) ? rr.cells[0].textContent : '';
-                        const tnorm = normalize(txt);
-                        return tnorm.includes(targetNorm) || targetNorm.includes(tnorm);
-                      } catch (e) { return false; }
-                    });
-                  }
-                  if (!rowDom) {
-                    unmatched.push(name);
-                    return;
-                  }
-                  // set left/right/front/rear if present
-                  try {
-                    ['left', 'right', 'front', 'rear'].forEach(col => {
-                      const val = r[col] || r[col.charAt(0).toUpperCase() + col.slice(1)] || '';
-                      if (!val) return;
-                      // find corresponding cell by header names
-                      const headerCells = Array.from(sec.querySelectorAll('thead th')).map(h => (h.textContent || '').toLowerCase());
-                      const idx = headerCells.findIndex(h => h.includes(col));
-                      if (idx !== -1 && rowDom.cells[idx]) {
-                        const cell = rowDom.cells[idx];
-                        const input = cell.querySelector('select, input');
-                        if (input) {
-                          try {
-                            input.value = val;
-                            // if direct assign didn't match an option (select stays unchanged), try fuzzy-matching options by text/value
-                            if (input.tagName && input.tagName.toLowerCase() === 'select') {
-                              const cur = input.value;
-                              const norm = s => (s || '').toString().toLowerCase().trim();
-                              if (norm(cur) !== norm(val)) {
-                                const opt = Array.from(input.options).find(o => norm(o.text) === norm(val) || norm(o.value) === norm(val));
-                                if (opt) input.value = opt.value;
-                              }
-                            }
-                            input.dispatchEvent(new Event('change'));
-                          } catch (e) {
-                            try { input.value = val; input.dispatchEvent(new Event('change')); } catch (e2) { /* ignore */ }
-                          }
-                        } else {
-                          // No input/select in this cell — do not overwrite plain text dashes; try to find a select elsewhere in the row that corresponds to this header
-                          try {
-                            const headerCells = Array.from(sec.querySelectorAll('thead th')).map(h => (h.textContent || '').toLowerCase());
-                            // find select in same row whose header includes the column name
-                            const sel = Array.from(rowDom.querySelectorAll('select')).find(s => {
-                              try {
-                                const selIdx = Array.from(rowDom.cells).indexOf(s.closest('td'));
-                                const hdr = headerCells[selIdx] || '';
-                                return hdr.includes(col);
-                              } catch (e) { return false; }
-                            });
-                            if (sel) {
-                              try {
-                                sel.value = val;
-                                const norm = s => (s || '').toString().toLowerCase().trim();
-                                if (norm(sel.value) !== norm(val)) {
-                                  const opt = Array.from(sel.options).find(o => norm(o.text) === norm(val) || norm(o.value) === norm(val));
-                                  if (opt) sel.value = opt.value;
-                                }
-                                sel.dispatchEvent(new Event('change'));
-                              } catch (e) { }
-                            }
-                          } catch (e) { /* ignore fallback */ }
-                        }
-                      }
-                    });
-                  } catch (e) { }
-                });
-                if (unmatched.length) {
-                  console.warn('Steering populate: unmatched items (no DOM row found):', unmatched);
+              if (!rowDom) return;
+              // status -> second column select, notes -> third column input
+              try {
+                const status = item.status || item.Status || '';
+                const notes = item.notes || item.Notes || item.comments || '';
+                const sel = rowDom.querySelector('select');
+                if (sel && status) { sel.value = status; sel.dispatchEvent(new Event('change')); }
+                const noteIn = rowDom.querySelector('input[type="text"]');
+                if (noteIn && notes) noteIn.value = notes;
+              } catch (e) { }
+            });
+            // set parent comments (full-width) if the server provided them via joined rows
+            try {
+              const parentComments = (rows[0] && (rows[0].courtesyComments || rows[0].comments)) || '';
+              if (parentComments) {
+                const commentsInput = (courtesySection && courtesySection.querySelector('.form-group.full-width input[type="text"], .form-group.full-width textarea')) || document.querySelector('.form-group.full-width input[type="text"], .form-group.full-width textarea');
+                if (commentsInput) {
+                  commentsInput.value = parentComments;
                 }
+              }
+            } catch (e) { }
+            return;
+          }
 
-                // populate parent comments from the joined rows if present
+          if (key === 'tires') {
+            const sec = document.getElementById('tires');
+            if (!sec) return;
+            const groups = Array.from(sec.querySelectorAll('.form-group'));
+            // take first row
+            const r = rows[0];
+            if (!r) return;
+            groups.forEach(g => {
+              const lab = (g.querySelector('label') && g.querySelector('label').textContent || '').toLowerCase();
+              const input = g.querySelector('input,select');
+              if (!input) return;
+              if (lab.includes('size')) input.value = r.size || r.Size || '';
+              else if (lab.includes('speed')) input.value = r.speedRating || r.SpeedRating || r.speedrating || '';
+              else if (lab.includes('lf')) input.value = r.LF || r.lf || '';
+              else if (lab.includes('rf')) input.value = r.RF || r.rf || '';
+              else if (lab.includes('lr')) input.value = r.LR || r.lr || '';
+              else if (lab.includes('rr')) input.value = r.RR || r.rr || '';
+              else if (lab.includes('sp')) input.value = r.SP || r.sp || '';
+              else if (lab.includes('tread')) input.value = r.treadDepth32 || r.treadDepth || r.treadDepth32 || '';
+              else if (lab.includes('rotation')) input.value = r.rotationDue || r.rotation || '';
+              else if (lab.includes('balance')) input.value = r.balance || '';
+              else if (lab.includes('alignment')) input.value = r.alignment || '';
+              else if (lab.includes('comments')) input.value = r.comments || '';
+            });
+            return;
+          }
+
+          if (key === 'steeringsuspension' || key === 'steeringsuspensiontable' || key === 'steering' || key === 'steering_suspension') {
+            const sec = document.getElementById('steering');
+            if (!sec) return;
+            const rowsDom = Array.from(sec.querySelectorAll('tbody tr'));
+            // helper to normalize labels for tolerant matching
+            const normalize = s => (s || '').toString().toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+            const unmatched = [];
+            rows.forEach(r => {
+              const name = r.item || r.Item || r.itemName || r.name || r.label || '';
+              if (!name) return;
+              const targetNorm = normalize(name);
+              let rowDom = rowsDom.find(rr => {
                 try {
-                  const parentComments = (rows[0] && (rows[0].steeringComments || rows[0].comments)) || '';
-                  if (parentComments) {
-                    const commentsInput = sec.querySelector('.form-group.full-width input[type="text"], .form-group.full-width textarea');
-                    if (commentsInput) commentsInput.value = parentComments;
-                  }
-                } catch (e) { }
+                  const txt = (rr.cells && rr.cells[0] && rr.cells[0].textContent) ? rr.cells[0].textContent : '';
+                  const tnorm = normalize(txt);
+                  return tnorm === targetNorm;
+                } catch (e) { return false; }
+              });
+              if (!rowDom) {
+                // try partial or reverse match
+                rowDom = rowsDom.find(rr => {
+                  try {
+                    const txt = (rr.cells && rr.cells[0] && rr.cells[0].textContent) ? rr.cells[0].textContent : '';
+                    const tnorm = normalize(txt);
+                    return tnorm.includes(targetNorm) || targetNorm.includes(tnorm);
+                  } catch (e) { return false; }
+                });
+              }
+              if (!rowDom) {
+                unmatched.push(name);
                 return;
               }
-
-              if (key === 'brakestable' || key === 'brakes' || key === 'brakes_table') {
-                const sec = document.getElementById('brakes');
-                if (!sec) return;
-                const rowsDom = Array.from(sec.querySelectorAll('tbody tr'));
-                // helper to normalize labels
-                const normalize = s => (s || '').toString().toLowerCase().replace(/[^a-z0-9]/g, '').trim();
-                // find header indexes
-                const headerCells = Array.from(sec.querySelectorAll('thead th')).map(h => (h.textContent || '').toLowerCase());
-                const findIdx = (keys) => {
-                  const ks = Array.isArray(keys) ? keys : [keys];
-                  return headerCells.findIndex(h => ks.some(k => h.includes(k)));
-                };
-                const specIdx = findIdx(['spec']);
-                const actualIdx = findIdx(['actual', 'value']);
-                const statusIdx = findIdx(['status']);
-                const commentsIdx = findIdx(['comment', 'notes', 'note']);
-
-                const unmatched = [];
-                rows.forEach(r => {
-                  const name = r.item || r.Item || r.itemName || r.name || r.label || '';
-                  if (!name) return;
-                  const targetNorm = normalize(name);
-                  let rowDom = rowsDom.find(rr => {
-                    try { return normalize((rr.cells && rr.cells[0] && rr.cells[0].textContent) ? rr.cells[0].textContent : '') === targetNorm; } catch (e) { return false; }
-                  });
-                  if (!rowDom) {
-                    rowDom = rowsDom.find(rr => {
+              // set left/right/front/rear if present
+              try {
+                ['left', 'right', 'front', 'rear'].forEach(col => {
+                  const val = r[col] || r[col.charAt(0).toUpperCase() + col.slice(1)] || '';
+                  if (!val) return;
+                  // find corresponding cell by header names
+                  const headerCells = Array.from(sec.querySelectorAll('thead th')).map(h => (h.textContent || '').toLowerCase());
+                  const idx = headerCells.findIndex(h => h.includes(col));
+                  if (idx !== -1 && rowDom.cells[idx]) {
+                    const cell = rowDom.cells[idx];
+                    const input = cell.querySelector('select, input');
+                    if (input) {
                       try {
-                        const txt = (rr.cells && rr.cells[0] && rr.cells[0].textContent) ? rr.cells[0].textContent : '';
-                        const tnorm = normalize(txt);
-                        return tnorm.includes(targetNorm) || targetNorm.includes(tnorm);
-                      } catch (e) { return false; }
-                    });
-                  }
-                  if (!rowDom) { unmatched.push(name); return; }
-
-                  // helper to set a cell value by index
-                  const setCellVal = (idx, val) => {
-                    if (idx === -1) return;
-                    try {
-                      const cell = rowDom.cells[idx];
-                      if (!cell) return;
-                      const input = cell.querySelector('select, input, textarea');
-                      if (input) {
-                        // try direct assign
-                        input.value = val || '';
-                        // if select didn't match, try fuzzy match on options
+                        input.value = val;
+                        // if direct assign didn't match an option (select stays unchanged), try fuzzy-matching options by text/value
                         if (input.tagName && input.tagName.toLowerCase() === 'select') {
+                          const cur = input.value;
                           const norm = s => (s || '').toString().toLowerCase().trim();
-                          if (norm(input.value) !== norm(val)) {
+                          if (norm(cur) !== norm(val)) {
                             const opt = Array.from(input.options).find(o => norm(o.text) === norm(val) || norm(o.value) === norm(val));
                             if (opt) input.value = opt.value;
                           }
                         }
                         input.dispatchEvent(new Event('change'));
-                      } else {
-                        // no input; leave text alone (do not overwrite plain text dashes); try to find a select elsewhere in the row that corresponds to this header
-                        try {
-                          const headerCells = Array.from(sec.querySelectorAll('thead th')).map(h => (h.textContent || '').toLowerCase());
-                          // find select in same row whose header includes the column name
-                          const sel = Array.from(rowDom.querySelectorAll('select')).find(s => {
-                            try {
-                              const selIdx = Array.from(rowDom.cells).indexOf(s.closest('td'));
-                              const hdr = headerCells[selIdx] || '';
-                              return hdr.includes(col);
-                            } catch (e) { return false; }
+                      } catch (e) {
+                        try { input.value = val; input.dispatchEvent(new Event('change')); } catch (e2) { /* ignore */ }
+                      }
+                    } else {
+                      // No input/select in this cell — do not overwrite plain text dashes; try to find a select elsewhere in the row that corresponds to this header
+                      try {
+                        const headerCells = Array.from(sec.querySelectorAll('thead th')).map(h => (h.textContent || '').toLowerCase());
+                        // find select in same row whose header includes the column name
+                        const sel = Array.from(rowDom.querySelectorAll('select')).find(s => {
+                          try {
+                            const selIdx = Array.from(rowDom.cells).indexOf(s.closest('td'));
+                            const hdr = headerCells[selIdx] || '';
+                            return hdr.includes(col);
+                          } catch (e) { return false; }
                         });
                         if (sel) {
                           try {
@@ -1784,392 +1685,483 @@ document.addEventListener('DOMContentLoaded', function () {
                             sel.dispatchEvent(new Event('change'));
                           } catch (e) { }
                         }
-                        } catch (e) { /* ignore fallback */ }
-                      }
-                    } catch (e) { /* ignore */ }
-                  };
-
-                  setCellVal(specIdx, r.Spec || r.spec || '');
-                  setCellVal(actualIdx, r.actual || r.Actual || r.value || '');
-                  setCellVal(statusIdx, r.status || r.Status || '');
-                  setCellVal(commentsIdx, r.comments || r.Notes || r.notes || '');
+                      } catch (e) { /* ignore fallback */ }
+                    }
+                  } catch (e) { }
                 });
+              } catch (e) { }
+            });
+            if (unmatched.length) {
+              console.warn('Steering populate: unmatched items (no DOM row found):', unmatched);
+            }
 
-                if (unmatched.length) console.warn('Brakes populate: unmatched items:', unmatched);
-                // populate parent comments from joined rows if present
-                try {
-                  const parentComments = (rows[0] && (rows[0].brakesComments || rows[0].comments)) || '';
-                  if (parentComments) {
-                    const commentsInput = sec.querySelector('.form-group.full-width input[type="text"], .form-group.full-width textarea');
-                    if (commentsInput) commentsInput.value = parentComments;
-                  }
-                } catch (e) { }
-                return;
+            // populate parent comments from the joined rows if present
+            try {
+              const parentComments = (rows[0] && (rows[0].steeringComments || rows[0].comments)) || '';
+              if (parentComments) {
+                const commentsInput = sec.querySelector('.form-group.full-width input[type="text"], .form-group.full-width textarea');
+                if (commentsInput) commentsInput.value = parentComments;
               }
+            } catch (e) { }
+            return;
+          }
 
-              if (key === 'emissionstable' || key === 'emissions' || key === 'emissions_table') {
-                // emissionsTable -> top emissions list
-                const sec = document.getElementById('emissions');
-                if (!sec) return;
-                const topTable = sec.querySelector('table');
-                if (topTable) {
-                  const rowsDom = Array.from(topTable.querySelectorAll('tbody tr'));
-                  rows.forEach(r => {
-                    const name = r.item || r.Item || r.name || '';
-                    if (!name) return;
-                    const rowDom = rowsDom.find(rr => (rr.cells && rr.cells[0] && rr.cells[0].textContent && rr.cells[0].textContent.trim() === name.trim()));
-                    if (!rowDom) return;
-                    try {
-                      const status = r.status || r.Status || '';
-                      const notes = r.notes || r.Notes || r.comments || '';
-                      const sel = rowDom.querySelector('select'); if (sel && status) { sel.value = status; sel.dispatchEvent(new Event('change')); }
-                      const ni = rowDom.querySelector('input[type="text"]'); if (ni && notes) ni.value = notes;
-                    } catch (e) { }
-                  });
-                }
-                // Populate parent emissions fields and warnings from ticket.sections.emissions (if present)
+          if (key === 'brakestable' || key === 'brakes' || key === 'brakes_table') {
+            const sec = document.getElementById('brakes');
+            if (!sec) return;
+            const rowsDom = Array.from(sec.querySelectorAll('tbody tr'));
+            // helper to normalize labels
+            const normalize = s => (s || '').toString().toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+            // find header indexes
+            const headerCells = Array.from(sec.querySelectorAll('thead th')).map(h => (h.textContent || '').toLowerCase());
+            const findIdx = (keys) => {
+              const ks = Array.isArray(keys) ? keys : [keys];
+              return headerCells.findIndex(h => ks.some(k => h.includes(k)));
+            };
+            const specIdx = findIdx(['spec']);
+            const actualIdx = findIdx(['actual', 'value']);
+            const statusIdx = findIdx(['status']);
+            const commentsIdx = findIdx(['comment', 'notes', 'note']);
+
+            const unmatched = [];
+            rows.forEach(r => {
+              const name = r.item || r.Item || r.itemName || r.name || r.label || '';
+              if (!name) return;
+              const targetNorm = normalize(name);
+              let rowDom = rowsDom.find(rr => {
+                try { return normalize((rr.cells && rr.cells[0] && rr.cells[0].textContent) ? rr.cells[0].textContent : '') === targetNorm; } catch (e) { return false; }
+              });
+              if (!rowDom) {
+                rowDom = rowsDom.find(rr => {
+                  try {
+                    const txt = (rr.cells && rr.cells[0] && rr.cells[0].textContent) ? rr.cells[0].textContent : '';
+                    const tnorm = normalize(txt);
+                    return tnorm.includes(targetNorm) || targetNorm.includes(tnorm);
+                  } catch (e) { return false; }
+                });
+              }
+              if (!rowDom) { unmatched.push(name); return; }
+
+              // helper to set a cell value by index
+              const setCellVal = (idx, val) => {
+                if (idx === -1) return;
                 try {
-                  const parent = (ticket && ticket.sections && (ticket.sections.emissions || ticket.sections['emissions'])) || null;
-                  if (parent) {
-                    // populate middle form-grid fields by matching labels
-                    const groups = Array.from(sec.querySelectorAll('.form-grid .form-group'));
-                    const mapKeys = {
-                      OBD: ['obd', 'obd/emissions', 'obd_emissions', 'obd'],
-                      inspections: ['inspections', 'inspection', 'inspected'],
-                      emissionsDue: ['emissionsdue', 'emissions_due', 'emissionsdue', 'emissiondue', 'emission_due', 'emission due'],
-                      nextOilChange: ['nextoilchange', 'nextOilChange', 'next_oil_change', 'nextoilchange', 'next oil change', 'next oil', 'nextoil'],
-                      inspectedBy: ['inspectedby', 'inspectedBy', 'inspected_by'],
-                      reInspectedBy: ['reinspectedby', 'reInspectedBy', 're_inspected_by']
-                    };
-                    Object.keys(mapKeys).forEach(k => {
-                      const aliases = mapKeys[k];
-                      for (const g of groups) {
-                        const lbl = (g.querySelector('label') && g.querySelector('label').textContent || '').toLowerCase();
-                        if (!lbl) continue;
-                        const matched = aliases.some(a => lbl.includes(a.toLowerCase()) || a.toLowerCase().includes(lbl));
-                        if (matched) {
-                          const inp = g.querySelector('input,select,textarea');
-                          if (inp && (parent[k] != null && parent[k] !== '')) {
-                            try { inp.value = parent[k]; inp.dispatchEvent(new Event('change')); } catch (e) { }
-                          }
-                        }
+                  const cell = rowDom.cells[idx];
+                  if (!cell) return;
+                  const input = cell.querySelector('select, input, textarea');
+                  if (input) {
+                    // try direct assign
+                    input.value = val || '';
+                    // if select didn't match, try fuzzy match on options
+                    if (input.tagName && input.tagName.toLowerCase() === 'select') {
+                      const norm = s => (s || '').toString().toLowerCase().trim();
+                      if (norm(input.value) !== norm(val)) {
+                        const opt = Array.from(input.options).find(o => norm(o.text) === norm(val) || norm(o.value) === norm(val));
+                        if (opt) input.value = opt.value;
                       }
+                    }
+                    input.dispatchEvent(new Event('change'));
+                  } else {
+                    // no input; leave text alone (do not overwrite plain text dashes); try to find a select elsewhere in the row that corresponds to this header
+                    try {
+                      const headerCells = Array.from(sec.querySelectorAll('thead th')).map(h => (h.textContent || '').toLowerCase());
+                      // find select in same row whose header includes the column name
+                      const sel = Array.from(rowDom.querySelectorAll('select')).find(s => {
+                        try {
+                          const selIdx = Array.from(rowDom.cells).indexOf(s.closest('td'));
+                          const hdr = headerCells[selIdx] || '';
+                          return hdr.includes(col);
+                        } catch (e) { return false; }
                     });
-
-                    // populate parent comments (full-width)
-                    try {
-                      const parentComments = parent.comments || parent.emissionsComments || parent.comments || '';
-                      if (parentComments) {
-                        const commentsGroup = Array.from(sec.querySelectorAll('.form-group.full-width')).find(g => { const l = (g.querySelector('label') && g.querySelector('label').textContent || '').toLowerCase(); return l.includes('comment'); });
-                        const cinput = commentsGroup && commentsGroup.querySelector('input,textarea');
-                        if (cinput) { cinput.value = parentComments; cinput.dispatchEvent(new Event('change')); }
-                      }
-                    } catch (e) { }
-                  }
-
-                  // populate warnings/tags from ticket.sections.emissionsWarnings or fallback keys
-                  const warnRows = (ticket && ticket.sections && (ticket.sections.emissionsWarnings || ticket.sections.warningstable || ticket.sections.warnings || [])) || [];
-                  if (Array.isArray(warnRows) && warnRows.length) {
-                    try {
-                      const tagsHidden = document.getElementById('tags-hidden');
-                      const list = document.getElementById('tag-list');
-                      if (tagsHidden && list) {
-                        const items = warnRows.map(r => (r.item || r.Item || r.name || '').toString()).filter(Boolean);
-                        tagsHidden.value = items.join(',');
-                        list.innerHTML = '';
-                        items.forEach((t) => {
-                          const chip = document.createElement('div'); chip.className = 'tag-chip'; chip.textContent = t;
-                          const x = document.createElement('button'); x.type = 'button'; x.className = 'tag-remove'; x.textContent = '×';
-                          x.addEventListener('click', () => { /* no-op on load */ });
-                          chip.appendChild(x); list.appendChild(chip);
-                        });
-                      }
-                    } catch (e) { /* ignore */ }
+                    if (sel) {
+                      try {
+                        sel.value = val;
+                        const norm = s => (s || '').toString().toLowerCase().trim();
+                        if (norm(sel.value) !== norm(val)) {
+                          const opt = Array.from(sel.options).find(o => norm(o.text) === norm(val) || norm(o.value) === norm(val));
+                          if (opt) sel.value = opt.value;
+                        }
+                        sel.dispatchEvent(new Event('change'));
+                      } catch (e) { }
+                    }
+                    } catch (e) { /* ignore fallback */ }
                   }
                 } catch (e) { /* ignore */ }
-                // emissions (form inputs) may exist under 'emissions' table (separate)
-                if (key === 'emissions') {
-                  // rows may represent a single row with form fields
-                  const row = rows[0];
-                  if (row) {
-                    const mapping = {
-                      OBD: ['obd', 'obd/emissions', 'obd_emissions', 'obd'],
-                      inspections: ['inspections', 'inspection', 'inspected'],
-                      emissionsDue: ['emissionsdue', 'emissions_due', 'emissionsdue'],
-                      nextOilChange: ['nextoilchange', 'nextOilChange', 'next_oil_change', 'nextOilChange'],
-                      inspectedBy: ['inspectedby', 'inspectedBy', 'inspected_by'],
-                      reInspectedBy: ['reinspectedby', 'reInspectedBy', 're_inspected_by', 'reInspectedBy'],
-                      warnings: ['warnings', 'warnings'],
-                      comments: ['comments', 'comment']
-                    };
-                    Object.keys(mapping).forEach(k => {
-                      const keys = mapping[k];
-                      let val = '';
-                      for (let i = 0; i < keys.length; i++) { if (row[keys[i]] != null) { val = row[keys[i]]; break; } }
-                      if (!val && row[k] != null) val = row[k];
-                      if (val != null && val !== '') {
-                        // find input/select with label matching key
-                        const inputs = Array.from(sec.querySelectorAll('input,select,textarea'));
-                        const found = inputs.find(inp => {
-                          const id = (inp.id || '').toLowerCase(); const name = (inp.name || '').toLowerCase();
-                          return id.includes(k.toLowerCase()) || name.includes(k.toLowerCase());
-                        });
-                        if (found) { try { found.value = val; found.dispatchEvent(new Event('change')); } catch (e) { } }
+              };
+
+              setCellVal(specIdx, r.Spec || r.spec || '');
+              setCellVal(actualIdx, r.actual || r.Actual || r.value || '');
+              setCellVal(statusIdx, r.status || r.Status || '');
+              setCellVal(commentsIdx, r.comments || r.Notes || r.notes || '');
+            });
+
+            if (unmatched.length) console.warn('Brakes populate: unmatched items:', unmatched);
+            // populate parent comments from joined rows if present
+            try {
+              const parentComments = (rows[0] && (rows[0].brakesComments || rows[0].comments)) || '';
+              if (parentComments) {
+                const commentsInput = sec.querySelector('.form-group.full-width input[type="text"], .form-group.full-width textarea');
+                if (commentsInput) commentsInput.value = parentComments;
+              }
+            } catch (e) { }
+            return;
+          }
+
+          if (key === 'emissionstable' || key === 'emissions' || key === 'emissions_table') {
+            // emissionsTable -> top emissions list
+            const sec = document.getElementById('emissions');
+            if (!sec) return;
+            const topTable = sec.querySelector('table');
+            if (topTable) {
+              const rowsDom = Array.from(topTable.querySelectorAll('tbody tr'));
+              rows.forEach(r => {
+                const name = r.item || r.Item || r.name || '';
+                if (!name) return;
+                const rowDom = rowsDom.find(rr => (rr.cells && rr.cells[0] && rr.cells[0].textContent && rr.cells[0].textContent.trim() === name.trim()));
+                if (!rowDom) return;
+                try {
+                  const status = r.status || r.Status || '';
+                  const notes = r.notes || r.Notes || r.comments || '';
+                  const sel = rowDom.querySelector('select'); if (sel && status) { sel.value = status; sel.dispatchEvent(new Event('change')); }
+                  const ni = rowDom.querySelector('input[type="text"]'); if (ni && notes) ni.value = notes;
+                } catch (e) { }
+              });
+            }
+            // Populate parent emissions fields and warnings from ticket.sections.emissions (if present)
+            try {
+              const parent = (ticket && ticket.sections && (ticket.sections.emissions || ticket.sections['emissions'])) || null;
+              if (parent) {
+                // populate middle form-grid fields by matching labels
+                const groups = Array.from(sec.querySelectorAll('.form-grid .form-group'));
+                const mapKeys = {
+                  OBD: ['obd', 'obd/emissions', 'obd_emissions', 'obd'],
+                  inspections: ['inspections', 'inspection', 'inspected'],
+                  emissionsDue: ['emissionsdue', 'emissions_due', 'emissionsdue', 'emissiondue', 'emission_due', 'emission due'],
+                  nextOilChange: ['nextoilchange', 'nextOilChange', 'next_oil_change', 'nextoilchange', 'next oil change', 'next oil', 'nextoil'],
+                  inspectedBy: ['inspectedby', 'inspectedBy', 'inspected_by'],
+                  reInspectedBy: ['reinspectedby', 'reInspectedBy', 're_inspected_by']
+                };
+                Object.keys(mapKeys).forEach(k => {
+                  const aliases = mapKeys[k];
+                  for (const g of groups) {
+                    const lbl = (g.querySelector('label') && g.querySelector('label').textContent || '').toLowerCase();
+                    if (!lbl) continue;
+                    const matched = aliases.some(a => lbl.includes(a.toLowerCase()) || a.toLowerCase().includes(lbl));
+                    if (matched) {
+                      const inp = g.querySelector('input,select,textarea');
+                      if (inp && (parent[k] != null && parent[k] !== '')) {
+                        try { inp.value = parent[k]; inp.dispatchEvent(new Event('change')); } catch (e) { }
                       }
-                    });
+                    }
                   }
-                }
-                return;
+                });
+
+                // populate parent comments (full-width)
+                try {
+                  const parentComments = parent.comments || parent.emissionsComments || parent.comments || '';
+                  if (parentComments) {
+                    const commentsGroup = Array.from(sec.querySelectorAll('.form-group.full-width')).find(g => { const l = (g.querySelector('label') && g.querySelector('label').textContent || '').toLowerCase(); return l.includes('comment'); });
+                    const cinput = commentsGroup && commentsGroup.querySelector('input,textarea');
+                    if (cinput) { cinput.value = parentComments; cinput.dispatchEvent(new Event('change')); }
+                  }
+                } catch (e) { }
               }
 
-              if (key === 'warningstable' || key === 'warnings' || key === 'warnings_table') {
-                // populate tags list
+              // populate warnings/tags from ticket.sections.emissionsWarnings or fallback keys
+              const warnRows = (ticket && ticket.sections && (ticket.sections.emissionsWarnings || ticket.sections.warningstable || ticket.sections.warnings || [])) || [];
+              if (Array.isArray(warnRows) && warnRows.length) {
                 try {
                   const tagsHidden = document.getElementById('tags-hidden');
                   const list = document.getElementById('tag-list');
-                  if (!tagsHidden || !list) return;
-                  const items = rows.map(r => r.item || r.Item || r.name || '').filter(Boolean);
-                  tagsHidden.value = items.join(',');
-                  // render chips
-                  list.innerHTML = '';
-                  items.forEach((t) => {
-                    const chip = document.createElement('div'); chip.className = 'tag-chip'; chip.textContent = t;
-                    const x = document.createElement('button'); x.type = 'button'; x.className = 'tag-remove'; x.textContent = '×';
-                    x.addEventListener('click', () => { /* no-op on load */ });
-                    chip.appendChild(x); list.appendChild(chip);
-                  });
-                } catch (e) { }
+                  if (tagsHidden && list) {
+                    const items = warnRows.map(r => (r.item || r.Item || r.name || '').toString()).filter(Boolean);
+                    tagsHidden.value = items.join(',');
+                    list.innerHTML = '';
+                    items.forEach((t) => {
+                      const chip = document.createElement('div'); chip.className = 'tag-chip'; chip.textContent = t;
+                      const x = document.createElement('button'); x.type = 'button'; x.className = 'tag-remove'; x.textContent = '×';
+                      x.addEventListener('click', () => { /* no-op on load */ });
+                      chip.appendChild(x); list.appendChild(chip);
+                    });
+                  }
+                } catch (e) { /* ignore */ }
+              }
+            } catch (e) { /* ignore */ }
+            // emissions (form inputs) may exist under 'emissions' table (separate)
+            if (key === 'emissions') {
+              // rows may represent a single row with form fields
+              const row = rows[0];
+              if (row) {
+                const mapping = {
+                  OBD: ['obd', 'obd/emissions', 'obd_emissions', 'obd'],
+                  inspections: ['inspections', 'inspection', 'inspected'],
+                  emissionsDue: ['emissionsdue', 'emissions_due', 'emissionsdue'],
+                  nextOilChange: ['nextoilchange', 'nextOilChange', 'next_oil_change', 'nextOilChange'],
+                  inspectedBy: ['inspectedby', 'inspectedBy', 'inspected_by'],
+                  reInspectedBy: ['reinspectedby', 'reInspectedBy', 're_inspected_by', 'reInspectedBy'],
+                  warnings: ['warnings', 'warnings'],
+                  comments: ['comments', 'comment']
+                };
+                Object.keys(mapping).forEach(k => {
+                  const keys = mapping[k];
+                  let val = '';
+                  for (let i = 0; i < keys.length; i++) { if (row[keys[i]] != null) { val = row[keys[i]]; break; } }
+                  if (!val && row[k] != null) val = row[k];
+                  if (val != null && val !== '') {
+                    // find input/select with label matching key
+                    const inputs = Array.from(sec.querySelectorAll('input,select,textarea'));
+                    const found = inputs.find(inp => {
+                      const id = (inp.id || '').toLowerCase(); const name = (inp.name || '').toLowerCase();
+                      return id.includes(k.toLowerCase()) || name.includes(k.toLowerCase());
+                    });
+                    if (found) { try { found.value = val; found.dispatchEvent(new Event('change')); } catch (e) { } }
+                  }
+                });
+              }
+            }
+            return;
+          }
+
+          if (key === 'warningstable' || key === 'warnings' || key === 'warnings_table') {
+            // populate tags list
+            try {
+              const tagsHidden = document.getElementById('tags-hidden');
+              const list = document.getElementById('tag-list');
+              if (!tagsHidden || !list) return;
+              const items = rows.map(r => r.item || r.Item || r.name || '').filter(Boolean);
+              tagsHidden.value = items.join(',');
+              // render chips
+              list.innerHTML = '';
+              items.forEach((t) => {
+                const chip = document.createElement('div'); chip.className = 'tag-chip'; chip.textContent = t;
+                const x = document.createElement('button'); x.type = 'button'; x.className = 'tag-remove'; x.textContent = '×';
+                x.addEventListener('click', () => { /* no-op on load */ });
+                chip.appendChild(x); list.appendChild(chip);
+              });
+            } catch (e) { }
+            return;
+          }
+        });
+      }
+    } catch (err) { console.warn('populate sections error', err); }
+    // populate Digital Courtesy Check from saved sectionData if available
+    try {
+      const sections = ticket.sections || {};
+      const courtesyPayload = sections['courtesy-check'] || sections['digital-courtesy-check'] || sections.courtesy || sections['courtesy'] || null;
+      const items = courtesyPayload && (Array.isArray(courtesyPayload.items) ? courtesyPayload.items : (Array.isArray(courtesyPayload) ? courtesyPayload : null));
+      if (items && items.length) {
+        const courtesySection = document.getElementById('courtesy-check');
+        const table = courtesySection ? courtesySection.querySelector('table') : (document.querySelector('#courtesy-table') || document.querySelector('table[data-section="courtesy-check"]'));
+        if (table) {
+          const headers = Array.from(table.querySelectorAll('thead th')).map(h => (h.textContent || '').trim().toLowerCase());
+          const rows = Array.from(table.querySelectorAll('tbody tr'));
+          items.forEach(item => {
+            const name = item.item || item.name || item.label || '';
+            if (!name) return;
+            // find row by data-item attribute or by first cell text
+            let row = rows.find(r => r.dataset && r.dataset.item === name);
+            if (!row) {
+              row = rows.find(r => {
+                const first = r.cells && r.cells[0];
+                return first && first.textContent && first.textContent.trim() === name.trim();
+              });
+            }
+            if (!row) return;
+            Object.keys(item).forEach(key => {
+              if (['item', 'name', 'label'].includes(key)) return;
+              const val = item[key];
+              const headerIndex = headers.findIndex(h => h.includes(key.toLowerCase()) || key.toLowerCase().includes(h));
+              let cell = null;
+              if (headerIndex !== -1) cell = row.cells[headerIndex];
+              if (!cell) {
+                // fallback: find input/select by name or class
+                const el = row.querySelector(`[name="${key}"], .${key}`);
+                if (el) { try { el.value = val; el.dispatchEvent(new Event('change')); } catch (e) { } }
                 return;
               }
+              const input = cell.querySelector('select, input, textarea');
+              if (input) { try { input.value = val; input.dispatchEvent(new Event('change')); } catch (e) { } }
+              else { cell.textContent = val; }
+            });
+          });
+        }
+      }
+    } catch (err) { console.warn('populate courtesy error', err); }
+    // --- Load server-provided images & videos for this ticket (if present) ---
+    try {
+      // images can be under multiple possible keys: ticket.images, ticket.photos, ticket.media.images
+      const svcImages = ticket.images || ticket.photos || (ticket.media && ticket.media.images) || null;
+      if (Array.isArray(svcImages) && svcImages.length) {
+        // normalize to array of src strings or objects with src
+        const imgs = svcImages.map(it => {
+          if (!it) return null;
+          if (typeof it === 'string') return String(it);
+          return String(it.src || it.url || it.path || it.relativePath || '');
+        }).filter(Boolean);
+        if (imgs.length) {
+          // prefer existing helper if bound by setupImageUpload
+          if (typeof window.applyUploadedImages === 'function') {
+            try { window.applyUploadedImages(imgs); } catch (e) { console.warn('applyUploadedImages threw', e); }
+
+            // still ensure the compact uploaded-images container is populated (avoid duplicating the large preview)
+            const smallRoot = document.getElementById('uploaded-images');
+            if (smallRoot) {
+              smallRoot.innerHTML = '';
+              imgs.forEach((it) => {
+                try {
+                  const el = document.createElement('div');
+                  el.className = 'uploaded-thumb';
+                  el.style.display = 'inline-block';
+                  el.style.margin = '6px';
+                  el.style.width = '120px';
+                  el.style.height = '80px';
+                  el.style.overflow = 'hidden';
+                  el.style.border = '1px solid #eee';
+                  el.style.borderRadius = '6px';
+                  const a = document.createElement('a');
+                  a.href = it.src;
+                  a.target = '_blank';
+                  const img = document.createElement('img');
+                  img.src = it.src;
+                  img.alt = it.filename || '';
+                  img.style.width = '100%';
+                  img.style.height = '100%';
+                  img.style.objectFit = 'cover';
+                  a.appendChild(img);
+                  el.appendChild(a);
+                  const cap = document.createElement('div');
+                  cap.textContent = it.filename || '';
+                  cap.style.fontSize = '11px';
+                  cap.style.textAlign = 'center';
+                  cap.style.marginTop = '4px';
+                  cap.style.maxWidth = '120px';
+                  cap.style.overflow = 'hidden';
+                  cap.style.textOverflow = 'ellipsis';
+                  cap.style.whiteSpace = 'nowrap';
+                  smallRoot.appendChild(el);
+                } catch (e) { console.warn('render uploaded-images item failed', e); }
+              });
+            }
+            return;
+          }
+
+          // fallback: render both the large preview area and the small uploaded-images list (legacy behavior)
+          const container = document.getElementById('image-preview');
+          if (!container && !document.getElementById('uploaded-images')) return;
+          if (container) {
+            container.innerHTML = '';
+            const wrap = document.createElement('div');
+            wrap.style.display = 'flex'; wrap.style.flexWrap = 'wrap'; wrap.style.gap = '8px';
+            list.forEach((it, i) => {
+              try {
+                const box = document.createElement('div');
+                box.style.width = '140px'; box.style.height = '100px'; box.style.position = 'relative'; box.style.overflow = 'hidden';
+                box.style.border = '1px solid #ddd'; box.style.borderRadius = '6px';
+                const img = document.createElement('img');
+                img.alt = it.filename || `image-${i}`; img.src = it.src; img.style.width = '100%'; img.style.height = '100%'; img.style.objectFit = 'cover';
+                img.loading = 'lazy';
+                img.addEventListener('error', () => console.warn('image failed to load', it.src));
+                img.addEventListener('click', () => window.open(it.src, '_blank'));
+                box.appendChild(img);
+                wrap.appendChild(box);
+              } catch (e) { console.warn('renderImages item failed', e); }
+            });
+            container.appendChild(wrap);
+          }
+
+          // also render into the small uploaded-images list (if present)
+          const smallRoot = document.getElementById('uploaded-images');
+          if (smallRoot) {
+            smallRoot.innerHTML = '';
+            list.forEach((it) => {
+              try {
+                const el = document.createElement('div');
+                el.className = 'uploaded-thumb';
+                el.style.display = 'inline-block';
+                el.style.margin = '6px';
+                el.style.width = '120px';
+                el.style.height = '80px';
+                el.style.overflow = 'hidden';
+                el.style.border = '1px solid #eee';
+                el.style.borderRadius = '6px';
+                const a = document.createElement('a');
+                a.href = it.src;
+                a.target = '_blank';
+                const img = document.createElement('img');
+                img.src = it.src;
+                img.alt = it.filename || '';
+                img.style.width = '100%';
+                img.style.height = '100%';
+                img.style.objectFit = 'cover';
+                a.appendChild(img);
+                el.appendChild(a);
+                // caption under thumb (filename)
+                const cap = document.createElement('div');
+                cap.textContent = it.filename || '';
+                cap.style.fontSize = '11px';
+                cap.style.textAlign = 'center';
+                cap.style.marginTop = '4px';
+                cap.style.maxWidth = '120px';
+                cap.style.overflow = 'hidden';
+                cap.style.textOverflow = 'ellipsis';
+                cap.style.whiteSpace = 'nowrap';
+                smallRoot.appendChild(el);
+              } catch (e) { console.warn('render uploaded-images item failed', e); }
             });
           }
-        } catch (err) { console.warn('populate sections error', err); }
-        // populate Digital Courtesy Check from saved sectionData if available
-        try {
-          const sections = ticket.sections || {};
-          const courtesyPayload = sections['courtesy-check'] || sections['digital-courtesy-check'] || sections.courtesy || sections['courtesy'] || null;
-          const items = courtesyPayload && (Array.isArray(courtesyPayload.items) ? courtesyPayload.items : (Array.isArray(courtesyPayload) ? courtesyPayload : null));
-          if (items && items.length) {
-            const courtesySection = document.getElementById('courtesy-check');
-            const table = courtesySection ? courtesySection.querySelector('table') : (document.querySelector('#courtesy-table') || document.querySelector('table[data-section="courtesy-check"]'));
-            if (table) {
-              const headers = Array.from(table.querySelectorAll('thead th')).map(h => (h.textContent || '').trim().toLowerCase());
-              const rows = Array.from(table.querySelectorAll('tbody tr'));
-              items.forEach(item => {
-                const name = item.item || item.name || item.label || '';
-                if (!name) return;
-                // find row by data-item attribute or by first cell text
-                let row = rows.find(r => r.dataset && r.dataset.item === name);
-                if (!row) {
-                  row = rows.find(r => {
-                    const first = r.cells && r.cells[0];
-                    return first && first.textContent && first.textContent.trim() === name.trim();
-                  });
-                }
-                if (!row) return;
-                Object.keys(item).forEach(key => {
-                  if (['item', 'name', 'label'].includes(key)) return;
-                  const val = item[key];
-                  const headerIndex = headers.findIndex(h => h.includes(key.toLowerCase()) || key.toLowerCase().includes(h));
-                  let cell = null;
-                  if (headerIndex !== -1) cell = row.cells[headerIndex];
-                  if (!cell) {
-                    // fallback: find input/select by name or class
-                    const el = row.querySelector(`[name="${key}"], .${key}`);
-                    if (el) { try { el.value = val; el.dispatchEvent(new Event('change')); } catch (e) { } }
-                    return;
-                  }
-                  const input = cell.querySelector('select, input, textarea');
-                  if (input) { try { input.value = val; input.dispatchEvent(new Event('change')); } catch (e) { } }
-                  else { cell.textContent = val; }
-                });
-              });
-            }
-          }
-        } catch (err) { console.warn('populate courtesy error', err); }
-        // --- Load server-provided images & videos for this ticket (if present) ---
-        try {
-          // images can be under multiple possible keys: ticket.images, ticket.photos, ticket.media.images
-          const svcImages = ticket.images || ticket.photos || (ticket.media && ticket.media.images) || null;
-          if (Array.isArray(svcImages) && svcImages.length) {
-            // normalize to array of src strings or objects with src
-            const imgs = svcImages.map(it => {
-              if (!it) return null;
-              if (typeof it === 'string') return String(it);
-              return String(it.src || it.url || it.path || it.relativePath || '');
-            }).filter(Boolean);
-            if (imgs.length) {
-              // prefer existing helper if bound by setupImageUpload
-              if (typeof window.applyUploadedImages === 'function') {
-                try { window.applyUploadedImages(imgs); } catch (e) { console.warn('applyUploadedImages threw', e); }
+        }
+      }
 
-                // still ensure the compact uploaded-images container is populated (avoid duplicating the large preview)
-                const smallRoot = document.getElementById('uploaded-images');
-                if (smallRoot) {
-                  smallRoot.innerHTML = '';
-                  imgs.forEach((it) => {
-                    try {
-                      const el = document.createElement('div');
-                      el.className = 'uploaded-thumb';
-                      el.style.display = 'inline-block';
-                      el.style.margin = '6px';
-                      el.style.width = '120px';
-                      el.style.height = '80px';
-                      el.style.overflow = 'hidden';
-                      el.style.border = '1px solid #eee';
-                      el.style.borderRadius = '6px';
-                      const a = document.createElement('a');
-                      a.href = it.src;
-                      a.target = '_blank';
-                      const img = document.createElement('img');
-                      img.src = it.src;
-                      img.alt = it.filename || '';
-                      img.style.width = '100%';
-                      img.style.height = '100%';
-                      img.style.objectFit = 'cover';
-                      a.appendChild(img);
-                      el.appendChild(a);
-                      const cap = document.createElement('div');
-                      cap.textContent = it.filename || '';
-                      cap.style.fontSize = '11px';
-                      cap.style.textAlign = 'center';
-                      cap.style.marginTop = '4px';
-                      cap.style.maxWidth = '120px';
-                      cap.style.overflow = 'hidden';
-                      cap.style.textOverflow = 'ellipsis';
-                      cap.style.whiteSpace = 'nowrap';
-                      el.appendChild(cap);
-                      smallRoot.appendChild(el);
-                    } catch (e) { console.warn('render uploaded-images item failed', e); }
-                  });
-                }
-                return;
+      // videos can be under ticket.videos, ticket.videoFiles, ticket.media.videos
+      const svcVideos = ticket.videos || ticket.videoFiles || (ticket.media && ticket.media.videos) || null;
+      if (Array.isArray(svcVideos) && svcVideos.length) {
+        const vContainer = document.getElementById('video-preview');
+        if (vContainer) {
+          vContainer.innerHTML = '';
+          const videoMetaList = [];
+          svcVideos.forEach((v, idx) => {
+            let src = '';
+            let name = `video-${idx}`;
+            if (!v) return;
+            if (typeof v === 'string') src = v;
+            else { src = v.src || v.url || v.path || v.relativePath || ''; name = v.filename || v.name || name; }
+            if (!src) return;
+            if (!src.match(/^data:|^https?:|^\//)) src = '/' + String(src).replace(/^\/+/, '');
+
+            const wrapper = document.createElement('div');
+            wrapper.style.position = 'relative';
+            wrapper.style.marginBottom = '8px';
+            const videoEl = document.createElement('video');
+            videoEl.controls = true;
+            videoEl.style.width = '320px';
+            videoEl.style.maxWidth = '100%';
+            videoEl.style.height = '180px';
+            videoEl.src = src;
+            wrapper.appendChild(videoEl);
+            vContainer.appendChild(wrapper);
+
+            videoMetaList.push({ src, name });
+          });
+
+          // write metadata into a hidden input so server receives info about previously uploaded videos
+          try {
+            const form = document.getElementById('repForm') || document.querySelector('form');
+            if (form && videoMetaList.length) {
+              let hid = form.querySelector('input[name="uploadedVideos"]');
+              if (!hid) {
+                hid = document.createElement('input');
+                hid.type = 'hidden';
+                hid.name = 'uploadedVideos';
+                form.appendChild(hid);
               }
-
-              // fallback: render both the large preview area and the small uploaded-images list (legacy behavior)
-              const container = document.getElementById('image-preview');
-              if (!container && !document.getElementById('uploaded-images')) return;
-              if (container) {
-                container.innerHTML = '';
-                const wrap = document.createElement('div');
-                wrap.style.display = 'flex'; wrap.style.flexWrap = 'wrap'; wrap.style.gap = '8px';
-                list.forEach((it, i) => {
-                  try {
-                    const box = document.createElement('div');
-                    box.style.width = '140px'; box.style.height = '100px'; box.style.position = 'relative'; box.style.overflow = 'hidden';
-                    box.style.border = '1px solid #ddd'; box.style.borderRadius = '6px';
-                    const img = document.createElement('img');
-                    img.alt = it.filename || `image-${i}`; img.src = it.src; img.style.width = '100%'; img.style.height = '100%'; img.style.objectFit = 'cover';
-                    img.loading = 'lazy';
-                    img.addEventListener('error', () => console.warn('image failed to load', it.src));
-                    img.addEventListener('click', () => window.open(it.src, '_blank'));
-                    box.appendChild(img);
-                    wrap.appendChild(box);
-                  } catch (e) { console.warn('renderImages item failed', e); }
-                });
-                container.appendChild(wrap);
-              }
-
-              // also render into the small uploaded-images list (if present)
-              const smallRoot = document.getElementById('uploaded-images');
-              if (smallRoot) {
-                smallRoot.innerHTML = '';
-                list.forEach((it) => {
-                  try {
-                    const el = document.createElement('div');
-                    el.className = 'uploaded-thumb';
-                    el.style.display = 'inline-block';
-                    el.style.margin = '6px';
-                    el.style.width = '120px';
-                    el.style.height = '80px';
-                    el.style.overflow = 'hidden';
-                    el.style.border = '1px solid #eee';
-                    el.style.borderRadius = '6px';
-                    const a = document.createElement('a');
-                    a.href = it.src;
-                    a.target = '_blank';
-                    const img = document.createElement('img');
-                    img.src = it.src;
-                    img.alt = it.filename || '';
-                    img.style.width = '100%';
-                    img.style.height = '100%';
-                    img.style.objectFit = 'cover';
-                    a.appendChild(img);
-                    el.appendChild(a);
-                    // caption under thumb (filename)
-                    const cap = document.createElement('div');
-                    cap.textContent = it.filename || '';
-                    cap.style.fontSize = '11px';
-                    cap.style.textAlign = 'center';
-                    cap.style.marginTop = '4px';
-                    cap.style.maxWidth = '120px';
-                    cap.style.overflow = 'hidden';
-                    cap.style.textOverflow = 'ellipsis';
-                    cap.style.whiteSpace = 'nowrap';
-                    smallRoot.appendChild(el);
-                  } catch (e) { console.warn('render uploaded-images item failed', e); }
-                });
-              }
+              hid.value = JSON.stringify(videoMetaList);
             }
-          }
+          } catch (e) { console.warn('writing uploadedVideos hidden input failed', e); }
+        }
+      }
+    } catch (err) { console.warn('populate media error', err); }
 
-          // videos can be under ticket.videos, ticket.videoFiles, ticket.media.videos
-          const svcVideos = ticket.videos || ticket.videoFiles || (ticket.media && ticket.media.videos) || null;
-          if (Array.isArray(svcVideos) && svcVideos.length) {
-            const vContainer = document.getElementById('video-preview');
-            if (vContainer) {
-              vContainer.innerHTML = '';
-              const videoMetaList = [];
-              svcVideos.forEach((v, idx) => {
-                let src = '';
-                let name = `video-${idx}`;
-                if (!v) return;
-                if (typeof v === 'string') src = v;
-                else { src = v.src || v.url || v.path || v.relativePath || ''; name = v.filename || v.name || name; }
-                if (!src) return;
-                if (!src.match(/^data:|^https?:|^\//)) src = '/' + String(src).replace(/^\/+/, '');
-
-                const wrapper = document.createElement('div');
-                wrapper.style.position = 'relative';
-                wrapper.style.marginBottom = '8px';
-                const videoEl = document.createElement('video');
-                videoEl.controls = true;
-                videoEl.style.width = '320px';
-                videoEl.style.maxWidth = '100%';
-                videoEl.style.height = '180px';
-                videoEl.src = src;
-                wrapper.appendChild(videoEl);
-                vContainer.appendChild(wrapper);
-
-                videoMetaList.push({ src, name });
-              });
-
-              // write metadata into a hidden input so server receives info about previously uploaded videos
-              try {
-                const form = document.getElementById('repForm') || document.querySelector('form');
-                if (form && videoMetaList.length) {
-                  let hid = form.querySelector('input[name="uploadedVideos"]');
-                  if (!hid) {
-                    hid = document.createElement('input');
-                    hid.type = 'hidden';
-                    hid.name = 'uploadedVideos';
-                    form.appendChild(hid);
-                  }
-                  hid.value = JSON.stringify(videoMetaList);
-                }
-              } catch (e) { console.warn('writing uploadedVideos hidden input failed', e); }
-            }
-          }
-        } catch (err) { console.warn('populate media error', err); }
-
-      } catch (e) { console.error('Error applying server ticket to form', e); }
-    }
-
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', applyTicket);
-    else applyTicket();
-  } catch (err) {
-    console.warn('populateFromServerTicket: no server ticket or parse failed', err);
-  }
+  } catch (e) { console.error('Error applying server ticket to form', e); }
 })();
 
 // --- Enforce mode: when a ticket is loaded but not in edit mode, lock UI to Repair Order only ---
@@ -2402,7 +2394,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
           if (res.ok) {
             let payload = null;
-            try { payload = await res.json(); } catch (err) { payload = null; }
+            try { payload = await res.json(); } catch (e) { payload = null; }
             if (payload && payload.success) {
               console.log('Steering & Suspension saved');
               return;
@@ -2412,7 +2404,7 @@ document.addEventListener('DOMContentLoaded', function () {
           }
 
           let errPayload = null;
-          try { errPayload = await res.json(); } catch (err) { errPayload = null; }
+          try { errPayload = await res.json(); } catch (e) { errPayload = null; }
           console.error('Steering save failed', res.status, errPayload);
         } catch (err) {
           console.error('Steering save failed', err);
@@ -2939,532 +2931,21 @@ document.addEventListener('DOMContentLoaded', () => {
   else initSignatureLoader();
 })();
 
-// --- video and image loader (fixed & improved) ---
+// --- simplified media handling: remove complex client image/video loaders ---
+// Provide a single simple helper that only populates the compact "uploaded-images" and "uploaded-videos" lists.
+// This avoids duplicated large previews and removes the heavy preview/filelist manipulation logic.
 document.addEventListener('DOMContentLoaded', () => {
-  const videoUploadZone = document.getElementById('video-upload-zone');
-  const imageUploadZone = document.getElementById('image-upload-zone');
-  const videoinput = document.getElementById('video-file');
-  const imageinput = document.getElementById('image-file');
-  const videoPreviewContainer = document.getElementById('video-preview');
-  const imagePreviewContainer = document.getElementById('image-preview');
-
-  // helper to move file input before a button then remove zone
-  function relocateInputAndRemoveZone(inputEl, uploadBtnId, zoneEl) {
+  window.applyUploadedImages = function (items) {
     try {
-      const uploadBtn = document.getElementById(uploadBtnId);
-      if (inputEl && uploadBtn && inputEl.parentNode !== uploadBtn.parentNode) {
-        uploadBtn.parentNode.insertBefore(inputEl, uploadBtn);
-        inputEl.style.display = 'none';
-      }
-      if (zoneEl && zoneEl.parentNode) zoneEl.parentNode.removeChild(zoneEl);
-    } catch (e) { console.warn('relocateInputAndRemoveZone failed', e); }
-  }
-
-  // ---------- Images (flex layout, multiple, removable) ----------
-  if (imageinput) {
-    const MAX_IMAGES = 6; // allow a "few" images
-    imageinput.multiple = true;
-
-    function renderImagePreviews(fileList) {
-      if (!imagePreviewContainer) return;
-      imagePreviewContainer.innerHTML = '';
-
-      const files = Array.from(fileList || []);
-      const wrapperList = document.createElement('div');
-      wrapperList.style.display = 'flex';
-      wrapperList.style.flexWrap = 'wrap';
-      wrapperList.style.gap = '8px';
-      wrapperList.style.alignItems = 'flex-start';
-
-      files.forEach((file, idx) => {
-        const item = document.createElement('div');
-        item.style.position = 'relative';
-        item.style.width = '140px';
-        item.style.height = '100px';
-        item.style.flex = '0 0 auto';
-        item.style.border = '1px solid #e0e0e0';
-        item.style.borderRadius = '6px';
-        item.style.overflow = 'hidden';
-        item.title = file.name || '';
-
-        const img = document.createElement('img');
-        img.style.width = '100%';
-        img.style.height = '100%';
-        img.style.objectFit = 'cover';
-        img.alt = file.name || '';
-
-        // load preview (File or server-provided object with .src)
-        if (file instanceof File) {
-          const url = URL.createObjectURL(file);
-          img.src = url;
-          img.addEventListener('load', () => { try { URL.revokeObjectURL(url); } catch (_) { } });
-        } else if (file && file.src) {
-          img.src = file.src;
-        } else {
-          img.src = String(file);
-        }
-
-        const removeBtn = document.createElement('button');
-        removeBtn.type = 'button';
-        removeBtn.className = 'thumb-remove';
-        removeBtn.textContent = '×';
-        removeBtn.title = 'Remove';
-        removeBtn.style.position = 'absolute';
-        removeBtn.style.top = '2px';
-        removeBtn.style.right = '2px';
-        removeBtn.style.background = 'rgba(0,0,0,0.6)';
-        removeBtn.style.color = '#fff';
-        removeBtn.style.border = 'none';
-        removeBtn.style.borderRadius = '12px';
-        removeBtn.style.width = '24px';
-        removeBtn.style.height = '24px';
-        removeBtn.style.cursor = 'pointer';
-        removeBtn.style.lineHeight = '20px';
-        removeBtn.style.padding = '0';
-        removeBtn.style.fontSize = '16px';
-
-        removeBtn.addEventListener('click', function (e) {
-          e.stopPropagation();
-          try {
-            // Update input.files by removing the clicked file, then re-render previews.
-            const current = Array.from(imageinput.files || []);
-            if (!current.length) {
-              // nothing to do
-              return;
-            }
-
-            // prefer matching by name+size key when available
-            const key = (file && file.name && file.size) ? (file.name + '|' + file.size) : null;
-            let newFiles;
-            if (key) {
-              newFiles = current.filter(f => (f.name + '|' + (f.size || 0)) !== key);
-            } else {
-              newFiles = current.filter((_, j) => j !== idx);
-            }
-
-            // write new FileList back to input
-            const dt = new DataTransfer();
-            newFiles.forEach(f => dt.items.add(f));
-            imageinput.files = dt.files;
-
-            // re-render previews and update zone text
-            renderImagePreviews(imageinput.files);
-            updateImageZoneText();
-          } catch (err) {
-            console.warn('Failed to remove image', err);
-          }
-        });
-
-        item.appendChild(img);
-        item.appendChild(removeBtn);
-        wrapperList.appendChild(item);
-      });
-
-      imagePreviewContainer.appendChild(wrapperList);
-    }
-
-    function updateImageZoneText() {
-      try {
-        const p = imageUploadZone && imageUploadZone.querySelector('p');
-        const count = imageinput.files ? imageinput.files.length : 0;
-        if (p) p.textContent = count ? `Selected ${count} image(s)` : 'Drop images here or click to upload';
-        // indicate limit
-        if (count >= MAX_FILES) {
-          if (p) p.textContent += ` (max ${MAX_FILES})`;
-        }
-      } catch (e) { /* ignore */ }
-    }
-
-    imageinput.addEventListener('change', (e) => {
-      const files = Array.from(e.target.files || []);
-      if (!files.length) {
-        imagePreviewContainer && (imagePreviewContainer.innerHTML = '');
-        updateImageZoneText();
-        return;
-      }
-
-      // enforce max
-      const allowed = files.slice(0, MAX_FILES);
-      if (allowed.length !== files.length) {
-        // overwrite input.files to keep it consistent
-        try {
-          const dt = new DataTransfer();
-          allowed.forEach(f => dt.items.add(f));
-          imageinput.files = dt.files;
-        } catch (err) { /* ignore */ }
-      }
-      renderImagePreviews(imageinput.files);
-      updateImageZoneText();
-
-      // move input and remove visual zone so file objects survive if desired
-      relocateInputAndRemoveZone(imageinput, 'image-upload-btn', imageUploadZone);
-    });
-
-    // initial render if there are files already (e.g. server-applied)
-    if (imageinput.files && imageinput.files.length) {
-      renderImagePreviews(imageinput.files);
-      updateImageZoneText();
-    }
-  }
-
-  // ---------- Video (single file allowed) ----------
-  if (videoinput) {
-    videoinput.multiple = false; // enforce single video
-    function renderVideoPreview(file) {
-      if (!videoPreviewContainer) return;
-      videoPreviewContainer.innerHTML = '';
-      if (!file) return;
-
-      const wrapper = document.createElement('div');
-      wrapper.style.position = 'relative';
-      wrapper.style.width = '320px';
-      wrapper.style.maxWidth = '100%';
-      wrapper.style.height = '180px';
-      wrapper.style.border = '1px solid #e0e0e0';
-      wrapper.style.borderRadius = '6px';
-      wrapper.style.overflow = 'hidden';
-
-      const v = document.createElement('video');
-      v.controls = true;
-      v.style.width = '100%';
-      v.style.height = '100%';
-      v.style.objectFit = 'cover';
-      const url = URL.createObjectURL(file);
-      v.src = url;
-      v.addEventListener('loadeddata', () => { try { URL.revokeObjectURL(url); } catch (_) { } });
-
-      const removeBtn = document.createElement('button');
-      removeBtn.type = 'button';
-      removeBtn.textContent = '×';
-      removeBtn.title = 'Remove video';
-      removeBtn.style.position = 'absolute';
-      removeBtn.style.top = '6px';
-      removeBtn.style.right = '6px';
-      removeBtn.style.width = '28px';
-      removeBtn.style.height = '28px';
-      removeBtn.style.border = 'none';
-      removeBtn.style.borderRadius = '14px';
-      removeBtn.style.background = 'rgba(0,0,0,0.6)';
-      removeBtn.style.color = '#fff';
-      removeBtn.style.cursor = 'pointer';
-      removeBtn.style.fontSize = '16px';
-      removeBtn.style.padding = '0';
-      removeBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        try {
-          // clear and fully release the video resource to avoid blob: GET after removal
-          v.pause();
-          v.removeAttribute('src');
-          v.load && v.load();
-          try { URL.revokeObjectURL(url); } catch (_) { /* ignore */ }
-
-          // clear the file input and the preview DOM
-          videoinput.value = '';
-          videoPreviewContainer.innerHTML = '';
-
-          // re-disable upload button if present
-          const uploadBtn = document.getElementById('upload-btn');
-          if (uploadBtn) { uploadBtn.disabled = true; uploadBtn.style.opacity = '0.5'; }
-        } catch (err) {
-          console.warn('Failed to remove video file', err);
-        }
-      });
-
-      wrapper.appendChild(v);
-      wrapper.appendChild(removeBtn);
-      videoPreviewContainer.appendChild(wrapper);
-    }
-
-    videoinput.addEventListener('change', (e) => {
-      const file = (e.target.files && e.target.files[0]) || null;
-      if (!file) {
-        renderVideoPreview(null);
-        return;
-      }
-      // simple type check (accept common video types)
-      const isVideo = (file.type && file.type.startsWith('video/')) || /\.(mp4|mov|webm|mkv|avi|3gp|mpeg)$/i.test(file.name || '');
-      if (!isVideo) {
-        alert('Please select a video file.');
-        videoinput.value = '';
-        return;
-      }
-
-      renderVideoPreview(file);
-
-      // keep the upload zone visible — do not relocate or remove the video upload zone
-      // (users can continue to upload/change videos from the same zone)
-    });
-
-    // initial if already has file
-    if (videoinput.files && videoinput.files[0]) renderVideoPreview(videoinput.files[0]);
-  }
-});
-
-
-(function customerPdfDownload() {
-  // attempt immediately
-  if (!tryLoad()) {
-    // if not present yet, listen for changes on likely inputs and try again once
-
-    const watch = document.querySelector('#vehicle-ticketId, #ticketId, #ticketIdHidden');
-    if (watch) {
-      const onChange = () => { tryLoad(); watch.removeEventListener('change', onChange); };
-      watch.addEventListener('change', onChange);
-    } else {
-      // fallback: re-attempt after a short delay (covers server-inserted inputs)
-      setTimeout(tryLoad, 500);
-    }
-  }
-});
-
-(function bindPagePdfDownloadsDiagnostics() {
-  // remove any previous binding marker so this block can be reloaded during dev
-  if (window.__PDF_BINDINGS_DIAG_LOADED__) {
-    console.log('PDF bindings (diag) already loaded');
-   
-    return;
-  }
-  window.__PDF_BINDINGS_DIAG_LOADED__ = true;
-
-  function loadScript(url) {
-    return new Promise((resolve, reject) => {
-      if (document.querySelector('script[src="' + url + '"]')) {
-        console.log('loadScript: already present', url);
-        return resolve();
-      }
-      const s = document.createElement('script');
-      s.src = url;
-      s.async = true;
-      s.onload = () => { console.log('loadScript: loaded', url); resolve(); };
-      s.onerror = (e) => { console.error('loadScript: failed', url, e); reject(e); };
-      document.head.appendChild(s);
-    });
-  }
-
-  async function ensureHtml2Pdf() {
-    if (window.html2pdf) {
-      console.log('ensureHtml2Pdf: html2pdf already available');
-      return;
-    }
-    const cdn = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.2/html2pdf.bundle.min.js';
-    console.log('ensureHtml2Pdf: loading', cdn);
-    await loadScript(cdn);
-    if (!window.html2pdf) throw new Error('html2pdf did not attach to window after loading bundle');
-    console.log('ensureHtml2Pdf: html2pdf ready');
-  }
-
-  async function generatePdf(ticketId) {
-    try {
-      await ensureHtml2Pdf();
-    } catch (err) {
-      console.error('generatePdf: html2pdf load failed', err);
-      alert('PDF generator could not be loaded. See console.');
-      return;
-    }
-
-    const target = document.querySelector('main.main-content') || document.body;
-   
-    if (!target) {
-      console.error('generatePdf: target element not found (main.main-content or body)');
-      alert('PDF target element missing. See console.');
-      return;
-    }
-    const filename = `ticket-${ticketId || 'page'}.pdf`;
-    const opt = {
-      margin: 10,
-      filename: filename,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, logging: false },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    };
-
-    try {
-      console.log('generatePdf: starting html2pdf', { filename, opt });
-      await window.html2pdf().set(opt).from(target).save();
-      console.log('generatePdf: saved', filename);
-    } catch (err) {
-      console.error('generatePdf: failed', err);
-      alert('PDF generation failed. See console for details.');
-    }
-  }
-
-  function bindId(id) {
-    const btn = document.getElementById(id);
-    if (!btn) {
-      console.warn('bindId: button not found', id);
-      return;
-    }
-    if (btn.dataset.pdfBound) {
-      console.log('bindId: already bound', id);
-      return;
-    }
-
-    console.log('bindId: binding click for', id);
-    btn.addEventListener('click', (ev) => {
-      ev.preventDefault();
-      try {
-        const ticketId = btn.dataset && btn.dataset.ticketId ? String(btn.dataset.ticketId) : 'page';
-        console.log('PDF button clicked', id, 'ticketId=', ticketId);
-        generatePdf(ticketId);
-      } catch (e) {
-        console.error('PDF click handler error', e);
-      }
-    });
-    btn.dataset.pdfBound = '1';
-  }
-
-  document.addEventListener('DOMContentLoaded', () => {
-    console.log('PDF diagnostics: DOMContentLoaded - attempting to bind buttons');
-
-    // Always attempt to bind customer download button if present
-    const custBtn = document.getElementById('downloadPage');
-    if (custBtn) {
-      console.log('PDF diagnostics: downloadPage found - binding');
-      bindId('downloadPage');
-    } else {
-      console.log('PDF diagnostics: no downloadPage button found on this page');
-    }
-
-    // Mechanic download: only bind when button present AND ticket stat === 'complete'
-    const mechBtn = document.getElementById('downloadMechPage');
-    if (!mechBtn) {
-      console.log('PDF diagnostics: no downloadMechPage button found on this page — nothing more to bind');
-      return;
-    }
-
-    // resolve ticket object from window or hidden input
-    let ticket = window.__SERVER_TICKET__ || null;
-    if (!ticket) {
-      const hidden = document.getElementById('server-ticket');
-      if (hidden && hidden.value) {
-        try { ticket = JSON.parse(hidden.value); } catch (e) { ticket = null; }
-      }
-    }
-    const stat = ticket && (ticket.stat || ticket.ticketStatus || ticket.status);
-    const isComplete = stat && String(stat).toLowerCase() === 'complete';
-
-    if (isComplete) {
-      console.log('PDF diagnostics: ticket is complete — binding downloadMechPage');
-      bindId('downloadMechPage');
-    } else {
-      // visually disable the mechanic download link when not allowed
-      try {
-        mechBtn.style.pointerEvents = 'none';
-        mechBtn.style.opacity = '0.6';
-        mechBtn.setAttribute('aria-disabled', 'true');
-      } catch (e) { /* ignore styling failures */ }
-      console.log('PDF diagnostics: mechanic download present but ticket not complete — left disabled');
-    }
-  });
-})();
-
-(function mediaLoaderForTicket() {
-  // Normalize a returned media item into { src, filename, type }
-  function normalize(it, idx) {
-    if (!it) return null;
-    if (typeof it === 'string') {
-      let s = it;
-      if (!s.match(/^data:|^https?:|^\//)) s = '/' + s.replace(/^\/+/, '');
-      const fn = s.split('/').pop();
-      const isVideo = fn.match(/\.(mp4|mov|webm|mkv|avi|3gp|mpeg)$/i);
-      return { src: s, filename: fn || `file-${idx}`, type: isVideo ? 'video' : 'image', meta: {} };
-    }
-    // object form
-    const src = it.src || it.url || it.path || it.relativePath || it.location || it.data || it.dataUrl || it.dataURL || '';
-    let finalSrc = String(src || '');
-    if (finalSrc && !finalSrc.match(/^data:|^https?:|^\//)) finalSrc = '/' + finalSrc.replace(/^\/+/, '');
-    if (!finalSrc && it.base64) finalSrc = 'data:' + (it.mime || 'image/png') + ';base64,' + it.base64;
-    const fn = it.filename || it.name || (finalSrc ? finalSrc.split('/').pop() : `file-${idx}`);
-    const mime = it.type || it.mime || '';
-    const isVideo = mime.startsWith('video/') || (fn && fn.match(/\.(mp4|mov|webm|mkv|avi)$/i));
-    if (!finalSrc) return null;
-    // capture possible ticket/form id on the item for later matching
-    const meta = Object.assign({}, it);
-    meta._ticketId = it.ticketId || it.formId || it.parentId || it.tid || it.ticket || it.id || '';
-    return { src: finalSrc, filename: fn, type: isVideo ? 'video' : 'image', meta };
-  }
-
-  function renderImages(list) {
-    if (!Array.isArray(list) || !list.length) return;
-    // If the page provides its own uploader preview helper, prefer it for the main preview
-    if (typeof window.applyUploadedImages === 'function') {
-      try {
-        window.applyUploadedImages(list.map(i => ({ src: i.src, name: i.filename, filename: i.filename })));
-      } catch (e) { console.warn('applyUploadedImages threw', e); }
-
-      // still ensure the compact uploaded-images container is populated (avoid duplicating the large preview)
       const smallRoot = document.getElementById('uploaded-images');
-      if (smallRoot) {
-        smallRoot.innerHTML = '';
-        list.forEach((it) => {
-          try {
-            const el = document.createElement('div');
-            el.className = 'uploaded-thumb';
-            el.style.display = 'inline-block';
-            el.style.margin = '6px';
-            el.style.width = '120px';
-            el.style.height = '80px';
-            el.style.overflow = 'hidden';
-            el.style.border = '1px solid #eee';
-            el.style.borderRadius = '6px';
-            const a = document.createElement('a');
-            a.href = it.src;
-            a.target = '_blank';
-            const img = document.createElement('img');
-            img.src = it.src;
-            img.alt = it.filename || '';
-            img.style.width = '100%';
-            img.style.height = '100%';
-            img.style.objectFit = 'cover';
-            a.appendChild(img);
-            el.appendChild(a);
-            const cap = document.createElement('div');
-            cap.textContent = it.filename || '';
-            cap.style.fontSize = '11px';
-            cap.style.textAlign = 'center';
-            cap.style.marginTop = '4px';
-            cap.style.maxWidth = '120px';
-            cap.style.overflow = 'hidden';
-            cap.style.textOverflow = 'ellipsis';
-            cap.style.whiteSpace = 'nowrap';
-            el.appendChild(cap);
-            smallRoot.appendChild(el);
-          } catch (e) { console.warn('render uploaded-images item failed', e); }
-        });
-      }
-      return;
-    }
-
-    // fallback: render both the large preview area and the small uploaded-images list (legacy behavior)
-    const container = document.getElementById('image-preview');
-    if (!container && !document.getElementById('uploaded-images')) return;
-    if (container) {
-      container.innerHTML = '';
-      const wrap = document.createElement('div');
-      wrap.style.display = 'flex'; wrap.style.flexWrap = 'wrap'; wrap.style.gap = '8px';
-      list.forEach((it, i) => {
-        try {
-          const box = document.createElement('div');
-          box.style.width = '140px'; box.style.height = '100px'; box.style.position = 'relative'; box.style.overflow = 'hidden';
-          box.style.border = '1px solid #ddd'; box.style.borderRadius = '6px';
-          const img = document.createElement('img');
-          img.alt = it.filename || `image-${i}`; img.src = it.src; img.style.width = '100%'; img.style.height = '100%'; img.style.objectFit = 'cover';
-          img.loading = 'lazy';
-          img.addEventListener('error', () => console.warn('image failed to load', it.src));
-          img.addEventListener('click', () => window.open(it.src, '_blank'));
-          box.appendChild(img);
-          wrap.appendChild(box);
-        } catch (e) { console.warn('renderImages item failed', e); }
-      });
-      container.appendChild(wrap);
-    }
-
-    // also render into the small uploaded-images list (if present)
-    const smallRoot = document.getElementById('uploaded-images');
-    if (smallRoot) {
+      if (!smallRoot) return;
       smallRoot.innerHTML = '';
-      list.forEach((it) => {
+      const list = Array.isArray(items) ? items : [];
+      list.forEach(it => {
         try {
+          const src = (typeof it === 'string') ? it : (it.src || it.webPath || it.url || it.path || '');
+          if (!src) return;
+          const filename = (typeof it === 'string') ? src.split('/').pop() : (it.filename || it.name || '');
           const el = document.createElement('div');
           el.className = 'uploaded-thumb';
           el.style.display = 'inline-block';
@@ -3475,19 +2956,18 @@ document.addEventListener('DOMContentLoaded', () => {
           el.style.border = '1px solid #eee';
           el.style.borderRadius = '6px';
           const a = document.createElement('a');
-          a.href = it.src;
+          a.href = src;
           a.target = '_blank';
           const img = document.createElement('img');
-          img.src = it.src;
-          img.alt = it.filename || '';
+          img.src = src;
+          img.alt = filename || '';
           img.style.width = '100%';
           img.style.height = '100%';
           img.style.objectFit = 'cover';
           a.appendChild(img);
           el.appendChild(a);
-          // caption under thumb (filename)
           const cap = document.createElement('div');
-          cap.textContent = it.filename || '';
+          cap.textContent = filename || '';
           cap.style.fontSize = '11px';
           cap.style.textAlign = 'center';
           cap.style.marginTop = '4px';
@@ -3495,189 +2975,46 @@ document.addEventListener('DOMContentLoaded', () => {
           cap.style.overflow = 'hidden';
           cap.style.textOverflow = 'ellipsis';
           cap.style.whiteSpace = 'nowrap';
+          el.appendChild(cap);
           smallRoot.appendChild(el);
-        } catch (e) { console.warn('render uploaded-images item failed', e); }
+        } catch (e) { console.warn('applyUploadedImages item failed', e); }
       });
-    }
-  }
+    } catch (e) { console.warn('applyUploadedImages failed', e); }
+  };
 
-  function renderVideos(list) {
-    if (!Array.isArray(list) || !list.length) return;
-    const container = document.getElementById('video-preview');
-    if (container) {
-      container.innerHTML = '';
-      list.forEach((it, i) => {
+  window.applyUploadedVideos = function (items) {
+    try {
+      const smallRoot = document.getElementById('uploaded-videos');
+      if (!smallRoot) return;
+      smallRoot.innerHTML = '';
+      const list = Array.isArray(items) ? items : [];
+      list.forEach(it => {
         try {
-          const wrapper = document.createElement('div');
-          wrapper.style.marginBottom = '8px'; wrapper.style.width = '320px'; wrapper.style.maxWidth = '100%';
-          const v = document.createElement('video');
-          v.controls = true; v.src = it.src; v.style.width = '100%'; v.style.height = '180px'; v.style.objectFit = 'cover';
-          v.addEventListener('error', () => console.warn('video failed to load', it.src));
-          const cap = document.createElement('div');
-          cap.textContent = it.filename || `video-${i}`; cap.style.fontSize = '12px'; cap.style.marginTop = '4px';
-          wrapper.appendChild(v); wrapper.appendChild(cap); container.appendChild(wrapper);
-        } catch (e) { console.warn('renderVideos item failed', e); }
-      });
-    }
-
-    // also render into the small uploaded-videos list (if present)
-    const smallVidRoot = document.getElementById('uploaded-videos');
-    if (smallVidRoot) {
-      smallVidRoot.innerHTML = '';
-      list.forEach((it) => {
-        try {
+          const src = (typeof it === 'string') ? it : (it.src || it.webPath || it.url || it.path || '');
+          if (!src) return;
+          const filename = (typeof it === 'string') ? src.split('/').pop() : (it.filename || it.name || '');
           const wrap = document.createElement('div');
           wrap.className = 'uploaded-video-item';
-          wrap.style.marginBottom = '8px';
           wrap.style.display = 'inline-block';
+          wrap.style.margin = '6px';
           wrap.style.width = '180px';
           wrap.style.verticalAlign = 'top';
           const v = document.createElement('video');
-          v.controls = true; v.src = it.src; v.style.width = '100%'; v.style.height = '100px'; v.style.objectFit = 'cover';
-          v.addEventListener('error', () => console.warn('uploaded video failed to load', it.src));
+          v.controls = true;
+          v.src = src;
+          v.style.width = '100%';
+          v.style.height = '100px';
+          v.style.objectFit = 'cover';
           const cap = document.createElement('div');
-          cap.textContent = it.filename || '';
+          cap.textContent = filename || '';
           cap.style.fontSize = '11px';
           cap.style.marginTop = '4px';
           cap.style.textAlign = 'center';
           wrap.appendChild(v);
           wrap.appendChild(cap);
-          smallVidRoot.appendChild(wrap);
-        } catch (e) { console.warn('render uploaded-videos item failed', e); }
+          smallRoot.appendChild(wrap);
+        } catch (e) { console.warn('applyUploadedVideos item failed', e); }
       });
-    }
-  }
-
-  async function tryFetchMedia(ticketId) {
-    if (!ticketId) return null;
-    // prefer ticket-check first (more likely to exist), then mechanic/media or ticket-media via POST.
-    // avoid the GET variant (/mechanic/media?ticketId=...) which can return 404 on some servers.
-    const endpoints = [
-      { url: '/ticket-check', method: 'POST' },
-      { url: '/mechanic/media', method: 'POST' },
-      { url: '/ticket-media', method: 'POST' }
-    ];
-    for (const ep of endpoints) {
-      try {
-        let res;
-        if (ep.method === 'POST') {
-          res = await fetch(ep.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ticketId }) });
-        } else {
-          res = await fetch(ep.url, { method: 'GET' });
-        }
-        if (!res || !res.ok) continue;
-        const json = await res.json().catch(() => null);
-        if (!json) continue;
-        // common shapes
-        if (Array.isArray(json.images) || Array.isArray(json.videos)) return { images: json.images || [], videos: json.videos || [] };
-        if (json.media && (Array.isArray(json.media.images) || Array.isArray(json.media.videos))) return { images: json.media.images || [], videos: json.media.videos || [] };
-        if (json.signature && json.media) { /* ignore */ }
-        // some endpoints return items array with type/filename/src
-        if (Array.isArray(json.items)) {
-          const images = json.items.filter(i => (i.type && i.type.startsWith('image')) || (i.filename && i.filename.match(/\.(jpg|jpeg|png|gif|webp)$/i)));
-          const videos = json.items.filter(i => (i.type && i.type.startsWith('video')) || (i.filename && i.filename.match(/\.(mp4|mov|webm|mkv|avi)$/i)));
-          return { images, videos };
-        }
-        // if the top-level response is an array
-        if (Array.isArray(json)) {
-          const imgs = json.filter(x => typeof x === 'string' ? x.match(/\.(jpg|jpeg|png|gif|webp)$/i) : (x.filename && x.filename.match(/\.(jpg|jpeg|png|gif|webp)$/i)));
-          const vids = json.filter(x => typeof x === 'string' ? x.match(/\.(mp4|mov|webm|mkv|avi)$/i) : (x.filename && x.filename.match(/\.(mp4|mov|webm|mkv|avi)$/i)));
-          return { images: imgs, videos: vids };
-        }
-      } catch (e) { /* try next */ }
-    }
-    return null;
-  }
-
-  function writeHidden(form, name, arr) {
-    if (!form) return;
-    let hid = form.querySelector(`input[name="${name}"]`);
-    if (!hid) {
-      hid = document.createElement('input'); hid.type = 'hidden'; hid.name = name; form.appendChild(hid);
-    }
-    try { hid.value = JSON.stringify(arr || []); } catch (e) { hid.value = ''; }
-  }
-
-  function resolveTicketId() {
-    const st = window.__SERVER_TICKET__ || null;
-    if (st && (st.id || st._id || st.ticketId)) return String(st.id || st._id || st.ticketId);
-    const byId = document.getElementById('vehicle-ticketId')?.value || document.getElementById('ticketId')?.value || document.getElementById('ticketIdHidden')?.value || '';
-    if (byId) return String(byId);
-    try {
-      const p = new URLSearchParams(window.location.search);
-      return p.get('id') || p.get('ticketId') || p.get('ticketID') || '';
-    } catch (e) { return ''; }
-  }
-
-  async function gatherAndRender(ticketId) {
-    if (!ticketId) return false;
-    // prefer server-injected media on ticket object
-    const st = window.__SERVER_TICKET__ || null;
-    let images = st && (st.images || st.photos || (st.media && st.media.images)) || [];
-    let videos = st && (st.videos || st.videoFiles || (st.media && st.media.videos)) || [];
-
-    if ((!images || !images.length) && (!videos || !videos.length)) {
-      // try network fetch
-      const fetched = await tryFetchMedia(ticketId);
-      if (fetched) {
-        images = images.length ? images : (fetched.images || []);
-        videos = videos.length ? videos : (fetched.videos || []);
-      }
-    }
-
-    // normalize
-    const imgsRaw = (Array.isArray(images) ? images.map(normalize).filter(Boolean) : []);
-    const vidsRaw = (Array.isArray(videos) ? videos.map(normalize).filter(Boolean) : []);
-
-    // filter by matching ticket/form id when provided on media item (if item has _ticketId)
-    const filterByTicket = (arr) => {
-      return arr.filter(item => {
-        try {
-          const mid = (item.meta && (item.meta._ticketId || item.meta.ticketId || item.meta.formId || item.meta.parentId || item.meta.tid || item.meta.ticket || item.meta.id)) || '';
-          if (!mid) return true; // no ticketId on item -> assume it's intended for this ticket
-          return String(mid).trim() === String(ticketId).trim();
-        } catch (e) { return true; }
-      });
-    };
-
-    const imgs = filterByTicket(imgsRaw);
-    const vids = filterByTicket(vidsRaw);
-
-    if (imgs.length) renderImages(imgs);
-    if (vids.length) renderVideos(vids);
-
-    // write hidden inputs so server gets metadata on main submit
-    const form = document.getElementById('repForm') || document.querySelector('form');
-    if (form) {
-      writeHidden(form, 'uploadedImages', imgs.map(i => ({ src: i.src, filename: i.filename })));
-      writeHidden(form, 'uploadedVideos', vids.map(v => ({ src: v.src, filename: v.filename })));
-    }
-
-    return !!(imgs.length || vids.length);
-  }
-
-  // retry loop until we have a ticketId (or until attempts exhausted)
-  (async function attemptWithRetries() {
-    const maxAttempts = 20;
-    let attempts = 0;
-    let done = false;
-    const tryOnce = async () => {
-      attempts += 1;
-      const id = resolveTicketId();
-      if (!id) return false;
-      try {
-        const ok = await gatherAndRender(id);
-        if (ok) done = true;
-        return ok;
-      } catch (e) { return false; }
-    };
-
-    if (await tryOnce()) return;
-    const iv = setInterval(async () => {
-      if (attempts >= maxAttempts || done) { clearInterval(iv); return; }
-      try {
-        if (await tryOnce()) { clearInterval(iv); }
-      } catch (e) { /* ignore */ }
-    }, 500);
-  })();
+    } catch (e) { console.warn('applyUploadedVideos failed', e); }
+  };
 })();
