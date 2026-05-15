@@ -1,4 +1,50 @@
 console.log('form.js loaded');
+function updateSubtotals() {
+  const table = document.getElementById('repairs-table');
+  if (!table) return;
+  
+  const subPartsEl = document.getElementById('subTotParts');
+  const subLaborEl = document.getElementById('subTotLabor');
+  const taxEl = document.getElementById('tax');
+  const totEstimateEl = document.getElementById('totEstimate');
+  
+  // Utility functions defined locally
+  function toNum(v) { 
+    const n = parseFloat(String(v).replace(/[^0-9.\-]/g, '')); 
+    return isNaN(n) ? 0 : n; 
+  }
+  
+  function fmt(n) { 
+    return (Math.round(n * 100) / 100).toFixed(2); 
+  }
+  
+  const rows = Array.from(table.querySelectorAll('tbody tr'));
+  let partsSum = 0, laborSum = 0;
+  
+  rows.forEach(r => {
+    const pt = toNum(r.querySelector('.rp-partstotal')?.value);
+    const lt = toNum(r.querySelector('.rp-labortotal')?.value);
+    partsSum += pt;
+    laborSum += lt;
+  });
+  
+  if (subPartsEl) subPartsEl.value = fmt(partsSum);
+  if (subLaborEl) subLaborEl.value = fmt(laborSum);
+  
+  // tax = 6% of parts sum
+  const tax = partsSum * 0.06;
+  if (taxEl) { 
+    taxEl.value = fmt(tax); 
+    taxEl.readOnly = true; 
+    taxEl.tabIndex = -1; 
+  }
+  
+  // total estimate excludes labor
+  if (totEstimateEl) totEstimateEl.value = fmt(partsSum + tax);
+  
+  console.log('updateSubtotals: calculated', { partsSum, laborSum, tax, total: partsSum + tax });
+}
+
 document.addEventListener('DOMContentLoaded', function () {
   // guard to avoid double initialization if other scripts also run
   if (window.customAccordionInitialized) {
@@ -667,23 +713,7 @@ allContent.forEach(content => {
       updateSubtotals();
     }
 
-    function updateSubtotals() {
-      const rows = Array.from(table.querySelectorAll('tbody tr'));
-      let partsSum = 0, laborSum = 0;
-      rows.forEach(r => {
-        const pt = toNum(r.querySelector('.rp-partstotal')?.value);
-        const lt = toNum(r.querySelector('.rp-labortotal')?.value);
-        partsSum += pt;
-        laborSum += lt;
-      });
-      if (subPartsEl) subPartsEl.value = fmt(partsSum);
-      if (subLaborEl) subLaborEl.value = fmt(laborSum);
-      // tax = 6% of parts sum
-      const tax = partsSum * 0.06;
-      if (taxEl) { taxEl.value = fmt(tax); taxEl.readOnly = true; taxEl.tabIndex = -1; }
-      // total estimate excludes labor
-      if (totEstimateEl) totEstimateEl.value = fmt(partsSum + tax);
-    }
+    
 
     function sanitizeMinusInput(el) {
       el.addEventListener('keydown', function (e) {
@@ -1340,195 +1370,181 @@ allContent.forEach(content => {
       });
     });
   })();
-
-
-  // --- Complete Ticket button at bottom wiring ---
+  
   (function wireCompleteTicketBottom() {
     const btn = document.getElementById('completeTicketBottom');
     if (!btn) return;
-    btn.addEventListener('click', function () {
-      const form = document.getElementById('repForm');
-      if (!form) return alert('Main form not found');
+    
+    btn.addEventListener('click', async function () {
+        const form = document.getElementById('repForm');
+        if (!form) return alert('Main form not found');
 
-      // Run an immediate courtesy-check here and block if missing items
-      const courtesy = document.getElementById('courtesy-check');
-      if (courtesy) {
-        const table = courtesy.querySelector('table');
-        if (table) {
-          const headers = Array.from(table.querySelectorAll('thead th')).map(h => (h.textContent || '').trim());
-          const rows = Array.from(table.querySelectorAll('tbody tr'));
-          const courtesyErrors = [];
-          rows.forEach((row, rowIdx) => {
-            const firstCell = row.querySelector('td');
-            const itemName = (firstCell && firstCell.textContent) ? firstCell.textContent.trim() : `Row ${rowIdx + 1}`;
-            const selects = Array.from(row.querySelectorAll('select'));
-            selects.forEach((sel) => {
-              if (!sel.value || String(sel.value).trim() === '') {
-                const cell = sel.closest('td');
-                let colIdx = -1;
-                if (cell && cell.parentElement) colIdx = Array.from(cell.parentElement.children).indexOf(cell);
-                const header = headers[colIdx] || 'Status';
-                courtesyErrors.push(`Courtesy Check — ${itemName}: ${header} is required.`);
-              }
-            });
-            const inputs = Array.from(row.querySelectorAll('input'));
-            if (inputs.length > 0) {
-              inputs.forEach((inp) => {
-                const ph = (inp.getAttribute('placeholder') || '').toLowerCase();
-                if (ph.includes('note') || ph.includes('comment')) return;
-                const cell = inp.closest('td');
-                if (cell) {
-                  const cellIdx = Array.from(cell.parentElement.children).indexOf(cell);
-                  const isLastColumn = cellIdx === (row.children.length - 1);
-                  if (isLastColumn) return;
-                  const header = headers[cellIdx] || `Column ${cellIdx + 1}`;
-                  const val = (inp.value || '').toString().trim();
-                  if (!val) courtesyErrors.push(`Courtesy Check — ${itemName}: ${header} is required.`);
-                }
-              });
-            }
-          });
-          if (courtesyErrors.length > 0) {
-            alert(courtesyErrors.join('\n'));
+        // Get ticket ID first
+        const ticketId = (window.__SERVER_TICKET__ && window.__SERVER_TICKET__.id) ||
+                        document.getElementById('vehicle-ticketId')?.value ||
+                        document.getElementById('ticketId')?.value || '';
+        
+        if (!ticketId) {
+            alert('Cannot complete ticket: ticket ID not found. Please save the ticket first.');
             return;
-          }
         }
-      }
 
-      // mark the form to indicate we're completing and let the form submit handler perform validation
-      const status = document.getElementById('ticketStatus');
-      if (status) status.value = 'complete';
-      try { console.log('Complete button: submitting form via requestSubmit'); } catch (e) { }
-      try { form.requestSubmit(); } catch (e) { form.submit(); }
+        try {
+            console.log('Verifying all sections for ticket:', ticketId);
+            
+            // Call the comprehensive verification endpoint
+            const res = await fetch('/mechanic/verify-all-sections', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ticketId })
+            });
+            
+            if (!res.ok) {
+                console.error('Verification failed with status:', res.status);
+                alert('Failed to verify ticket sections. Please try again.');
+                return;
+            }
+            
+            const data = await res.json();
+            console.log('Verification response:', data);
+            
+            // Check if all sections are complete
+            if (!data.allSectionsComplete) {
+                const missingSections = data.missingSections || [];
+                const message = `The following sections must be completed and saved before completing the ticket:\n\n${missingSections.map(s => '• ' + s).join('\n')}\n\nPlease complete and save all sections.`;
+                alert(message);
+                return;
+            }
+            
+            console.log('All sections verified. Proceeding with ticket completion.');
+            
+        } catch (err) {
+            console.error('Verification error:', err);
+            alert('Failed to verify ticket sections. Please try again.');
+            return;
+        }
+
+        // All sections verified - set status and submit
+        const status = document.getElementById('ticketStatus');
+        if (status) status.value = 'complete';
+        try { console.log('Complete button: submitting form via requestSubmit'); } catch (e) { }
+        try { form.requestSubmit(); } catch (e) { form.submit(); }
     });
   })();
-
 });
-
-// --- Populate form from server-provided ticket JSON (if present) ---
 (function populateFromServerTicket() {
   try {
-    // attempt to read hidden input first
     var serverEl = document.getElementById('server-ticket');
     var raw = serverEl ? serverEl.value : null;
     if (!raw && window.__SERVER_TICKET__) raw = JSON.stringify(window.__SERVER_TICKET__);
     if (!raw) return;
-    var ticket = JSON.parse(raw);
+    var ticket = raw ? JSON.parse(raw) : null;
     if (!ticket) return;
-
-    // run when DOM is ready
-    function applyTicket() {
-      try {
-        console.log('populateFromServerTicket: applying ticket', ticket);
-        if (ticket.date) document.getElementById('roDate') && (document.getElementById('roDate').value = ticket.date || '');
-        if (ticket.techName) document.getElementById('technician') && (document.getElementById('technician').value = ticket.techName || '');
-        // Repair order can be named differently in DB: try several possibilities
-        const ro = ticket.roNum || ticket.repairOrderNumber || ticket.ro || ticket.repairOrder || ticket.repair_order || '';
-        if (ro) {
-          const roEl = document.getElementById('roNum');
-          if (roEl) roEl.value = ro;
-        }
-
-        // timeIn/timeOut: set hidden fields and the individual selects if present
-        if (ticket.timeIn) document.getElementById('timeIn') && (document.getElementById('timeIn').value = ticket.timeIn || '');
-        if (ticket.timeOut) document.getElementById('timeOut') && (document.getElementById('timeOut').value = ticket.timeOut || '');
-        if (ticket.totalTime) document.getElementById('totTime') && (document.getElementById('totTime').value = ticket.totalTime || '');
-        if (ticket.customerName) document.getElementById('custName') && (document.getElementById('custName').value = ticket.customerName || '');
-        if (ticket.customerAddress) document.getElementById('custAddress') && (document.getElementById('custAddress').value = ticket.customerAddress || '');
-        if (ticket.customerPhone) document.getElementById('custPhone') && (document.getElementById('custPhone').value = ticket.customerPhone || '');
-        if (ticket.customerEmail) document.getElementById('custEmail') && (document.getElementById('custEmail').value = ticket.customerEmail.toLowerCase() || '');
-        if (ticket.concern) document.getElementById('concern') && (document.getElementById('concern').value = ticket.concern || '');
-        if (ticket.diagnosis) document.getElementById('diagnosis') && (document.getElementById('diagnosis').value = ticket.diagnosis || '');
-        if (ticket.dateSigned) document.getElementById('sDate') && (document.getElementById('sDate').value = ticket.dateSigned || '');
-        if (ticket.customerSignature) {
-          var sigField = document.getElementById('signatureData');
-          if (sigField) sigField.value = ticket.customerSignature || '';
-        }
-
-        // populate repairs table: use same markup as the add-row template so classes are correct
-        if (Array.isArray(ticket.repairs) && ticket.repairs.length) {
-          var tbody = document.querySelector('#repairs-table tbody');
-          if (tbody) {
-            tbody.innerHTML = '';
-            ticket.repairs.forEach(function (r) {
-              var tr = document.createElement('tr');
-              tr.innerHTML = `
-                <td><input type="text" class="rp-desc" placeholder="Description"></td>
-                <td><input type="number" min="0" class="rp-qty" placeholder="1" style="width:4em"></td>
-                <td><input type="text" class="rp-um" placeholder="Part #"></td>
-                <td><input type="number" min="0" step="0.01" class="rp-partprice" placeholder="0.00"></td>
-                <td><input type="text" class="rp-partstotal" placeholder="0.00" readonly tabindex="-1" aria-readonly="true"></td>
-                <td><input type="number" min="0" step="0.01" class="rp-laborhours" placeholder="0.00"></td>
-                <td><input type="text" class="rp-labortotal" placeholder="0.00" readonly tabindex="-1" aria-readonly="true"></td>
-                <td><button type="button" class="remove-repair-line">Remove</button></td>
-              `;
-              tbody.appendChild(tr);
-              // fill values
-              try { tr.querySelector('.rp-desc').value = r.repairDescription || ''; } catch (e) { }
-              try { tr.querySelector('.rp-qty').value = (r.qty != null) ? r.qty : ''; } catch (e) { }
-              try { tr.querySelector('.rp-um').value = r.partNumber || ''; } catch (e) { }
-              try { tr.querySelector('.rp-partprice').value = (r.partPrice != null) ? r.partPrice : ''; } catch (e) { }
-              try { tr.querySelector('.rp-partstotal').value = (r.partsTotal != null) ? r.partsTotal : ''; } catch (e) { }
-              try { tr.querySelector('.rp-laborhours').value = (r.laborHours != null) ? r.laborHours : ''; } catch (e) { }
-              try { tr.querySelector('.rp-labortotal').value = (r.laborTotal != null) ? r.laborTotal : ''; } catch (e) { }
-              // wire the row behaviors already present in the page if available
-              try { if (typeof ensureRowClasses === 'function') ensureRowClasses(tr); } catch (e) { }
-              try { if (typeof wireRow === 'function') wireRow(tr); } catch (e) { }
-            });
-            // update subtotals after populating: attempt to call existing helper, otherwise compute locally
-            try {
-              if (typeof updateSubtotals === 'function') updateSubtotals();
-              else {
-                // compute sums locally
-                const rowsNow = Array.from(tbody.querySelectorAll('tr'));
-                let partsSum = 0, laborSum = 0;
-                rowsNow.forEach(rr => {
-                  const pt = parseFloat((rr.querySelector('.rp-partstotal') && rr.querySelector('.rp-partstotal').value) || '') || 0;
-                  const lt = parseFloat((rr.querySelector('.rp-labortotal') && rr.querySelector('.rp-labortotal').value) || '') || 0;
-                  // fallback: compute from qty * price or laborHours * 100
-                  if (!pt) {
-                    const qty = parseFloat((rr.querySelector('.rp-qty') && rr.querySelector('.rp-qty').value) || '') || 0;
-                    const price = parseFloat((rr.querySelector('.rp-partprice') && rr.querySelector('.rp-partprice').value) || '') || 0;
-                    partsSum += qty * price;
-                  } else partsSum += pt;
-                  if (!lt) {
-                    const lh = parseFloat((rr.querySelector('.rp-laborhours') && rr.querySelector('.rp-laborhours').value) || '') || 0;
-                    laborSum += lh * 100;
-                  } else laborSum += lt;
-                });
-                const subPartsEl = document.getElementById('subTotParts');
-                const subLaborEl = document.getElementById('subTotLabor');
-                const taxEl = document.getElementById('tax');
-                const totEstimateEl = document.getElementById('totEstimate');
-                function fmt(n) { return (Math.round(n * 100) / 100).toFixed(2); }
-                if (subPartsEl) subPartsEl.value = fmt(partsSum);
-                if (subLaborEl) subLaborEl.value = fmt(laborSum);
-                const tax = partsSum * 0.06;
-                if (taxEl) taxEl.value = fmt(tax);
-                if (totEstimateEl) totEstimateEl.value = fmt(partsSum + tax);
-              }
-            } catch (e) { }
-          }
-        }
-
-        // set time picker select values (if individual selects exist) by parsing the ticket.timeIn/timeOut
-        function setTimeSelects(prefix, timeStr) {
-          if (!timeStr) return;
-          const parts = timeStr.split(' ');
-          if (parts.length < 2) return;
-          const time = parts[0];
-          const period = parts[1];
-          const [h, m] = time.split(':');
-          const hEl = document.getElementById(prefix + 'Hour');
-          const mEl = document.getElementById(prefix + 'Minute');
-          const pEl = document.getElementById(prefix + 'AmPm');
-          try { if (hEl) { hEl.value = String(parseInt(h, 10)); hEl.dispatchEvent(new Event('change')); } } catch (e) { }
-          try { if (mEl) { mEl.value = String(m).padStart(2, '0'); mEl.dispatchEvent(new Event('change')); } } catch (e) { }
-          try { if (pEl) { pEl.value = period; pEl.dispatchEvent(new Event('change')); } } catch (e) { }
-        }
-
+        
+    // set time picker select values (if individual selects exist) by parsing the ticket.timeIn/timeOut
+    function applyTicket(){
+        try { 
+    console.log('Applying server ticket data to form', ticket);
+    
+    // ✅ ENSURE TIME PICKERS ARE POPULATED FIRST
+    // Force synchronous population of time picker selects
+    ['timeIn', 'timeOut'].forEach(prefix => {
+      const hour = document.getElementById(prefix + 'Hour');
+      const minute = document.getElementById(prefix + 'Minute');
+      const ampm = document.getElementById(prefix + 'AmPm');
+      
+      if (hour && !hour.dataset.populated) {
+        hour.innerHTML = '';
+        hour.appendChild(new Option('Hour', ''));
+        for (let h = 1; h <= 12; h++) hour.appendChild(new Option(String(h), String(h)));
+        hour.dataset.populated = '1';
+      }
+      
+      if (minute && !minute.dataset.populated) {
+        minute.innerHTML = '';
+        minute.appendChild(new Option('Min', ''));
+        for (let m = 0; m < 60; m++) minute.appendChild(new Option(String(m).padStart(2, '0'), String(m).padStart(2, '0')));
+        minute.dataset.populated = '1';
+      }
+      
+      if (ampm && !ampm.dataset.populated) {
+        ampm.innerHTML = '';
+        ampm.appendChild(new Option('AM/PM', ''));
+        ['AM', 'PM'].forEach(x => ampm.appendChild(new Option(x, x)));
+        ampm.dataset.populated = '1';
+      }
+    });
+    
+    // NOW set the time values
+    function setTimeSelects(prefix, timeStr) {
+      console.log('setTimeSelects called', { prefix, timeStr });
+      if (!timeStr) return;
+      const parts = timeStr.split(' ');
+      if (parts.length < 2) return;
+      const time = parts[0];
+      const period = parts[1];
+      const [h, m] = time.split(':');
+      const hEl = document.getElementById(prefix + 'Hour');
+      const mEl = document.getElementById(prefix + 'Minute');
+      const pEl = document.getElementById(prefix + 'AmPm');
+      console.log('setTimeSelects: found elements', { hEl: !!hEl, mEl: !!mEl, pEl: !!pEl });
+      
+      try { 
+        if (hEl) { 
+          hEl.value = String(parseInt(h, 10)); 
+          hEl.dispatchEvent(new Event('change')); 
+          console.log('Set hour to:', hEl.value);
+        } 
+      } catch (e) { console.error('Error setting hour:', e); }
+      
+      try { 
+        if (mEl) { 
+          mEl.value = String(m).padStart(2, '0'); 
+          mEl.dispatchEvent(new Event('change')); 
+          console.log('Set minute to:', mEl.value);
+        } 
+      } catch (e) { console.error('Error setting minute:', e); }
+      
+      try { 
+        if (pEl) { 
+          pEl.value = period; 
+          pEl.dispatchEvent(new Event('change')); 
+          console.log('Set period to:', pEl.value);
+        } 
+      } catch (e) { console.error('Error setting period:', e); }
+    }
         setTimeSelects('timeIn', ticket.timeIn);
         setTimeSelects('timeOut', ticket.timeOut);
+         try {
+      console.log('Populating main Repair Order form fields...');
+      
+      const fieldMappings = {
+        'roNum': ticket.roNum || ticket.repairOrderNumber,
+        'roDate': ticket.roDate || ticket.date,
+        'technician': ticket.technician || ticket.techName,
+        'custName': ticket.custName || ticket.customerName,
+        'custAddress': ticket.custAddress || ticket.customerAddress,
+        'custPhone': ticket.custPhone || ticket.customerPhone,
+        'custEmail': ticket.custEmail || ticket.customerEmail,
+        'concern': ticket.concern,
+        'diagnosis': ticket.diagnosis,
+        'sDate': ticket.dateSigned || ticket.sDate
+      };
+      
+      Object.keys(fieldMappings).forEach(fieldId => {
+        const el = document.getElementById(fieldId);
+        const value = fieldMappings[fieldId];
+        if (el && value != null && value !== '') {
+          el.value = value;
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          console.log('Populated field:', fieldId, '=', value);
+        }
+      });
+      
+      console.log('Main form fields populated successfully');
+    } catch (e) {
+      console.error('Error populating main form fields:', e);
+    }
         // populate other sections from ticket.sections by table name
         try {
           const sections = ticket.sections || {};
@@ -2023,16 +2039,29 @@ allContent.forEach(content => {
             }
           }
         } catch (err) { console.warn('populate courtesy error', err); }
-      } catch (e) { console.error('Error applying server ticket to form', e); }
+      } catch (e) { 
+      console.error('Error applying server ticket to form', e); 
+       try {
+        // Give the DOM a moment to finish rendering the repairs table
+        setTimeout(() => {
+          if (typeof updateSubtotals === 'function') {
+            updateSubtotals();
+            console.log('Totals recalculated from repairs table');
+          }
+        }, 100);
+      } catch (e) {
+        console.warn('Failed to recalculate totals:', e);
+      }
     }
+  }
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', applyTicket);
     else applyTicket();
+    
   } catch (err) {
     console.warn('populateFromServerTicket: no server ticket or parse failed', err);
   }
 })();
-
 // --- Enforce mode: when a ticket is loaded but not in edit mode, lock UI to Repair Order only ---
 (function enforceRepairOrderOnlyMode() {
   function run() {
@@ -2299,7 +2328,8 @@ allContent.forEach(content => {
       saveBtn.dataset.boundBrakesSave = '1';
 
       saveBtn.addEventListener('click', async function (e) {
-        e.preventDefault(); e.stopPropagation();
+        e.preventDefault(); 
+        e.stopPropagation();
 
         const ticketId = (window.__SERVER_TICKET__ && window.__SERVER_TICKET__.id) || document.getElementById('vehicle-ticketId')?.value || document.getElementById('ticketId')?.value || '';
         if (!ticketId) {
@@ -2325,31 +2355,22 @@ allContent.forEach(content => {
             try {
               const itemLabel = (row.cells && row.cells[0] ? row.cells[0].textContent : '').trim();
               if (!itemLabel) return;
+              
               const getCell = (idx) => {
                 if (idx === -1 || !row.cells[idx]) return '';
                 const cell = row.cells[idx];
                 const input = cell.querySelector('select, input, textarea');
-                if (input) {
-                  // try direct assign
-                  input.value = val;
-                  // if select didn't match, try fuzzy match on options
-                  if (input.tagName && input.tagName.toLowerCase() === 'select') {
-                    const norm = s => (s || '').toString().toLowerCase().trim();
-                    if (norm(input.value) !== norm(val)) {
-                      const opt = Array.from(input.options).find(o => norm(o.text) === norm(val) || norm(o.value) === norm(val));
-                      if (opt) input.value = opt.value;
-                    }
-                  }
-                  input.dispatchEvent(new Event('change'));
-                } else {
-                  // no input; leave text alone (do not overwrite '-')
-                }
+                if (input) return input.value || '';
+                return (cell.textContent || '').trim();
               };
 
-              setCellVal(specIdx, r.Spec || r.spec || '');
-              setCellVal(actualIdx, r.actual || r.Actual || r.value || '');
-              setCellVal(statusIdx, r.status || r.Status || '');
-              setCellVal(commentsIdx, r.comments || r.Notes || r.notes || '');
+              items.push({
+                item: itemLabel,
+                Spec: getCell(specIdx),
+                actual: getCell(actualIdx),
+                status: getCell(statusIdx),
+                comments: getCell(commentsIdx)
+              });
             } catch (e) { /* ignore row */ }
           });
         }
@@ -2367,11 +2388,14 @@ allContent.forEach(content => {
 
           if (res.status === 204) { console.log('Brakes saved (204)'); return; }
           if (res.ok) {
-            let payload = null; try { payload = await res.json(); } catch (e) { payload = null; }
+            let payload = null; 
+            try { payload = await res.json(); } catch (e) { payload = null; }
             if (payload && payload.success) { console.log('Brakes saved'); return; }
-            console.warn('Brakes save response', res.status, payload); return;
+            console.warn('Brakes save response', res.status, payload); 
+            return;
           }
-          let errPayload = null; try { errPayload = await res.json(); } catch (e) { errPayload = null; }
+          let errPayload = null; 
+          try { errPayload = await res.json(); } catch (e) { errPayload = null; }
           console.error('Brakes save failed', res.status, errPayload);
         } catch (err) {
           console.error('Brakes save failed', err);
@@ -2385,6 +2409,7 @@ allContent.forEach(content => {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
   else bind();
 })();
+
 
 // --- Emissions: save emissions table, middle info, and warnings to /mechanic/emissions ---
 (function wireEmissionsSave() {

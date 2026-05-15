@@ -123,7 +123,13 @@ router.get('/mechanic', ensureLoggedIn, (req, res) => {
             return res.status(500).send('<script>alert("Internal Server Error"); window.history.back();</script>');
         }
         if (!ticket) return res.status(404).send('<script>alert("Ticket not found"); window.history.back();</script>');
-
+        ticket.roNum = ticket.repairOrderNumber;
+        ticket.roDate = ticket.date;
+        ticket.technician = ticket.techName;
+        ticket.custName = ticket.customerName;
+        ticket.custAddress = ticket.customerAddress;
+        ticket.custPhone = ticket.customerPhone;
+        ticket.custEmail = ticket.customerEmail;
         db.all('SELECT * FROM recRepairs WHERE ticketId = ?', [ticketId], (err2, repairs) => {
             if (err2) {
                 console.error('Error fetching repairs:', err2);
@@ -1401,7 +1407,159 @@ router.post('/mechanic/emissions', (req, res) => {
         });
     });
 });
+router.post('/mechanic/verify-courtesy-check', (req, res) => {
+    const db = req.app.locals.db;
+    if (!db) return res.status(500).json({ success: false, message: 'Database not available' });
 
+    const { ticketId } = req.body;
+    if (!ticketId) return res.status(400).json({ success: false, message: 'ticketId is required' });
+
+    // Query to check if courtesy check data exists for this ticket
+    // We need to join courtesyTable (parent) with courtesyTableItems (children)
+    const sql = `
+        SELECT COUNT(cti.id) as count
+        FROM courtesyTableItems cti
+        INNER JOIN courtesyTable ct ON cti.tableID = ct.id
+        WHERE ct.ticketID = ?
+    `;
+
+    db.get(sql, [ticketId], (err, result) => {
+        if (err) {
+            console.error('verify-courtesy-check: DB error', err);
+            return res.status(500).json({ success: false, message: 'Database error' });
+        }
+
+        const count = result ? result.count : 0;
+        const exists = count > 0;
+
+        console.log(`verify-courtesy-check: ticketId=${ticketId}, count=${count}, exists=${exists}`);
+
+        return res.json({
+            success: true,
+            exists: exists,
+            count: count
+        });
+    });
+});
+router.post('/mechanic/verify-all-sections', (req, res) => {
+    const db = req.app.locals.db;
+    if (!db) return res.status(500).json({ success: false, message: 'Database not available' });
+
+    const { ticketId } = req.body;
+    if (!ticketId) return res.status(400).json({ success: false, message: 'ticketId is required' });
+
+    const results = {
+        courtesyCheck: { exists: false, count: 0 },
+        tires: { exists: false },
+        steering: { exists: false, count: 0 },
+        brakes: { exists: false, count: 0 },
+        emissions: { exists: false, count: 0 },
+        vehicleInfo: { exists: false }
+    };
+
+    let checksCompleted = 0;
+    const totalChecks = 6;
+
+    const checkComplete = () => {
+        checksCompleted++;
+        if (checksCompleted === totalChecks) {
+            const allExist = 
+                results.courtesyCheck.exists &&
+                results.tires.exists &&
+                results.steering.exists &&
+                results.brakes.exists &&
+                results.emissions.exists &&
+                results.vehicleInfo.exists;
+
+            const missing = [];
+            if (!results.courtesyCheck.exists) missing.push('Digital Courtesy Check');
+            if (!results.tires.exists) missing.push('Tires');
+            if (!results.steering.exists) missing.push('Steering & Suspension');
+            if (!results.brakes.exists) missing.push('Brakes');
+            if (!results.emissions.exists) missing.push('Emissions');
+            if (!results.vehicleInfo.exists) missing.push('Vehicle Info');
+
+            return res.json({
+                success: true,
+                allSectionsComplete: allExist,
+                results: results,
+                missingSections: missing
+            });
+        }
+    };
+
+    // 1. Check Courtesy Check
+    const courtesySql = `
+        SELECT COUNT(cti.id) as count
+        FROM courtesyTableItems cti
+        INNER JOIN courtesyTable ct ON cti.tableID = ct.id
+        WHERE ct.ticketID = ?
+    `;
+    db.get(courtesySql, [ticketId], (err, result) => {
+        if (err) console.error('Courtesy check verification error:', err);
+        results.courtesyCheck.count = result ? result.count : 0;
+        results.courtesyCheck.exists = results.courtesyCheck.count > 0;
+        checkComplete();
+    });
+
+    // 2. Check Tires
+    const tiresSql = `SELECT id FROM tires WHERE ticketID = ? LIMIT 1`;
+    db.get(tiresSql, [ticketId], (err, result) => {
+        if (err) console.error('Tires verification error:', err);
+        results.tires.exists = !!result;
+        checkComplete();
+    });
+
+    // 3. Check Steering & Suspension
+    const steeringSql = `
+        SELECT COUNT(sst.id) as count
+        FROM steeringSuspensionTable sst
+        INNER JOIN steeringSuspension ss ON sst.steeringSuspensionID = ss.id
+        WHERE ss.ticketID = ?
+    `;
+    db.get(steeringSql, [ticketId], (err, result) => {
+        if (err) console.error('Steering verification error:', err);
+        results.steering.count = result ? result.count : 0;
+        results.steering.exists = results.steering.count > 0;
+        checkComplete();
+    });
+
+    // 4. Check Brakes
+    const brakesSql = `
+        SELECT COUNT(bt.id) as count
+        FROM brakesTable bt
+        INNER JOIN brakes b ON bt.brakesID = b.id
+        WHERE b.ticketID = ?
+    `;
+    db.get(brakesSql, [ticketId], (err, result) => {
+        if (err) console.error('Brakes verification error:', err);
+        results.brakes.count = result ? result.count : 0;
+        results.brakes.exists = results.brakes.count > 0;
+        checkComplete();
+    });
+
+    // 5. Check Emissions
+    const emissionsSql = `
+        SELECT COUNT(et.id) as count
+        FROM emissionsTable et
+        INNER JOIN emissions e ON et.emissionsID = e.id
+        WHERE e.ticketID = ?
+    `;
+    db.get(emissionsSql, [ticketId], (err, result) => {
+        if (err) console.error('Emissions verification error:', err);
+        results.emissions.count = result ? result.count : 0;
+        results.emissions.exists = results.emissions.count > 0;
+        checkComplete();
+    });
+
+    // 6. Check Vehicle Info
+    const vehicleSql = `SELECT id FROM vechicleInfo WHERE ticketID = ? LIMIT 1`;
+    db.get(vehicleSql, [ticketId], (err, result) => {
+        if (err) console.error('Vehicle info verification error:', err);
+        results.vehicleInfo.exists = !!result;
+        checkComplete();
+    });
+});
 // video upload route 
 router.post('/upload-video', videoUpload.single('video'), (req, res) => {
     const db = req.app.locals.db;
