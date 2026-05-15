@@ -2041,7 +2041,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (imgs.length) {
               // prefer existing helper if bound by setupImageUpload
               if (typeof window.applyUploadedImages === 'function') {
-                try { window.applyUploadedImages(imgs); } catch (e) { console.warn('applyUploadedImages threw', e); }
+                try { window.applyUploadedImages(imgs); } catch (e) { console.warn('applyUploadedImages failed', e); }
               } else {
                 // fallback: render into #image-preview directly
                 const container = document.getElementById('image-preview');
@@ -2950,21 +2950,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const removeBtn = document.createElement('button');
         removeBtn.type = 'button';
-        removeBtn.className = 'thumb-remove';
         removeBtn.textContent = '×';
-        removeBtn.title = 'Remove';
+        removeBtn.title = 'Remove image';
         removeBtn.style.position = 'absolute';
-        removeBtn.style.top = '2px';
-        removeBtn.style.right = '2px';
+        removeBtn.style.top = '6px';
+        removeBtn.style.right = '6px';
+        removeBtn.style.width = '26px';
+        removeBtn.style.height = '26px';
+        removeBtn.style.border = 'none';
+        removeBtn.style.borderRadius = '13px';
         removeBtn.style.background = 'rgba(0,0,0,0.6)';
         removeBtn.style.color = '#fff';
-        removeBtn.style.border = 'none';
-        removeBtn.style.borderRadius = '12px';
-        removeBtn.style.width = '24px';
-        removeBtn.style.height = '24px';
         removeBtn.style.cursor = 'pointer';
-        removeBtn.style.lineHeight = '20px';
         removeBtn.style.padding = '0';
+        removeBtn.style.lineHeight = '22px';
         removeBtn.style.fontSize = '16px';
 
         removeBtn.addEventListener('click', function (e) {
@@ -3126,7 +3125,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
       // simple type check (accept common video types)
-      const isVideo = (file.type && file.type.startsWith('video/')) || /\.(mp4|mov|webm|mkv|avi|3gp|mpeg)$/i.test(file.name || '');
+      const isVideo = (file.type && file.type.startsWith('video/')) || /\.(mp4|mov|avi|mkv|webm|3gp|mpeg)$/i.test(file.name || '');
       if (!isVideo) {
         alert('Please select a video file.');
         videoinput.value = '';
@@ -3300,193 +3299,4 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log('PDF diagnostics: mechanic download present but ticket not complete — left disabled');
     }
   });
-})();
-
-(function mediaLoaderForTicket() {
-  // Normalize a returned media item into { src, filename, type }
-  function normalize(it, idx) {
-    if (!it) return null;
-    if (typeof it === 'string') {
-      let s = it;
-      if (!s.match(/^data:|^https?:|^\//)) s = '/' + s.replace(/^\/+/, '');
-      const fn = s.split('/').pop();
-      const isVideo = fn.match(/\.(mp4|mov|webm|mkv|avi|3gp|mpeg)$/i);
-      return { src: s, filename: fn || `file-${idx}`, type: isVideo ? 'video' : 'image' };
-    }
-    // object form
-    const src = it.src || it.url || it.path || it.relativePath || it.location || it.data || it.dataUrl || it.dataURL || '';
-    let finalSrc = String(src || '');
-    if (finalSrc && !finalSrc.match(/^data:|^https?:|^\//)) finalSrc = '/' + finalSrc.replace(/^\/+/, '');
-    if (!finalSrc && it.base64) finalSrc = 'data:' + (it.mime || 'image/png') + ';base64,' + it.base64;
-    const fn = it.filename || it.name || (finalSrc ? finalSrc.split('/').pop() : `file-${idx}`);
-    const mime = it.type || it.mime || '';
-    const isVideo = mime.startsWith('video/') || (fn && fn.match(/\.(mp4|mov|webm|mkv|avi)$/i));
-    if (!finalSrc) return null;
-    return { src: finalSrc, filename: fn, type: isVideo ? 'video' : 'image', meta: it };
-  }
-
-  function renderImages(list) {
-    if (!Array.isArray(list) || !list.length) return;
-    // prefer existing helper
-    if (typeof window.applyUploadedImages === 'function') {
-      try { window.applyUploadedImages(list.map(i => ({ src: i.src, name: i.filename, filename: i.filename }))); return; } catch (e) { console.warn('applyUploadedImages threw', e); }
-    }
-    const container = document.getElementById('image-preview');
-    if (!container) return;
-    container.innerHTML = '';
-    const wrap = document.createElement('div');
-    wrap.style.display = 'flex'; wrap.style.flexWrap = 'wrap'; wrap.style.gap = '8px';
-    list.forEach((it, i) => {
-      try {
-        const box = document.createElement('div');
-        box.style.width = '140px'; box.style.height = '100px'; box.style.position = 'relative'; box.style.overflow = 'hidden';
-        box.style.border = '1px solid #ddd'; box.style.borderRadius = '6px';
-        const img = document.createElement('img');
-        img.alt = it.filename || `image-${i}`; img.src = it.src; img.style.width = '100%'; img.style.height = '100%'; img.style.objectFit = 'cover';
-        img.loading = 'lazy';
-        img.addEventListener('error', () => console.warn('image failed to load', it.src));
-        img.addEventListener('click', () => window.open(it.src, '_blank'));
-        box.appendChild(img);
-        wrap.appendChild(box);
-      } catch (e) { console.warn('renderImages item failed', e); }
-    });
-    container.appendChild(wrap);
-  }
-
-  function renderVideos(list) {
-    if (!Array.isArray(list) || !list.length) return;
-    const container = document.getElementById('video-preview');
-    if (!container) return;
-    container.innerHTML = '';
-    list.forEach((it, i) => {
-      try {
-        const wrapper = document.createElement('div');
-        wrapper.style.marginBottom = '8px'; wrapper.style.width = '320px'; wrapper.style.maxWidth = '100%';
-        const v = document.createElement('video');
-        v.controls = true; v.src = it.src; v.style.width = '100%'; v.style.height = '180px'; v.style.objectFit = 'cover';
-        v.addEventListener('error', () => console.warn('video failed to load', it.src));
-        const cap = document.createElement('div');
-        cap.textContent = it.filename || `video-${i}`; cap.style.fontSize = '12px'; cap.style.marginTop = '4px';
-        wrapper.appendChild(v); wrapper.appendChild(cap); container.appendChild(wrapper);
-      } catch (e) { console.warn('renderVideos item failed', e); }
-    });
-  }
-
-  async function tryFetchMedia(ticketId) {
-    if (!ticketId) return null;
-    const endpoints = [
-      { url: '/mechanic/media', method: 'POST' },
-      { url: '/ticket-media', method: 'POST' },
-      { url: '/ticket-check', method: 'POST' },
-      { url: `/mechanic/media?ticketId=${encodeURIComponent(ticketId)}`, method: 'GET' }
-    ];
-    for (const ep of endpoints) {
-      try {
-        let res;
-        if (ep.method === 'POST') {
-          res = await fetch(ep.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ticketId }) });
-        } else {
-          res = await fetch(ep.url, { method: 'GET' });
-        }
-        if (!res || !res.ok) continue;
-        const json = await res.json().catch(() => null);
-        if (!json) continue;
-        // common shapes
-        if (Array.isArray(json.images) || Array.isArray(json.videos)) return { images: json.images || [], videos: json.videos || [] };
-        if (json.media && (Array.isArray(json.media.images) || Array.isArray(json.media.videos))) return { images: json.media.images || [], videos: json.media.videos || [] };
-        if (json.signature && json.media) { /* ignore */ }
-        // some endpoints return items array with type/filename/src
-        if (Array.isArray(json.items)) {
-          const images = json.items.filter(i => (i.type && i.type.startsWith('image')) || (i.filename && i.filename.match(/\.(jpg|jpeg|png|gif|webp)$/i)));
-          const videos = json.items.filter(i => (i.type && i.type.startsWith('video')) || (i.filename && i.filename.match(/\.(mp4|mov|webm|mkv|avi)$/i)));
-          return { images, videos };
-        }
-        // if the top-level response is an array
-        if (Array.isArray(json)) {
-          const imgs = json.filter(x => typeof x === 'string' ? x.match(/\.(jpg|jpeg|png|gif|webp)$/i) : (x.filename && x.filename.match(/\.(jpg|jpeg|png|gif|webp)$/i)));
-          const vids = json.filter(x => typeof x === 'string' ? x.match(/\.(mp4|mov|webm|mkv|avi)$/i) : (x.filename && x.filename.match(/\.(mp4|mov|webm|mkv|avi)$/i)));
-          return { images: imgs, videos: vids };
-        }
-      } catch (e) { /* try next */ }
-    }
-    return null;
-  }
-
-  function writeHidden(form, name, arr) {
-    if (!form) return;
-    let hid = form.querySelector(`input[name="${name}"]`);
-    if (!hid) {
-      hid = document.createElement('input'); hid.type = 'hidden'; hid.name = name; form.appendChild(hid);
-    }
-    try { hid.value = JSON.stringify(arr || []); } catch (e) { hid.value = ''; }
-  }
-
-  function resolveTicketId() {
-    const st = window.__SERVER_TICKET__ || null;
-    if (st && (st.id || st._id || st.ticketId)) return String(st.id || st._id || st.ticketId);
-    const byId = document.getElementById('vehicle-ticketId')?.value || document.getElementById('ticketId')?.value || document.getElementById('ticketIdHidden')?.value || '';
-    if (byId) return String(byId);
-    try {
-      const p = new URLSearchParams(window.location.search);
-      return p.get('id') || p.get('ticketId') || p.get('ticketID') || '';
-    } catch (e) { return ''; }
-  }
-
-  async function gatherAndRender(ticketId) {
-    if (!ticketId) return false;
-    // prefer server-injected media on ticket object
-    const st = window.__SERVER_TICKET__ || null;
-    let images = st && (st.images || st.photos || (st.media && st.media.images)) || [];
-    let videos = st && (st.videos || st.videoFiles || (st.media && st.media.videos)) || [];
-
-    if ((!images || !images.length) && (!videos || !videos.length)) {
-      // try network fetch
-      const fetched = await tryFetchMedia(ticketId);
-      if (fetched) {
-        images = images.length ? images : (fetched.images || []);
-        videos = videos.length ? videos : (fetched.videos || []);
-      }
-    }
-
-    // normalize
-    const imgs = (Array.isArray(images) ? images.map(normalize).filter(Boolean) : []);
-    const vids = (Array.isArray(videos) ? videos.map(normalize).filter(Boolean) : []);
-
-    if (imgs.length) renderImages(imgs);
-    if (vids.length) renderVideos(vids);
-
-    // write hidden inputs so server gets metadata on main submit
-    const form = document.getElementById('repForm') || document.querySelector('form');
-    if (form) {
-      writeHidden(form, 'uploadedImages', imgs.map(i => ({ src: i.src, filename: i.filename })));
-      writeHidden(form, 'uploadedVideos', vids.map(v => ({ src: v.src, filename: v.filename })));
-    }
-
-    return !!(imgs.length || vids.length);
-  }
-
-  // retry loop until we have a ticketId (or until attempts exhausted)
-  (async function attemptWithRetries() {
-    const maxAttempts = 20;
-    let attempts = 0;
-    let done = false;
-    const tryOnce = async () => {
-      attempts += 1;
-      const id = resolveTicketId();
-      if (!id) return false;
-      try {
-        const ok = await gatherAndRender(id);
-        if (ok) done = true;
-        return ok;
-      } catch (e) { return false; }
-    };
-
-    if (await tryOnce()) return;
-    const iv = setInterval(async () => {
-      if (attempts >= maxAttempts || done) { clearInterval(iv); return; }
-      try {
-        if (await tryOnce()) { clearInterval(iv); }
-      } catch (e) { /* ignore */ }
-    }, 500);
-  })();
 })();
