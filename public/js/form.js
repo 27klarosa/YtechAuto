@@ -447,6 +447,8 @@ document.addEventListener('DOMContentLoaded', function () {
       // ensure we have a visible preview container -- prefer existing previewEl, otherwise make one under the zone
       const container = document.getElementById('image-preview')
       console.log('picture upload area found container for server images', { container });
+      // expose global lock so other preview code (legacy/alternate renderers) can hide remove buttons
+      try { window.__IMAGES_LOCKED__ = true; } catch (e) { /* ignore */ }
       // clear and render server images similarly to signature loader (static <img>)
       container.innerHTML = '';
       selectedFiles.forEach((f, idx) => {
@@ -626,6 +628,8 @@ document.addEventListener('DOMContentLoaded', function () {
             alert('Images uploaded successfully!');
             // lock the preview so user cannot remove/upload more images
             imagesLocked = true;
+            // set global indicator so other preview renderers also hide remove controls
+            try { window.__IMAGES_LOCKED__ = true; } catch (e) { /* ignore */ }
             // hide all remove buttons and style zone to indicate locked state
             if (previewEl) previewEl.querySelectorAll('.thumb-remove').forEach(b => b.remove());
             zone.style.backgroundColor = '#d4edda';
@@ -633,10 +637,11 @@ document.addEventListener('DOMContentLoaded', function () {
             // disable inputs and upload button
             try { fileInput.value = ''; fileInput.disabled = true; } catch (e) { }
             uploadBtn.disabled = true; uploadBtn.style.opacity = '0.5'; uploadBtn.textContent = 'Uploaded';
-            // update status text
-            updateControls();
           } else {
             alert('Upload failed: ' + (data && data.message ? data.message : 'Unknown'));
+            uploadBtn.disabled = false;
+            uploadBtn.style.opacity = '1';
+            uploadBtn.textContent = 'Upload';
           }
         })
         .catch(err => { console.error('Image upload error:', err); alert('Upload failed.'); })
@@ -1824,7 +1829,29 @@ document.addEventListener('DOMContentLoaded', function () {
                         }
                         input.dispatchEvent(new Event('change'));
                       } else {
-                        // no input; leave text alone (do not overwrite '-')
+                        // no input; leave text alone (do not overwrite plain text dashes); try to find a select elsewhere in the row that corresponds to this header
+                        try {
+                          const headerCells = Array.from(sec.querySelectorAll('thead th')).map(h => (h.textContent || '').toLowerCase());
+                          // find select in same row whose header includes the column name
+                          const sel = Array.from(rowDom.querySelectorAll('select')).find(s => {
+                            try {
+                              const selIdx = Array.from(rowDom.cells).indexOf(s.closest('td'));
+                              const hdr = headerCells[selIdx] || '';
+                              return hdr.includes(col);
+                            } catch (e) { return false; }
+                        });
+                        if (sel) {
+                          try {
+                            sel.value = val;
+                            const norm = s => (s || '').toString().toLowerCase().trim();
+                            if (norm(sel.value) !== norm(val)) {
+                              const opt = Array.from(sel.options).find(o => norm(o.text) === norm(val) || norm(o.value) === norm(val));
+                              if (opt) sel.value = opt.value;
+                            }
+                            sel.dispatchEvent(new Event('change'));
+                          } catch (e) { }
+                        }
+                        } catch (e) { /* ignore fallback */ }
                       }
                     } catch (e) { /* ignore */ }
                   };
@@ -2254,7 +2281,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
           if (res.ok) {
             let payload = null;
-            try { payload = await res.json(); } catch (err) { payload = null; }
+            try { payload = await res.json(); } catch (e) { payload = null; }
             if (payload && payload.success) {
               console.log('Courtesy check saved');
               return;
@@ -2264,7 +2291,7 @@ document.addEventListener('DOMContentLoaded', function () {
           }
 
           let errPayload = null;
-          try { errPayload = await res.json(); } catch (err) { errPayload = null; }
+          try { errPayload = await res.json(); } catch (e) { errPayload = null; }
           console.error('Courtesy check save failed', res.status, errPayload);
         } catch (err) {
           console.error('Courtesy check save failed', err);
@@ -2353,7 +2380,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
           if (res.ok) {
             let payload = null;
-            try { payload = await res.json(); } catch (err) { payload = null; }
+            try { payload = await res.json(); } catch (e) { payload = null; }
             if (payload && payload.success) {
               console.log('Steering & Suspension saved');
               return;
@@ -2363,7 +2390,7 @@ document.addEventListener('DOMContentLoaded', function () {
           }
 
           let errPayload = null;
-          try { errPayload = await res.json(); } catch (err) { errPayload = null; }
+          try { errPayload = await res.json(); } catch (e) { errPayload = null; }
           console.error('Steering save failed', res.status, errPayload);
         } catch (err) {
           console.error('Steering save failed', err);
