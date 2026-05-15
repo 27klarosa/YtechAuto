@@ -440,118 +440,43 @@ document.addEventListener('DOMContentLoaded', function () {
       // normalize to objects with src/name
       selectedFiles = images.map((it, i) => {
         if (typeof it === 'string') return { src: it, name: `image-${i}`, size: 0 };
-        return { src: it.src || it.url || it.path || it.relativePath || '', name: it.filename || it.name || `image-${i}`, size: it.size || 0 };
+        return { src: it.src || it.url || it.path || '', name: it.filename || it.name || `image-${i}`, size: it.size || 0 };
       }).filter(f => f.src);
       imagesLocked = true;
 
-      // mark that server images were applied so other loaders skip duplicate rendering
-      try { window.__SERVER_IMAGES_APPLIED__ = true; } catch (e) { /* ignore */ }
-
       // ensure we have a visible preview container -- prefer existing previewEl, otherwise make one under the zone
-      const container = document.getElementById('image-preview');
+      const container = document.getElementById('image-preview')
       console.log('picture upload area found container for server images', { container });
-
-      // render thumbnails using same structure as showPreview() to keep formatting consistent
-      if (container) {
-        container.innerHTML = '';
-        const list = document.createElement('div');
-        list.style.display = 'flex';
-        list.style.flexWrap = 'wrap';
-        list.style.gap = '8px';
-        selectedFiles.forEach((f, idx) => {
-          try {
-            const wrapper = document.createElement('div');
-            wrapper.className = 'thumb server-thumb';
-            wrapper.style.position = 'relative';
-            wrapper.style.width = '120px';
-            wrapper.style.height = '90px';
-            wrapper.style.margin = '4px';
-            wrapper.style.flex = '0 0 auto';
-            wrapper.style.border = '1px solid #ddd';
-            wrapper.style.borderRadius = '6px';
-            wrapper.title = f.name || '';
-
-            const img = document.createElement('img');
-            img.style.width = '100%';
-            img.style.height = '100%';
-            img.style.objectFit = 'cover';
-            img.style.display = 'block';
-            img.alt = f.name || '';
-
-            let src = String(f.src || '');
-            if (src && !src.match(/^data:|^https?:|^\//)) src = '/' + src.replace(/^\/+/, '');
-
-            img.addEventListener('load', function () {
-              console.log('server image loaded/drawn', { idx, name: f.name, src: img.src, naturalWidth: img.naturalWidth, naturalHeight: img.naturalHeight });
-            });
-            img.addEventListener('error', function () {
-              console.error('server image failed to load', { idx, name: f.name, src: img.src });
-            });
-            img.src = src;
-
-            // create hidden remove button placeholder but hidden because imagesLocked
-            const removeBtn = document.createElement('button');
-            removeBtn.type = 'button';
-            removeBtn.className = 'thumb-remove';
-            removeBtn.textContent = '×';
-            removeBtn.title = 'Remove';
-            removeBtn.style.position = 'absolute';
-            removeBtn.style.top = '2px';
-            removeBtn.style.right = '2px';
-            removeBtn.style.display = 'none'; // hidden for server images
-            wrapper.appendChild(img);
-            wrapper.appendChild(removeBtn);
-
-            list.appendChild(wrapper);
-          } catch (e) {
-            console.warn('applyServerImages: failed to render image', f, e);
-          }
-        });
-        container.appendChild(list);
-      }
-
-      // also populate the compact uploaded-images container so both UI areas match
-      try {
-        const smallRoot = document.getElementById('uploaded-images');
-        if (smallRoot) {
-          smallRoot.innerHTML = '';
-          selectedFiles.forEach(it => {
-            try {
-              const el = document.createElement('div');
-              el.className = 'uploaded-thumb';
-              el.style.display = 'inline-block';
-              el.style.margin = '6px';
-              el.style.width = '120px';
-              el.style.height = '80px';
-              el.style.overflow = 'hidden';
-              el.style.border = '1px solid #eee';
-              el.style.borderRadius = '6px';
-              const a = document.createElement('a');
-              a.href = it.src && it.src.startsWith('/') ? it.src : it.src;
-              a.target = '_blank';
-              const img = document.createElement('img');
-              img.src = it.src;
-              img.alt = it.name || '';
-              img.style.width = '100%';
-              img.style.height = '100%';
-              img.style.objectFit = 'cover';
-              a.appendChild(img);
-              el.appendChild(a);
-              const cap = document.createElement('div');
-              cap.textContent = it.name || '';
-              cap.style.fontSize = '11px';
-              cap.style.textAlign = 'center';
-              cap.style.marginTop = '4px';
-              cap.style.maxWidth = '120px';
-              cap.style.overflow = 'hidden';
-              cap.style.textOverflow = 'ellipsis';
-              cap.style.whiteSpace = 'nowrap';
-              el.appendChild(cap);
-              smallRoot.appendChild(el);
-            } catch (e) { console.warn('applyServerImages: smallRoot render failed', e); }
+      // clear and render server images similarly to signature loader (static <img>)
+      container.innerHTML = '';
+      selectedFiles.forEach((f, idx) => {
+        try {
+          const img = document.createElement('img');
+          img.alt = f.name || `image-${idx}`;
+          img.style.maxWidth = '100%';
+          img.style.height = 'auto';
+          img.style.display = 'block';
+          img.style.marginBottom = '6px';
+          let src = String(f.src || '');
+          // normalize relative paths to absolute-ish so they load from server root
+          if (src && !src.match(/^data:|^https?:|^\//)) src = '/' + src.replace(/^\/+/, '');
+          // attach diagnostics to server-rendered preview images
+          img.addEventListener('load', function () {
+            console.log('server image loaded/drawn', { idx, name: f.name, src: img.src, naturalWidth: img.naturalWidth, naturalHeight: img.naturalHeight });
           });
+          img.addEventListener('error', function () {
+            console.error('server image failed to load', { idx, name: f.name, src: img.src });
+          });
+          console.log('server: setting image src', { idx, name: f.name, src });
+          img.src = src;
+          img.className = 'server-image';
+          container.appendChild(img);
+
+          // create hidden inputs so form submit includes server image metadata (one input containing JSON list)
+        } catch (e) {
+          console.warn('applyServerImages: failed to render image', f, e);
         }
-      } catch (e) { /* ignore */ }
+      });
 
       // set up a hidden input with JSON payload of images for server-side processing if form exists
       try {
@@ -564,10 +489,13 @@ document.addEventListener('DOMContentLoaded', function () {
             hid.name = 'uploadedImages';
             form.appendChild(hid);
           }
+          // store array of { src, name, size }
           hid.value = JSON.stringify(selectedFiles.map(f => ({ src: f.src, name: f.name, size: f.size || 0 })));
         }
       } catch (e) { /* ignore */ }
 
+      // show preview via existing preview renderer (keeps compatibility)
+      try { showPreview(selectedFiles); } catch (e) { /* ignore */ }
       updateControls();
 
       // visually lock zone and remove file input ability
@@ -576,6 +504,7 @@ document.addEventListener('DOMContentLoaded', function () {
         zone.style.borderColor = '#c3e6cb';
       } catch (e) { }
       try {
+        // remove any visible remove buttons (showPreview already hides them when imagesLocked true)
         if (previewEl) previewEl.querySelectorAll('.thumb-remove').forEach(b => b.remove());
       } catch (e) { }
       try { fileInput.value = ''; fileInput.disabled = true; } catch (e) { }
@@ -589,6 +518,130 @@ document.addEventListener('DOMContentLoaded', function () {
         if (vidBtn) { vidBtn.disabled = true; vidBtn.style.opacity = '0.5'; }
       } catch (e) { /* ignore */ }
     }
+
+    // expose helper to global so populateFromServerTicket and other loaders can apply server images
+    try {
+      window.applyUploadedImages = applyServerImages;
+      console.log('setupImageUpload: window.applyUploadedImages bound');
+    } catch (e) { console.warn('setupImageUpload: failed to bind window.applyUploadedImages', e); }
+
+    function updateControlsInitial() { updateControls(); }
+
+    if (trigger) {
+      trigger.addEventListener('click', function (e) { e.preventDefault(); if (!imagesLocked) fileInput.click(); });
+    }
+
+    zone.addEventListener('click', function (e) {
+      if (imagesLocked) return;
+      if (e.target !== trigger && e.target !== uploadBtn) fileInput.click();
+    });
+
+    zone.addEventListener('dragover', function (e) { if (!imagesLocked) { e.preventDefault(); zone.classList.add('dragover'); } });
+    zone.addEventListener('dragleave', function (e) { if (!imagesLocked) { e.preventDefault(); zone.classList.remove('dragover'); } });
+    zone.addEventListener('drop', function (e) {
+      if (imagesLocked) return;
+      e.preventDefault(); zone.classList.remove('dragover');
+      const fileList = e.dataTransfer && e.dataTransfer.files;
+      if (fileList && fileList.length) {
+        const arr = Array.from(fileList);
+        handleFilesChosen(arr);
+        try { fileInput.files = fileList; } catch (err) { console.warn('Could not set fileInput.files', err); }
+      }
+    });
+
+    fileInput.addEventListener('change', function (e) {
+      if (imagesLocked) return;
+      const fileList = e.target.files;
+      if (fileList && fileList.length) handleFilesChosen(Array.from(fileList));
+    });
+
+    function handleFilesChosen(filesArr) {
+      if (imagesLocked) return;
+      // merge and dedupe by name+size to avoid duplicates
+      const combined = selectedFiles.concat(filesArr);
+      const dedup = [];
+      const seen = new Set();
+      for (const f of combined) {
+        const key = (f.name || '') + '|' + (f.size || 0);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        // validation
+        // allow server-provided objects (they may not have a type)
+        if (f instanceof File) {
+          if (!f.type || !f.type.startsWith('image/')) continue;
+          if (f.size > MAX_BYTES) continue;
+        }
+        dedup.push(f);
+        if (dedup.length >= MAX_FILES) break;
+      }
+      selectedFiles = dedup;
+
+      // keep file input.files in sync with selectedFiles (so other preview code that relies on input.files works)
+      try {
+        const dt = new DataTransfer();
+        selectedFiles.forEach(f => { if (f instanceof File) dt.items.add(f); });
+        // if there are only server-provided objects (no File instances) we can't populate FileList — that's OK
+        if (dt.items.length) fileInput.files = dt.files;
+      } catch (e) { /* ignore */ }
+
+      updateControls();
+      showPreview(selectedFiles);
+    }
+
+    uploadBtn.addEventListener('click', function () {
+      if (imagesLocked) return;
+      if (!selectedFiles || selectedFiles.length === 0) { alert('Please select one or more images first.'); return; }
+
+      // prefer current input.files if present (keeps behavior consistent when other preview/remove code updated input.files)
+      let filesToUpload = [];
+      try {
+        if (fileInput && fileInput.files && fileInput.files.length) filesToUpload = Array.from(fileInput.files);
+      } catch (e) { filesToUpload = []; }
+
+      if (!filesToUpload.length) filesToUpload = Array.isArray(selectedFiles) ? selectedFiles.slice() : [];
+
+      const fd = new FormData();
+      filesToUpload.forEach(f => fd.append('image', f instanceof File ? f : f.src));
+      let ticketId = (window.__SERVER_TICKET__ && window.__SERVER_TICKET__.id) ||
+        document.getElementById('vehicle-ticketId')?.value ||
+        document.getElementById('ticketId')?.value || null;
+      if (!ticketId) {
+        try {
+          const p = new URLSearchParams(window.location.search);
+          ticketId = p.get('id') || p.get('ticketId') || p.get('ticketID') || null;
+        } catch (e) { ticketId = null; }
+      }
+      if (ticketId) {
+        fd.append('ticketID', ticketId);
+        fd.append('ticketId', ticketId);
+        fd.append('id', ticketId);
+      }
+
+      uploadBtn.textContent = 'Uploading...'; uploadBtn.disabled = true;
+
+      fetch('/upload-image', { method: 'POST', body: fd })
+        .then(res => res.json())
+        .then((data) => {
+          if (data && data.success) {
+            alert('Images uploaded successfully!');
+            // lock the preview so user cannot remove/upload more images
+            imagesLocked = true;
+            // hide all remove buttons and style zone to indicate locked state
+            if (previewEl) previewEl.querySelectorAll('.thumb-remove').forEach(b => b.remove());
+            zone.style.backgroundColor = '#d4edda';
+            zone.style.borderColor = '#c3e6cb';
+            // disable inputs and upload button
+            try { fileInput.value = ''; fileInput.disabled = true; } catch (e) { }
+            uploadBtn.disabled = true; uploadBtn.style.opacity = '0.5'; uploadBtn.textContent = 'Uploaded';
+            // update status text
+            updateControls();
+          } else {
+            alert('Upload failed: ' + (data && data.message ? data.message : 'Unknown'));
+          }
+        })
+        .catch(err => { console.error('Image upload error:', err); alert('Upload failed.'); })
+        .finally(() => { if (!imagesLocked) { uploadBtn.textContent = 'Upload'; uploadBtn.disabled = false; } });
+    });
   })();
 
   // --- Recommended Repairs: row wiring, calc, add/remove, block '-' input ---
@@ -921,6 +974,15 @@ document.addEventListener('DOMContentLoaded', function () {
       });
     }
   })();
+
+  // create a local filename/path for the signature PNG (no upload)
+  function createSignatureFileInfo() {
+    const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    const filename = 'signature-' + unique + '.png';
+    // server-side storage path expected (adjust if your server uses a different folder)
+    const relativePath = 'upload/signatures/' + filename;
+    return { filename, relativePath };
+  }
 
   // --- Form validation & submit handling (main) ---
   (function initValidation() {
@@ -1762,29 +1824,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         }
                         input.dispatchEvent(new Event('change'));
                       } else {
-                        // no input; leave text alone (do not overwrite plain text dashes); try to find a select elsewhere in the row that corresponds to this header
-                        try {
-                          const headerCells = Array.from(sec.querySelectorAll('thead th')).map(h => (h.textContent || '').toLowerCase());
-                          // find select in same row whose header includes the column name
-                          const sel = Array.from(rowDom.querySelectorAll('select')).find(s => {
-                            try {
-                              const selIdx = Array.from(rowDom.cells).indexOf(s.closest('td'));
-                              const hdr = headerCells[selIdx] || '';
-                              return hdr.includes(col);
-                            } catch (e) { return false; }
-                        });
-                        if (sel) {
-                          try {
-                            sel.value = val;
-                            const norm = s => (s || '').toString().toLowerCase().trim();
-                            if (norm(sel.value) !== norm(val)) {
-                              const opt = Array.from(sel.options).find(o => norm(o.text) === norm(val) || norm(o.value) === norm(val));
-                              if (opt) sel.value = opt.value;
-                            }
-                            sel.dispatchEvent(new Event('change'));
-                          } catch (e) { }
-                        }
-                        } catch (e) { /* ignore fallback */ }
+                        // no input; leave text alone (do not overwrite '-')
                       }
                     } catch (e) { /* ignore */ }
                   };
@@ -2002,113 +2042,24 @@ document.addEventListener('DOMContentLoaded', function () {
               // prefer existing helper if bound by setupImageUpload
               if (typeof window.applyUploadedImages === 'function') {
                 try { window.applyUploadedImages(imgs); } catch (e) { console.warn('applyUploadedImages threw', e); }
-
-                // still ensure the compact uploaded-images container is populated (avoid duplicating the large preview)
-                const smallRoot = document.getElementById('uploaded-images');
-                if (smallRoot) {
-                  smallRoot.innerHTML = '';
-                  imgs.forEach((it) => {
-                    try {
-                      const el = document.createElement('div');
-                      el.className = 'uploaded-thumb';
-                      el.style.display = 'inline-block';
-                      el.style.margin = '6px';
-                      el.style.width = '120px';
-                      el.style.height = '80px';
-                      el.style.overflow = 'hidden';
-                      el.style.border = '1px solid #eee';
-                      el.style.borderRadius = '6px';
-                      const a = document.createElement('a');
-                      a.href = it.src;
-                      a.target = '_blank';
-                      const img = document.createElement('img');
-                      img.src = it.src;
-                      img.alt = it.filename || '';
-                      img.style.width = '100%';
-                      img.style.height = '100%';
-                      img.style.objectFit = 'cover';
-                      a.appendChild(img);
-                      el.appendChild(a);
-                      const cap = document.createElement('div');
-                      cap.textContent = it.filename || '';
-                      cap.style.fontSize = '11px';
-                      cap.style.textAlign = 'center';
-                      cap.style.marginTop = '4px';
-                      cap.style.maxWidth = '120px';
-                      cap.style.overflow = 'hidden';
-                      cap.style.textOverflow = 'ellipsis';
-                      cap.style.whiteSpace = 'nowrap';
-                      el.appendChild(cap);
-                      smallRoot.appendChild(el);
-                    } catch (e) { console.warn('render uploaded-images item failed', e); }
+              } else {
+                // fallback: render into #image-preview directly
+                const container = document.getElementById('image-preview');
+                if (container) {
+                  container.innerHTML = '';
+                  imgs.forEach((src, i) => {
+                    let url = String(src);
+                    if (!url.match(/^data:|^https?:|^\//)) url = '/' + url.replace(/^\/+/, '');
+                    const img = document.createElement('img');
+                    img.src = url;
+                    img.alt = `image-${i}`;
+                    img.style.maxWidth = '100%';
+                    img.style.height = 'auto';
+                    img.style.display = 'block';
+                    img.style.marginBottom = '6px';
+                    container.appendChild(img);
                   });
                 }
-                return;
-              }
-
-              // fallback: render both the large preview area and the small uploaded-images list (legacy behavior)
-              const container = document.getElementById('image-preview');
-              if (!container && !document.getElementById('uploaded-images')) return;
-              if (container) {
-                container.innerHTML = '';
-                const wrap = document.createElement('div');
-                wrap.style.display = 'flex'; wrap.style.flexWrap = 'wrap'; wrap.style.gap = '8px';
-                list.forEach((it, i) => {
-                  try {
-                    const box = document.createElement('div');
-                    box.style.width = '140px'; box.style.height = '100px'; box.style.position = 'relative'; box.style.overflow = 'hidden';
-                    box.style.border = '1px solid #ddd'; box.style.borderRadius = '6px';
-                    const img = document.createElement('img');
-                    img.alt = it.filename || `image-${i}`; img.src = it.src; img.style.width = '100%'; img.style.height = '100%'; img.style.objectFit = 'cover';
-                    img.loading = 'lazy';
-                    img.addEventListener('error', () => console.warn('image failed to load', it.src));
-                    img.addEventListener('click', () => window.open(it.src, '_blank'));
-                    box.appendChild(img);
-                    wrap.appendChild(box);
-                  } catch (e) { console.warn('renderImages item failed', e); }
-                });
-                container.appendChild(wrap);
-              }
-
-              // also render into the small uploaded-images list (if present)
-              const smallRoot = document.getElementById('uploaded-images');
-              if (smallRoot) {
-                smallRoot.innerHTML = '';
-                list.forEach((it) => {
-                  try {
-                    const el = document.createElement('div');
-                    el.className = 'uploaded-thumb';
-                    el.style.display = 'inline-block';
-                    el.style.margin = '6px';
-                    el.style.width = '120px';
-                    el.style.height = '80px';
-                    el.style.overflow = 'hidden';
-                    el.style.border = '1px solid #eee';
-                    el.style.borderRadius = '6px';
-                    const a = document.createElement('a');
-                    a.href = it.src;
-                    a.target = '_blank';
-                    const img = document.createElement('img');
-                    img.src = it.src;
-                    img.alt = it.filename || '';
-                    img.style.width = '100%';
-                    img.style.height = '100%';
-                    img.style.objectFit = 'cover';
-                    a.appendChild(img);
-                    el.appendChild(a);
-                    // caption under thumb (filename)
-                    const cap = document.createElement('div');
-                    cap.textContent = it.filename || '';
-                    cap.style.fontSize = '11px';
-                    cap.style.textAlign = 'center';
-                    cap.style.marginTop = '4px';
-                    cap.style.maxWidth = '120px';
-                    cap.style.overflow = 'hidden';
-                    cap.style.textOverflow = 'ellipsis';
-                    cap.style.whiteSpace = 'nowrap';
-                    smallRoot.appendChild(el);
-                  } catch (e) { console.warn('render uploaded-images item failed', e); }
-                });
               }
             }
           }
@@ -2609,14 +2560,7 @@ document.addEventListener('DOMContentLoaded', function () {
           const fullGroups = Array.from(emissionsSection.querySelectorAll('.form-group.full-width'));
           for (const g of fullGroups) {
             const lbl = (g.querySelector('label') && g.querySelector('label').textContent || '').toLowerCase();
-            if (!lbl) continue;
-            const matched = aliases.some(a => lbl.includes(a.toLowerCase()) || a.toLowerCase().includes(lbl));
-            if (matched) {
-              const inp = g.querySelector('input,select,textarea');
-              if (inp && (parent[k] != null && parent[k] !== '')) {
-                try { inp.value = parent[k]; inp.dispatchEvent(new Event('change')); } catch (e) { }
-              }
-            }
+            if (lbl.includes('comment')) { parentCommentsInput = g.querySelector('input[type="text"], textarea'); break; }
           }
         } catch (e) { }
         if (!parentCommentsInput) parentCommentsInput = emissionsSection.querySelector('.form-group.full-width input[type="text"], .form-group.full-width textarea');
@@ -3367,7 +3311,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!s.match(/^data:|^https?:|^\//)) s = '/' + s.replace(/^\/+/, '');
       const fn = s.split('/').pop();
       const isVideo = fn.match(/\.(mp4|mov|webm|mkv|avi|3gp|mpeg)$/i);
-      return { src: s, filename: fn || `file-${idx}`, type: isVideo ? 'video' : 'image', meta: {} };
+      return { src: s, filename: fn || `file-${idx}`, type: isVideo ? 'video' : 'image' };
     }
     // object form
     const src = it.src || it.url || it.path || it.relativePath || it.location || it.data || it.dataUrl || it.dataURL || '';
@@ -3378,184 +3322,63 @@ document.addEventListener('DOMContentLoaded', () => {
     const mime = it.type || it.mime || '';
     const isVideo = mime.startsWith('video/') || (fn && fn.match(/\.(mp4|mov|webm|mkv|avi)$/i));
     if (!finalSrc) return null;
-    // capture possible ticket/form id on the item for later matching
-    const meta = Object.assign({}, it);
-    meta._ticketId = it.ticketId || it.formId || it.parentId || it.tid || it.ticket || it.id || '';
-    return { src: finalSrc, filename: fn, type: isVideo ? 'video' : 'image', meta };
+    return { src: finalSrc, filename: fn, type: isVideo ? 'video' : 'image', meta: it };
   }
 
   function renderImages(list) {
     if (!Array.isArray(list) || !list.length) return;
-    // If the page provides its own uploader preview helper, prefer it for the main preview
+    // prefer existing helper
     if (typeof window.applyUploadedImages === 'function') {
-      try {
-        window.applyUploadedImages(list.map(i => ({ src: i.src, name: i.filename, filename: i.filename })));
-      } catch (e) { console.warn('applyUploadedImages threw', e); }
-
-      // still ensure the compact uploaded-images container is populated (avoid duplicating the large preview)
-      const smallRoot = document.getElementById('uploaded-images');
-      if (smallRoot) {
-        smallRoot.innerHTML = '';
-        list.forEach((it) => {
-          try {
-            const el = document.createElement('div');
-            el.className = 'uploaded-thumb';
-            el.style.display = 'inline-block';
-            el.style.margin = '6px';
-            el.style.width = '120px';
-            el.style.height = '80px';
-            el.style.overflow = 'hidden';
-            el.style.border = '1px solid #eee';
-            el.style.borderRadius = '6px';
-            const a = document.createElement('a');
-            a.href = it.src;
-            a.target = '_blank';
-            const img = document.createElement('img');
-            img.src = it.src;
-            img.alt = it.filename || '';
-            img.style.width = '100%';
-            img.style.height = '100%';
-            img.style.objectFit = 'cover';
-            a.appendChild(img);
-            el.appendChild(a);
-            const cap = document.createElement('div');
-            cap.textContent = it.filename || '';
-            cap.style.fontSize = '11px';
-            cap.style.textAlign = 'center';
-            cap.style.marginTop = '4px';
-            cap.style.maxWidth = '120px';
-            cap.style.overflow = 'hidden';
-            cap.style.textOverflow = 'ellipsis';
-            cap.style.whiteSpace = 'nowrap';
-            el.appendChild(cap);
-            smallRoot.appendChild(el);
-          } catch (e) { console.warn('render uploaded-images item failed', e); }
-        });
-      }
-      return;
+      try { window.applyUploadedImages(list.map(i => ({ src: i.src, name: i.filename, filename: i.filename }))); return; } catch (e) { console.warn('applyUploadedImages threw', e); }
     }
-
-    // fallback: render both the large preview area and the small uploaded-images list (legacy behavior)
     const container = document.getElementById('image-preview');
-    if (!container && !document.getElementById('uploaded-images')) return;
-    if (container) {
-      container.innerHTML = '';
-      const wrap = document.createElement('div');
-      wrap.style.display = 'flex'; wrap.style.flexWrap = 'wrap'; wrap.style.gap = '8px';
-      list.forEach((it, i) => {
-        try {
-          const box = document.createElement('div');
-          box.style.width = '140px'; box.style.height = '100px'; box.style.position = 'relative'; box.style.overflow = 'hidden';
-          box.style.border = '1px solid #ddd'; box.style.borderRadius = '6px';
-          const img = document.createElement('img');
-          img.alt = it.filename || `image-${i}`; img.src = it.src; img.style.width = '100%'; img.style.height = '100%'; img.style.objectFit = 'cover';
-          img.loading = 'lazy';
-          img.addEventListener('error', () => console.warn('image failed to load', it.src));
-          img.addEventListener('click', () => window.open(it.src, '_blank'));
-          box.appendChild(img);
-          wrap.appendChild(box);
-        } catch (e) { console.warn('renderImages item failed', e); }
-      });
-      container.appendChild(wrap);
-    }
-
-    // also render into the small uploaded-images list (if present)
-    const smallRoot = document.getElementById('uploaded-images');
-    if (smallRoot) {
-      smallRoot.innerHTML = '';
-      list.forEach((it) => {
-        try {
-          const el = document.createElement('div');
-          el.className = 'uploaded-thumb';
-          el.style.display = 'inline-block';
-          el.style.margin = '6px';
-          el.style.width = '120px';
-          el.style.height = '80px';
-          el.style.overflow = 'hidden';
-          el.style.border = '1px solid #eee';
-          el.style.borderRadius = '6px';
-          const a = document.createElement('a');
-          a.href = it.src;
-          a.target = '_blank';
-          const img = document.createElement('img');
-          img.src = it.src;
-          img.alt = it.filename || '';
-          img.style.width = '100%';
-          img.style.height = '100%';
-          img.style.objectFit = 'cover';
-          a.appendChild(img);
-          el.appendChild(a);
-          // caption under thumb (filename)
-          const cap = document.createElement('div');
-          cap.textContent = it.filename || '';
-          cap.style.fontSize = '11px';
-          cap.style.textAlign = 'center';
-          cap.style.marginTop = '4px';
-          cap.style.maxWidth = '120px';
-          cap.style.overflow = 'hidden';
-          cap.style.textOverflow = 'ellipsis';
-          cap.style.whiteSpace = 'nowrap';
-          smallRoot.appendChild(el);
-        } catch (e) { console.warn('render uploaded-images item failed', e); }
-      });
-    }
+    if (!container) return;
+    container.innerHTML = '';
+    const wrap = document.createElement('div');
+    wrap.style.display = 'flex'; wrap.style.flexWrap = 'wrap'; wrap.style.gap = '8px';
+    list.forEach((it, i) => {
+      try {
+        const box = document.createElement('div');
+        box.style.width = '140px'; box.style.height = '100px'; box.style.position = 'relative'; box.style.overflow = 'hidden';
+        box.style.border = '1px solid #ddd'; box.style.borderRadius = '6px';
+        const img = document.createElement('img');
+        img.alt = it.filename || `image-${i}`; img.src = it.src; img.style.width = '100%'; img.style.height = '100%'; img.style.objectFit = 'cover';
+        img.loading = 'lazy';
+        img.addEventListener('error', () => console.warn('image failed to load', it.src));
+        img.addEventListener('click', () => window.open(it.src, '_blank'));
+        box.appendChild(img);
+        wrap.appendChild(box);
+      } catch (e) { console.warn('renderImages item failed', e); }
+    });
+    container.appendChild(wrap);
   }
 
   function renderVideos(list) {
     if (!Array.isArray(list) || !list.length) return;
     const container = document.getElementById('video-preview');
-    if (container) {
-      container.innerHTML = '';
-      list.forEach((it, i) => {
-        try {
-          const wrapper = document.createElement('div');
-          wrapper.style.marginBottom = '8px'; wrapper.style.width = '320px'; wrapper.style.maxWidth = '100%';
-          const v = document.createElement('video');
-          v.controls = true; v.src = it.src; v.style.width = '100%'; v.style.height = '180px'; v.style.objectFit = 'cover';
-          v.addEventListener('error', () => console.warn('video failed to load', it.src));
-          const cap = document.createElement('div');
-          cap.textContent = it.filename || `video-${i}`; cap.style.fontSize = '12px'; cap.style.marginTop = '4px';
-          wrapper.appendChild(v); wrapper.appendChild(cap); container.appendChild(wrapper);
-        } catch (e) { console.warn('renderVideos item failed', e); }
-      });
-    }
-
-    // also render into the small uploaded-videos list (if present)
-    const smallVidRoot = document.getElementById('uploaded-videos');
-    if (smallVidRoot) {
-      smallVidRoot.innerHTML = '';
-      list.forEach((it) => {
-        try {
-          const wrap = document.createElement('div');
-          wrap.className = 'uploaded-video-item';
-          wrap.style.marginBottom = '8px';
-          wrap.style.display = 'inline-block';
-          wrap.style.width = '180px';
-          wrap.style.verticalAlign = 'top';
-          const v = document.createElement('video');
-          v.controls = true; v.src = it.src; v.style.width = '100%'; v.style.height = '100px'; v.style.objectFit = 'cover';
-          v.addEventListener('error', () => console.warn('uploaded video failed to load', it.src));
-          const cap = document.createElement('div');
-          cap.textContent = it.filename || '';
-          cap.style.fontSize = '11px';
-          cap.style.marginTop = '4px';
-          cap.style.textAlign = 'center';
-          wrap.appendChild(v);
-          wrap.appendChild(cap);
-          smallVidRoot.appendChild(wrap);
-        } catch (e) { console.warn('render uploaded-videos item failed', e); }
-      });
-    }
+    if (!container) return;
+    container.innerHTML = '';
+    list.forEach((it, i) => {
+      try {
+        const wrapper = document.createElement('div');
+        wrapper.style.marginBottom = '8px'; wrapper.style.width = '320px'; wrapper.style.maxWidth = '100%';
+        const v = document.createElement('video');
+        v.controls = true; v.src = it.src; v.style.width = '100%'; v.style.height = '180px'; v.style.objectFit = 'cover';
+        v.addEventListener('error', () => console.warn('video failed to load', it.src));
+        const cap = document.createElement('div');
+        cap.textContent = it.filename || `video-${i}`; cap.style.fontSize = '12px'; cap.style.marginTop = '4px';
+        wrapper.appendChild(v); wrapper.appendChild(cap); container.appendChild(wrapper);
+      } catch (e) { console.warn('renderVideos item failed', e); }
+    });
   }
 
   async function tryFetchMedia(ticketId) {
     if (!ticketId) return null;
-    // prefer ticket-check first (more likely to exist), then mechanic/media or ticket-media via POST.
-    // avoid the GET variant (/mechanic/media?ticketId=...) which can return 404 on some servers.
     const endpoints = [
-      { url: '/ticket-check', method: 'POST' },
       { url: '/mechanic/media', method: 'POST' },
-      { url: '/ticket-media', method: 'POST' }
+      { url: '/ticket-media', method: 'POST' },
+      { url: '/ticket-check', method: 'POST' },
+      { url: `/mechanic/media?ticketId=${encodeURIComponent(ticketId)}`, method: 'GET' }
     ];
     for (const ep of endpoints) {
       try {
@@ -3626,22 +3449,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // normalize
-    const imgsRaw = (Array.isArray(images) ? images.map(normalize).filter(Boolean) : []);
-    const vidsRaw = (Array.isArray(videos) ? videos.map(normalize).filter(Boolean) : []);
-
-    // filter by matching ticket/form id when provided on media item (if item has _ticketId)
-    const filterByTicket = (arr) => {
-      return arr.filter(item => {
-        try {
-          const mid = (item.meta && (item.meta._ticketId || item.meta.ticketId || item.meta.formId || item.meta.parentId || item.meta.tid || item.meta.ticket || item.meta.id)) || '';
-          if (!mid) return true; // no ticketId on item -> assume it's intended for this ticket
-          return String(mid).trim() === String(ticketId).trim();
-        } catch (e) { return true; }
-      });
-    };
-
-    const imgs = filterByTicket(imgsRaw);
-    const vids = filterByTicket(vidsRaw);
+    const imgs = (Array.isArray(images) ? images.map(normalize).filter(Boolean) : []);
+    const vids = (Array.isArray(videos) ? videos.map(normalize).filter(Boolean) : []);
 
     if (imgs.length) renderImages(imgs);
     if (vids.length) renderVideos(vids);
