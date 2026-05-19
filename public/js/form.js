@@ -498,6 +498,28 @@ document.addEventListener('DOMContentLoaded', function () {
       try { showPreview(selectedFiles); } catch (e) { /* ignore */ }
       updateControls();
 
+      // helper: remove video "remove" buttons robustly (matches class/title/aria-label/text variants)
+      function removeVideoRemoveButtons() {
+        try {
+          const vContainer = document.getElementById('video-preview');
+          if (!vContainer) return;
+          Array.from(vContainer.querySelectorAll('button')).forEach(b => {
+            const txt = (b.textContent || '').trim();
+            const title = (b.title || '').toLowerCase();
+            const aria = (b.getAttribute && (b.getAttribute('aria-label') || '') || '').toLowerCase();
+            if (
+              b.classList.contains('video-remove') ||
+              b.classList.contains('thumb-remove') ||
+              title.includes('remove') ||
+              aria.includes('remove') ||
+              txt === '×' || txt === '✕' || txt.toLowerCase() === 'x'
+            ) {
+              b.remove();
+            }
+          });
+        } catch (e) { /* ignore */ }
+      }
+
       // visually lock zone and remove file input ability
       try {
         zone.style.backgroundColor = '#d4edda';
@@ -640,15 +662,18 @@ document.addEventListener('DOMContentLoaded', function () {
             imagesLocked = true;
             // hide all remove buttons and style zone to indicate locked state
             if (previewEl) previewEl.querySelectorAll('.thumb-remove').forEach(b => b.remove());
-            if (previewEl) previewEl.querySelectorAll('.thumb-remove').forEach(b => b.remove());
 
+            // robust removal for any video "remove" buttons (matches title/aria/text/class variants)
             try {
               const vCont = document.getElementById('video-preview');
               if (vCont) {
-                vCont.querySelectorAll('button').forEach(b => {
-                  const title = (b.title || '').toLowerCase();
+                Array.from(vCont.querySelectorAll('button')).forEach(b => {
                   const txt = (b.textContent || '').trim();
-                  if (b.classList.contains('video-remove') || title.includes('remove video') || txt === '×') b.remove();
+                  const title = (b.title || '').toLowerCase();
+                  const aria = (b.getAttribute && (b.getAttribute('aria-label') || '') || '').toLowerCase();
+                  if (b.classList.contains('video-remove') || b.classList.contains('thumb-remove') || title.includes('remove') || aria.includes('remove') || txt === '×' || txt === '✕' || txt.toLowerCase() === 'x') {
+                    b.remove();
+                  }
                 });
               }
             } catch (e) { /* ignore */ }
@@ -660,11 +685,19 @@ document.addEventListener('DOMContentLoaded', function () {
             // update status text
             updateControls();
           } else {
-            alert('Upload failed: ' + (data && data.message ? data.message : 'Unknown'));
+            alert('Upload failed: ' + (json && json.message ? json.message : 'Unknown'));
+            uploadBtn.disabled = false;
+            uploadBtn.style.opacity = '1';
+            uploadBtn.textContent = 'Upload';
           }
         })
-        .catch(err => { console.error('Image upload error:', err); alert('Upload failed.'); })
-        .finally(() => { if (!imagesLocked) { uploadBtn.textContent = 'Upload'; uploadBtn.disabled = false; } });
+        .catch(err => {
+          console.error('Upload error:', err);
+          alert('Upload failed. Please try again.');
+          uploadBtn.disabled = false;
+          uploadBtn.style.opacity = '1';
+          uploadBtn.textContent = 'Upload';
+        });
     });
   })();
 
@@ -1497,6 +1530,7 @@ document.addEventListener('DOMContentLoaded', function () {
               try { tr.querySelector('.rp-um').value = r.partNumber || ''; } catch (e) { }
               try { tr.querySelector('.rp-partprice').value = (r.partPrice != null) ? r.partPrice : ''; } catch (e) { }
               try { tr.querySelector('.rp-partstotal').value = (r.partsTotal != null) ? r.partsTotal : ''; } catch (e) { }
+             
               try { tr.querySelector('.rp-laborhours').value = (r.laborHours != null) ? r.laborHours : ''; } catch (e) { }
               try { tr.querySelector('.rp-labortotal').value = (r.laborTotal != null) ? r.laborTotal : ''; } catch (e) { }
               // wire the row behaviors already present in the page if available
@@ -1848,7 +1882,29 @@ document.addEventListener('DOMContentLoaded', function () {
                         }
                         input.dispatchEvent(new Event('change'));
                       } else {
-                        // no input; leave text alone (do not overwrite '-')
+                        // no input; leave text alone (do not overwrite plain text dashes); try to find a select elsewhere in the row that corresponds to this header
+                        try {
+                          const headerCells = Array.from(sec.querySelectorAll('thead th')).map(h => (h.textContent || '').toLowerCase());
+                          // find select in same row whose header includes the column name
+                          const sel = Array.from(rowDom.querySelectorAll('select')).find(s => {
+                            try {
+                              const selIdx = Array.from(rowDom.cells).indexOf(s.closest('td'));
+                              const hdr = headerCells[selIdx] || '';
+                              return hdr.includes(col);
+                            } catch (e) { return false; }
+                        });
+                        if (sel) {
+                          try {
+                            sel.value = val;
+                            const norm = s => (s || '').toString().toLowerCase().trim();
+                            if (norm(sel.value) !== norm(val)) {
+                              const opt = Array.from(sel.options).find(o => norm(o.text) === norm(val) || norm(o.value) === norm(val));
+                              if (opt) sel.value = opt.value;
+                            }
+                            sel.dispatchEvent(new Event('change'));
+                          } catch (e) { }
+                        }
+                        } catch (e) { /* ignore fallback */ }
                       }
                     } catch (e) { /* ignore */ }
                   };
