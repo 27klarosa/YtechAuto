@@ -46,7 +46,7 @@ document.addEventListener('DOMContentLoaded', function () {
         chip.textContent = t;
         const x = document.createElement('button');
         x.type = 'button';
-        x.className = 'tag-remove';
+        x.className = 'thumb-remove';
         x.textContent = '×';
         x.addEventListener('click', () => {
           tags.splice(i, 1);
@@ -1530,7 +1530,6 @@ document.addEventListener('DOMContentLoaded', function () {
               try { tr.querySelector('.rp-um').value = r.partNumber || ''; } catch (e) { }
               try { tr.querySelector('.rp-partprice').value = (r.partPrice != null) ? r.partPrice : ''; } catch (e) { }
               try { tr.querySelector('.rp-partstotal').value = (r.partsTotal != null) ? r.partsTotal : ''; } catch (e) { }
-             
               try { tr.querySelector('.rp-laborhours').value = (r.laborHours != null) ? r.laborHours : ''; } catch (e) { }
               try { tr.querySelector('.rp-labortotal').value = (r.laborTotal != null) ? r.laborTotal : ''; } catch (e) { }
               // wire the row behaviors already present in the page if available
@@ -1860,7 +1859,10 @@ document.addEventListener('DOMContentLoaded', function () {
                       } catch (e) { return false; }
                     });
                   }
-                  if (!rowDom) { unmatched.push(name); return; }
+                  if (!rowDom) {
+                    unmatched.push(name);
+                    return;
+                  }
 
                   // helper to set a cell value by index
                   const setCellVal = (idx, val) => {
@@ -2334,7 +2336,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
           if (res.ok) {
             let payload = null;
-            try { payload = await res.json(); } catch (err) { payload = null; }
+            try { payload = await res.json(); } catch (e) { payload = null; }
             if (payload && payload.success) {
               console.log('Courtesy check saved');
               return;
@@ -2433,7 +2435,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
           if (res.ok) {
             let payload = null;
-            try { payload = await res.json(); } catch (err) { payload = null; }
+            try { payload = await res.json(); } catch (e) { payload = null; }
             if (payload && payload.success) {
               console.log('Steering & Suspension saved');
               return;
@@ -2976,11 +2978,23 @@ document.addEventListener('DOMContentLoaded', () => {
   function relocateInputAndRemoveZone(inputEl, uploadBtnId, zoneEl) {
     try {
       const uploadBtn = document.getElementById(uploadBtnId);
+      // move the input next to the upload button so its files survive DOM changes
       if (inputEl && uploadBtn && inputEl.parentNode !== uploadBtn.parentNode) {
         uploadBtn.parentNode.insertBefore(inputEl, uploadBtn);
         inputEl.style.display = 'none';
       }
-      if (zoneEl && zoneEl.parentNode) zoneEl.parentNode.removeChild(zoneEl);
+
+      if (zoneEl && zoneEl.parentNode) {
+        // If the upload button is inside the zone we're about to remove,
+        // move the upload button out first so it doesn't get removed.
+        try {
+          if (uploadBtn && zoneEl.contains(uploadBtn)) {
+            zoneEl.parentNode.insertBefore(uploadBtn, zoneEl.nextSibling);
+          }
+        } catch (e) { /* ignore move failure */ }
+
+        zoneEl.parentNode.removeChild(zoneEl);
+      }
     } catch (e) { console.warn('relocateInputAndRemoveZone failed', e); }
   }
 
@@ -3030,20 +3044,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const removeBtn = document.createElement('button');
         removeBtn.type = 'button';
+        removeBtn.className = 'thumb-remove';
         removeBtn.textContent = '×';
-        removeBtn.title = 'Remove image';
+        removeBtn.title = 'Remove';
         removeBtn.style.position = 'absolute';
-        removeBtn.style.top = '6px';
-        removeBtn.style.right = '6px';
-        removeBtn.style.width = '26px';
-        removeBtn.style.height = '26px';
-        removeBtn.style.border = 'none';
-        removeBtn.style.borderRadius = '13px';
+        removeBtn.style.top = '2px';
+        removeBtn.style.right = '2px';
         removeBtn.style.background = 'rgba(0,0,0,0.6)';
         removeBtn.style.color = '#fff';
+        removeBtn.style.border = 'none';
+        removeBtn.style.borderRadius = '12px';
+        removeBtn.style.width = '24px';
+        removeBtn.style.height = '24px';
         removeBtn.style.cursor = 'pointer';
+        removeBtn.style.lineHeight = '20px';
         removeBtn.style.padding = '0';
-        removeBtn.style.lineHeight = '22px';
         removeBtn.style.fontSize = '16px';
 
         removeBtn.addEventListener('click', function (e) {
@@ -3158,6 +3173,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const removeBtn = document.createElement('button');
       removeBtn.type = 'button';
+      removeBtn.className = 'video-remove';
       removeBtn.textContent = '×';
       removeBtn.title = 'Remove video';
       removeBtn.style.position = 'absolute';
