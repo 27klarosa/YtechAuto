@@ -506,6 +506,18 @@ document.addEventListener('DOMContentLoaded', function () {
       try {
         // remove any visible remove buttons (showPreview already hides them when imagesLocked true)
         if (previewEl) previewEl.querySelectorAll('.thumb-remove').forEach(b => b.remove());
+        if (previewEl) previewEl.querySelectorAll('.thumb-remove').forEach(b => b.remove());
+
+        /* remove any video "remove" buttons too (server-rendered or preview previews) */
+        try {
+          const vContainer = document.getElementById('video-preview');
+          if (vContainer) {
+            vContainer.querySelectorAll('button').forEach(b => {
+              // match by class/title/text used by preview renderers
+              if (b.classList.contains('video-remove') || b.title === 'Remove video' || b.textContent.trim() === '×') b.remove();
+            });
+          }
+        } catch (e) { /* ignore */ }
       } catch (e) { }
       try { fileInput.value = ''; fileInput.disabled = true; } catch (e) { }
       try { uploadBtn.disabled = true; uploadBtn.style.opacity = '0.5'; uploadBtn.textContent = 'Uploaded'; } catch (e) { }
@@ -628,6 +640,18 @@ document.addEventListener('DOMContentLoaded', function () {
             imagesLocked = true;
             // hide all remove buttons and style zone to indicate locked state
             if (previewEl) previewEl.querySelectorAll('.thumb-remove').forEach(b => b.remove());
+            if (previewEl) previewEl.querySelectorAll('.thumb-remove').forEach(b => b.remove());
+
+            try {
+              const vCont = document.getElementById('video-preview');
+              if (vCont) {
+                vCont.querySelectorAll('button').forEach(b => {
+                  const title = (b.title || '').toLowerCase();
+                  const txt = (b.textContent || '').trim();
+                  if (b.classList.contains('video-remove') || title.includes('remove video') || txt === '×') b.remove();
+                });
+              }
+            } catch (e) { /* ignore */ }
             zone.style.backgroundColor = '#d4edda';
             zone.style.borderColor = '#c3e6cb';
             // disable inputs and upload button
@@ -2172,7 +2196,7 @@ document.addEventListener('DOMContentLoaded', function () {
         } catch (e) { /* ignore individual failures */ }
       });
 
-      
+
       // explicitly disable media upload controls when in view-only mode
       const uploadControls = ['video-upload-zone', 'video-file', 'upload-trigger', 'upload-btn', 'image-upload-zone', 'image-file', 'image-upload-trigger', 'image-upload-btn'];
       uploadControls.forEach(id => {
@@ -3164,7 +3188,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // remove any previous binding marker so this block can be reloaded during dev
   if (window.__PDF_BINDINGS_DIAG_LOADED__) {
     console.log('PDF bindings (diag) already loaded');
-   
+
     return;
   }
   window.__PDF_BINDINGS_DIAG_LOADED__ = true;
@@ -3206,7 +3230,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const target = document.querySelector('main.main-content') || document.body;
-   
+
     if (!target) {
       console.error('generatePdf: target element not found (main.main-content or body)');
       alert('PDF target element missing. See console.');
