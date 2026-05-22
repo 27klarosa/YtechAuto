@@ -338,8 +338,8 @@ th {
 }
 
 .btn-secondary {
-  background: var(--content-bg);
-  color: var(--text);
+  background: rgb(58, 153, 197);
+  color: whitesmoke;
   border: 1px solid var(--border);
 }
 

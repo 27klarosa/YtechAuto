@@ -18,7 +18,7 @@ router.get('/customer', ensureLoggedIn, (req, res) => {
 
             if (!db) {
                 console.error('Database connection not available');
-                return res.status(500).send('Database error');
+                return res.status(500).send('<script>alert("Database error"); window.history.back();</script>');
             }
 
             if (!ticketId) {
@@ -29,8 +29,55 @@ router.get('/customer', ensureLoggedIn, (req, res) => {
             console.log(`Looking for ticket ${ticketId} for user ${email}`);
 
             // Get specific ticket for this user
-            db.get('SELECT * FROM tickets WHERE id = ? AND LOWER(customerEmail) = ? AND stat = ?',
-                [ticketId, email, 'complete'], (err, ticket) => {
+            db.get('SELECT * FROM tickets WHERE id = ? AND LOWER(customerEmail) = ? AND stat = ?', 
+                   [ticketId, email, 'complete'], (err, ticket) => {
+                if (err) {
+                    console.error('Database error:', err.message);
+                    return res.status(500).send('<script>alert("Database error"); window.history.back();</script>');
+                }
+                
+                if (!ticket) {
+                    console.log(`Ticket ${ticketId} not found for user ${email}`);
+                    return res.redirect('/customerDis');
+                }
+                
+                console.log('Ticket found! Processing repairs...');
+                console.log('Raw recommendedRepairs field:', ticket.recommendedRepairs);
+                
+                // Parse repairs from the recommendedRepairs text field
+                let repairs = [];
+                try {
+                    if (ticket.recommendedRepairs && ticket.recommendedRepairs.trim() !== '') {
+                        // If it's JSON, parse it
+                        if (ticket.recommendedRepairs.startsWith('[') || ticket.recommendedRepairs.startsWith('{')) {
+                            repairs = JSON.parse(ticket.recommendedRepairs);
+                        } else {
+                            // If it's plain text, create a simple repair object
+                            repairs = [{
+                                repairDescription: ticket.recommendedRepairs,
+                                qty: '',
+                                partNumber: '',
+                                partsTotal: 0,
+                                laborTotal: 0
+                            }];
+                        }
+                    }
+                } catch (parseError) {
+                    console.error('Error parsing recommendedRepairs:', parseError);
+                    // Treat as plain text
+                    repairs = [{
+                        repairDescription: ticket.recommendedRepairs || 'No repairs listed',
+                        qty: '',
+                        partNumber: '',
+                        partsTotal: 0,
+                        laborTotal: 0
+                    }];
+                }
+                
+                console.log('Parsed repairs:', repairs);
+                
+                // Get vehicle info for this ticket
+                db.get('SELECT * FROM vechicleInfo WHERE ticketID = ?', [ticketId], (err, vehicle) => {
                     if (err) {
                         console.error('Database error:', err.message);
                         return res.status(500).send('Database error');
@@ -240,6 +287,46 @@ router.get('/customer', ensureLoggedIn, (req, res) => {
                                     const expected = path.join(__dirname, '..', video.relativePath || '');
                                     console.log('expected disk path:', expected, 'exists=', fs.existsSync(expected));
                                     console.log('video.webPath:', video.webPath);
+                            // fetch pictures for this ticket (all images)
+                            let pictures = [];
+                            try {
+                                const pics = await dbAll(`SELECT * FROM pictures WHERE ticketID = ? ORDER BY id DESC`, [ticketId]);
+                                if (Array.isArray(pics) && pics.length > 0) {
+                                    pictures = pics.map(p => {
+                                        const item = Object.assign({}, p);
+                                        if (item.relativePath) item.webPath = '/' + String(item.relativePath).replace(/\\/g, '/').replace(/^\/+/, '');
+                                        else if (item.filename) item.webPath = '/upload/images/' + item.filename;
+                                        return item;
+                                    });
+                                }
+                            } catch (picErr) {
+                                console.error('Failed fetching pictures for ticket:', picErr);
+                                pictures = [];
+                            }
+
+                            if (video) {
+                                console.log('video DB row:', video);
+                                const expected = path.join(__dirname, '..', video.relativePath || '');
+                                console.log('expected disk path:', expected, 'exists=', fs.existsSync(expected));
+                                console.log('video.webPath:', video.webPath);
+                            }
+                            
+                            res.render('customer', {
+                                        user: user,
+                                ticket: ticket,
+                                repairs: repairs,
+                                vehicle: vehicle || {},
+                                inspection: {
+                                     monitorItems: uniq(monitorItems),
+                                     badItems: uniq(badItems)
+                                },
+                                video: video,
+                                images: pictures,
+                                totals: {
+                                    partsSubtotal: partsSubtotal.toFixed(2),
+                                    laborSubtotal: laborSubtotal.toFixed(2),
+                                    tax: tax.toFixed(2),
+                                    total: total.toFixed(2)
                                 }
 
                                 // fetch latest uploaded image(s) for this ticket (if any)
