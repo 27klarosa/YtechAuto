@@ -112,7 +112,7 @@ router.get('/mechanic', ensureLoggedIn, (req, res) => {
         return res.render('mechanic', { user, uploadZoneVisible: true });
     }
 
-    if (!db) return res.status(500).send('<script>alert("Database not available"); window.history.back();</script>');
+    if (!db) return res.status(500).send('Database not available');
 
     // treat edit mode: if the query param `edit` is provided, respect it; otherwise default to edit mode for DB-loaded tickets
     const editParam = typeof req.query.edit !== 'undefined' ? String(req.query.edit).toLowerCase() : undefined;
@@ -121,16 +121,10 @@ router.get('/mechanic', ensureLoggedIn, (req, res) => {
     db.get('SELECT * FROM tickets WHERE id = ?', [ticketId], (err, ticket) => {
         if (err) {
             console.error('Error fetching ticket:', err);
-            return res.status(500).send('<script>alert("Internal Server Error"); window.history.back();</script>');
+            return res.status(500).send('Internal Server Error');
         }
-        if (!ticket) return res.status(404).send('<script>alert("Ticket not found"); window.history.back();</script>');
-        ticket.roNum = ticket.repairOrderNumber;
-        ticket.roDate = ticket.date;
-        ticket.technician = ticket.techName;
-        ticket.custName = ticket.customerName;
-        ticket.custAddress = ticket.customerAddress;
-        ticket.custPhone = ticket.customerPhone;
-        ticket.custEmail = ticket.customerEmail;
+        if (!ticket) return res.status(404).send('Ticket not found');
+
         db.all('SELECT * FROM recRepairs WHERE ticketId = ?', [ticketId], (err2, repairs) => {
             if (err2) {
                 console.error('Error fetching repairs:', err2);
@@ -341,7 +335,7 @@ router.get('/mechanic', ensureLoggedIn, (req, res) => {
 
 router.post('/mechanic', async (req, res) => {
     const db = req.app.locals.db;
-    if (!db) return res.status(500).send('<script>alert("Database not available"); window.history.back();</script>');
+    if (!db) return res.status(500).send('Database not available');
 
     // normalize body
     const body = (typeof req.body === 'string') ? (() => { try { return JSON.parse(req.body); } catch(e){ return {}; } })() : (req.body || {});
@@ -371,7 +365,7 @@ router.post('/mechanic', async (req, res) => {
     console.log('incomingTicketId:', incomingTicketId);
 
     if (!roNum) {
-        return res.status(400).send('<script>alert("Repair Order number (roNum) is required"); window.history.back();</script>');
+        return res.status(400).send('Repair Order number (roNum) is required');
     }
 
     // parse repairs array from several possible field names (handles JSON string or object from multipart)
@@ -450,36 +444,6 @@ router.post('/mechanic', async (req, res) => {
     if (!Array.isArray(repairs)) repairs = [];
     const recommendedRepairsText = JSON.stringify(repairs);
 
-    // Validate repairs helper: returns null if valid, or an error string describing problems
-    const validateRepairs = (repairsArr) => {
-        try {
-            const errors = [];
-            if (Array.isArray(repairsArr)) {
-                repairsArr.forEach((r, idx) => {
-                    const missing = [];
-                    const desc = (r.repairDescription || r.description || r.desc || r.name || '');
-                    if (!desc || String(desc).trim() === '') missing.push('description');
-
-                    // partsTotal and laborTotal are allowed to be missing
-                    const hasQty = (typeof r.qty !== 'undefined' && r.qty !== null && String(r.qty).trim() !== '');
-                    const hasPartNumber = (typeof r.partNumber !== 'undefined' && r.partNumber !== null && String(r.partNumber).trim() !== '');
-                    const hasPartPrice = (typeof r.partPrice !== 'undefined' && r.partPrice !== null && String(r.partPrice).trim() !== '');
-                    const hasLaborHours = (typeof r.laborHours !== 'undefined' && r.laborHours !== null && String(r.laborHours).trim() !== '');
-                    if (!hasQty && !hasPartNumber && !hasPartPrice && !hasLaborHours) {
-                        missing.push('one of qty, partNumber, partPrice, laborHours');
-                    }
-
-                    if (missing.length) errors.push(`Repair #${idx + 1}: missing ${missing.join(', ')}`);
-                });
-            }
-            if (errors.length) return errors.join('; ');
-            return null;
-        } catch (e) {
-            console.error('validateRepairs error', e);
-            return 'Invalid repairs data';
-        }
-    };
-
     // Determine whether the client actually submitted repair lines (vs leaving the repairs out)
     let repairsProvided = false;
     // If we parsed any repairs, that's a clear sign
@@ -507,36 +471,6 @@ router.post('/mechanic', async (req, res) => {
 
     const saveRecRepairs = (ticketId, repairsArr, cb) => {
         // Always remove existing recRepairs for this ticket first so updates that remove lines clear DB
-        // validate repairsArr before attempting DB operations
-        try {
-            const errors = [];
-            if (Array.isArray(repairsArr)) {
-                repairsArr.forEach((r, idx) => {
-                    const missing = [];
-                    const desc = (r.repairDescription || r.description || r.desc || r.name || '');
-                    if (!desc || String(desc).trim() === '') missing.push('description');
-
-                    // partsTotal and laborTotal are allowed to be missing (per requirement)
-                    // require at least one of these auxiliary fields to be present so the line isn't empty:
-                    const hasQty = (typeof r.qty !== 'undefined' && r.qty !== null && String(r.qty).trim() !== '');
-                    const hasPartNumber = (typeof r.partNumber !== 'undefined' && r.partNumber !== null && String(r.partNumber).trim() !== '');
-                    const hasPartPrice = (typeof r.partPrice !== 'undefined' && r.partPrice !== null && String(r.partPrice).trim() !== '');
-                    const hasLaborHours = (typeof r.laborHours !== 'undefined' && r.laborHours !== null && String(r.laborHours).trim() !== '');
-                    if (!hasQty && !hasPartNumber && !hasPartPrice && !hasLaborHours) {
-                        missing.push('one of qty, partNumber, partPrice, laborHours');
-                    }
-
-                    if (missing.length) {
-                        errors.push(`Repair #${idx + 1}: missing ${missing.join(', ')}`);
-                    }
-                });
-            }
-            if (errors.length) return cb && cb(new Error(errors.join('; ')));
-        } catch (vErr) {
-            console.error('Validation error for recRepairs:', vErr);
-            return cb && cb(new Error('Invalid repairs data'));
-        }
-
         db.run('DELETE FROM recRepairs WHERE ticketId = ?', [ticketId], (delErr) => {
             if (delErr) console.warn('Failed to delete old recRepairs for ticket', ticketId, delErr);
 
@@ -564,23 +498,7 @@ router.post('/mechanic', async (req, res) => {
                     if (failed) return;
                     if (iErr) {
                         failed = true;
-                        // Map common sqlite constraint errors to user-friendly messages to avoid leaking SQL details
-                        stmt.finalize(() => {
-                            try {
-                                const msg = String(iErr.message || '');
-                                let friendly = 'Failed to save repairs';
-                                if (msg.indexOf('NOT NULL constraint failed') !== -1 || (iErr.code && String(iErr.code).indexOf('SQLITE_CONSTRAINT') !== -1)) {
-                                    // look for specific column names to provide a concise code-like message
-                                    if (msg.indexOf('recRepairs.laborHours') !== -1 || msg.indexOf('laborHours') !== -1) friendly = 'MissingLaborHours';
-                                    else if (msg.indexOf('recRepairs.qty') !== -1 || msg.indexOf('qty') !== -1) friendly = 'MissingQty';
-                                    else if (msg.indexOf('recRepairs.repairDescription') !== -1 || msg.indexOf('repairDescription') !== -1 || msg.indexOf('description') !== -1) friendly = 'MissingDescription';
-                                    else friendly = 'MissingFieldInRecommendedRepairs';
-                                }
-                                return cb && cb(new Error(friendly));
-                            } catch (mapErr) {
-                                return cb && cb(iErr);
-                            }
-                        });
+                        stmt.finalize(() => cb && cb(iErr));
                         return;
                     }
                     pending -= 1;
@@ -593,7 +511,7 @@ router.post('/mechanic', async (req, res) => {
     };
 
     // finalize save actions: save recRepairs (if provided) then save signature (if provided), then redirect
-    const finalizeSave = (targetId, isNew = false) => {
+    const finalizeSave = (targetId) => {
         const afterRepairs = () => {
             if (body.signature && typeof body.signature === 'string' && body.signature.trim() !== '') {
                 saveSignatureFromDataUrl(db, body.signature, custName, targetId)
@@ -610,20 +528,7 @@ router.post('/mechanic', async (req, res) => {
 
         if (repairsProvided) {
             saveRecRepairs(targetId, repairs, (rErr) => {
-                if (rErr) {
-                    console.error('Failed saving recRepairs on save:', rErr);
-                    const msg = (rErr && rErr.message) ? String(rErr.message) : 'Failed to save repairs';
-                    if (isNew) {
-                        // cleanup inserted ticket since child save failed
-                        db.run('DELETE FROM tickets WHERE id = ?', [targetId], (delErr) => {
-                            if (delErr) console.error('Failed to cleanup ticket after recRepairs error:', delErr);
-                            return res.status(400).send('<script>alert("' + msg.replace(/\"/g, '\\"') + '"); window.history.back();</script>');
-                        });
-                    } else {
-                        return res.status(400).send('<script>alert("' + msg.replace(/\"/g, '\\"') + '"); window.history.back();</script>');
-                    }
-                    return;
-                }
+                if (rErr) { console.error('Failed saving recRepairs on save:', rErr); return res.status(500).send('Failed to save repairs'); }
                 return afterRepairs();
             });
         } else {
@@ -633,41 +538,25 @@ router.post('/mechanic', async (req, res) => {
 
     // Helper: perform update for existing ticket id
     const performUpdate = (targetId) => {
-        // Validate repairs before updating ticket; abort update if invalid
-        if (repairsProvided) {
-            const vErr = validateRepairs(repairs);
-            if (vErr) {
-                console.error('Repair validation failed before update:', vErr);
-                return res.status(400).send('<script>alert("' + String(vErr).replace(/\"/g, '\\"') + '"); window.history.back();</script>');
-            }
-        }
         const updateSql = `UPDATE tickets SET repairOrderNumber = ?, date = ?, techName = ?, timeIn = ?, timeOut = ?, totalTime = ?, customerName = ?, customerAddress = ?, customerPhone = ?, customerEmail = ?, concern = ?, diagnosis = ?, recommendedRepairs = ?, dateSigned = ?, stat = ? WHERE id = ?`;
         const params = [roNum, roDate, technician, timeArrive, timeOut, totTime, custName, custAdd, custPhone, custEmail, concern, diagnosis, recommendedRepairsText, sDate, ticketStatus, targetId];
         db.run(updateSql, params, function(updErr) {
             if (updErr) {
                 console.error('Failed to update ticket:', updErr);
-                return res.status(500).send('<script>alert("Failed to update ticket: ' + (updErr.message || updErr) + '"); window.history.back();</script>');
+                return res.status(500).send('Failed to update ticket: ' + (updErr.message || updErr));
             }
             // perform child saves (repairs + signature) then redirect
-            return finalizeSave(targetId, false);
+            return finalizeSave(targetId);
         });
     };
 
     // Creating new ticket: first check for duplicate repairOrderNumber
     const tryInsertNew = () => {
-        // Validate repairs before inserting ticket; abort insert if invalid
-        if (repairsProvided) {
-            const vErr = validateRepairs(repairs);
-            if (vErr) {
-                console.error('Repair validation failed before insert:', vErr);
-                return res.status(400).send('<script>alert("' + String(vErr).replace(/\"/g, '\\"') + '"); window.history.back();</script>');
-            }
-        }
         const checkSql = `SELECT id FROM tickets WHERE repairOrderNumber = ? LIMIT 1`;
         db.get(checkSql, [roNum], (chkErr, existing) => {
-                if (chkErr) {
+            if (chkErr) {
                 console.error('Failed checking existing RO:', chkErr);
-                return res.status(500).send('<script>alert("DB error"); window.history.back();</script>');
+                return res.status(500).send('DB error');
             }
             if (existing) {
                 // duplicate exists and this is a new-ticket attempt -> inform user and stop
@@ -680,11 +569,11 @@ router.post('/mechanic', async (req, res) => {
             db.run(insertSql, params, function(insErr) {
                 if (insErr) {
                     console.error('Failed to insert new ticket:', insErr);
-                    return res.status(500).send('<script>alert("Failed to create ticket: ' + (insErr.message || insErr) + '"); window.history.back();</script>');
+                    return res.status(500).send('Failed to create ticket: ' + (insErr.message || insErr));
                 }
                 const newId = this.lastID;
-                // finalize repairs/signature save and redirect (isNew=true)
-                return finalizeSave(newId, true);
+                // finalize repairs/signature save and redirect
+                return finalizeSave(newId);
             });
         });
     };
@@ -694,16 +583,16 @@ router.post('/mechanic', async (req, res) => {
         db.get('SELECT id FROM tickets WHERE id = ?', [incomingTicketId], (gErr, row) => {
             if (gErr) {
                 console.error('DB error fetching ticket for update:', gErr);
-                return res.status(500).send('<script>alert("DB error"); window.history.back();</script>');
+                return res.status(500).send('DB error');
             }
             if (!row) {
-                return res.status(404).send('<script>alert("Ticket to update not found"); window.history.back();</script>');
+                return res.status(404).send('Ticket to update not found');
             }
             // If roNum collides with another ticket (different id), block the change
             db.get('SELECT id FROM tickets WHERE repairOrderNumber = ? LIMIT 1', [roNum], (chkErr, found) => {
                 if (chkErr) {
                     console.error('Failed checking RO on update:', chkErr);
-                    return res.status(500).send('<script>alert("DB error"); window.history.back();</script>');
+                    return res.status(500).send('DB error');
                 }
                 if (found && found.id !== Number(incomingTicketId)) {
                     return res.status(409).send('<script>alert("The RONum already exist"); window.history.back();</script>');
@@ -759,7 +648,7 @@ router.post('/mechanic/vehicle-info', (req, res) => {
 
 router.post('/mechanic/courtesy-check', (req, res) => {
     const db = req.app.locals.db;
-    if (!db) return res.status(500).send('<script>alert("Database not available"); window.history.back();</script>');
+    if (!db) return res.status(500).send('Database not available');
 
     // Accept JSON body { ticketId, items: [ { item, status, notes }, ... ], comments? }
     // or form field 'payload' containing that JSON string.
@@ -975,7 +864,7 @@ router.post('/mechanic/tires', (req, res) => {
 
 router.post('/mechanic/steering-suspension', (req, res) => {
     const db = req.app.locals.db;
-    if (!db) return res.status(500).send('<script>alert("Database not available"); window.history.back();</script>');
+    if (!db) return res.status(500).send('Database not available');
 
     // normalize body / payload
     let body = req.body || {};
@@ -1012,7 +901,7 @@ router.post('/mechanic/steering-suspension', (req, res) => {
         if (parsed.length) items = parsed;
     }
 
-    if (!ticketId) return res.status(400).send('<script>alert("ticketId required"); window.history.back();</script>');
+    if (!ticketId) return res.status(400).send('ticketId required');
     items = Array.isArray(items) ? items : [];
 
     db.serialize(() => {
@@ -1020,7 +909,7 @@ router.post('/mechanic/steering-suspension', (req, res) => {
         db.get('SELECT id FROM steeringSuspension WHERE ticketID = ?', [ticketId], (err, row) => {
             if (err) {
                 console.error('Find steering parent error:', err);
-                return res.status(500).send('<script>alert("DB error"); window.history.back();</script>');
+                return res.status(500).send('DB error');
             }
 
             const createChildren = (parentId) => {
@@ -1039,9 +928,9 @@ router.post('/mechanic/steering-suspension', (req, res) => {
                     }
                     stmt.finalize((finalErr) => {
                         if (finalErr) {
-                                console.error('Failed insert steering children:', finalErr);
-                                return res.status(500).send('<script>alert("DB insert error"); window.history.back();</script>');
-                            }
+                            console.error('Failed insert steering children:', finalErr);
+                            return res.status(500).send('DB insert error');
+                        }
                         // update parent comments if provided and column exists (or add it)
                         if (typeof comments !== 'undefined' && comments !== null && comments !== '') {
                             db.all(`PRAGMA table_info('steeringSuspension')`, [], (piErr, cols) => {
@@ -1080,7 +969,7 @@ router.post('/mechanic/steering-suspension', (req, res) => {
                 db.run('INSERT INTO steeringSuspension (ticketID, item) VALUES (?, ?)', [ticketId, 'Steering & Suspension'], function (insErr) {
                     if (insErr) {
                         console.error('Failed create steering parent:', insErr);
-                        return res.status(500).send('<script>alert("DB insert error"); window.history.back();</script>');
+                        return res.status(500).send('DB insert error');
                     }
                     createChildren(this.lastID);
                 });
@@ -1450,159 +1339,7 @@ router.post('/mechanic/emissions', (req, res) => {
         });
     });
 });
-router.post('/mechanic/verify-courtesy-check', (req, res) => {
-    const db = req.app.locals.db;
-    if (!db) return res.status(500).json({ success: false, message: 'Database not available' });
 
-    const { ticketId } = req.body;
-    if (!ticketId) return res.status(400).json({ success: false, message: 'ticketId is required' });
-
-    // Query to check if courtesy check data exists for this ticket
-    // We need to join courtesyTable (parent) with courtesyTableItems (children)
-    const sql = `
-        SELECT COUNT(cti.id) as count
-        FROM courtesyTableItems cti
-        INNER JOIN courtesyTable ct ON cti.tableID = ct.id
-        WHERE ct.ticketID = ?
-    `;
-
-    db.get(sql, [ticketId], (err, result) => {
-        if (err) {
-            console.error('verify-courtesy-check: DB error', err);
-            return res.status(500).json({ success: false, message: 'Database error' });
-        }
-
-        const count = result ? result.count : 0;
-        const exists = count > 0;
-
-        console.log(`verify-courtesy-check: ticketId=${ticketId}, count=${count}, exists=${exists}`);
-
-        return res.json({
-            success: true,
-            exists: exists,
-            count: count
-        });
-    });
-});
-router.post('/mechanic/verify-all-sections', (req, res) => {
-    const db = req.app.locals.db;
-    if (!db) return res.status(500).json({ success: false, message: 'Database not available' });
-
-    const { ticketId } = req.body;
-    if (!ticketId) return res.status(400).json({ success: false, message: 'ticketId is required' });
-
-    const results = {
-        courtesyCheck: { exists: false, count: 0 },
-        tires: { exists: false },
-        steering: { exists: false, count: 0 },
-        brakes: { exists: false, count: 0 },
-        emissions: { exists: false, count: 0 },
-        vehicleInfo: { exists: false }
-    };
-
-    let checksCompleted = 0;
-    const totalChecks = 6;
-
-    const checkComplete = () => {
-        checksCompleted++;
-        if (checksCompleted === totalChecks) {
-            const allExist = 
-                results.courtesyCheck.exists &&
-                results.tires.exists &&
-                results.steering.exists &&
-                results.brakes.exists &&
-                results.emissions.exists &&
-                results.vehicleInfo.exists;
-
-            const missing = [];
-            if (!results.courtesyCheck.exists) missing.push('Digital Courtesy Check');
-            if (!results.tires.exists) missing.push('Tires');
-            if (!results.steering.exists) missing.push('Steering & Suspension');
-            if (!results.brakes.exists) missing.push('Brakes');
-            if (!results.emissions.exists) missing.push('Emissions');
-            if (!results.vehicleInfo.exists) missing.push('Vehicle Info');
-
-            return res.json({
-                success: true,
-                allSectionsComplete: allExist,
-                results: results,
-                missingSections: missing
-            });
-        }
-    };
-
-    // 1. Check Courtesy Check
-    const courtesySql = `
-        SELECT COUNT(cti.id) as count
-        FROM courtesyTableItems cti
-        INNER JOIN courtesyTable ct ON cti.tableID = ct.id
-        WHERE ct.ticketID = ?
-    `;
-    db.get(courtesySql, [ticketId], (err, result) => {
-        if (err) console.error('Courtesy check verification error:', err);
-        results.courtesyCheck.count = result ? result.count : 0;
-        results.courtesyCheck.exists = results.courtesyCheck.count > 0;
-        checkComplete();
-    });
-
-    // 2. Check Tires
-    const tiresSql = `SELECT id FROM tires WHERE ticketID = ? LIMIT 1`;
-    db.get(tiresSql, [ticketId], (err, result) => {
-        if (err) console.error('Tires verification error:', err);
-        results.tires.exists = !!result;
-        checkComplete();
-    });
-
-    // 3. Check Steering & Suspension
-    const steeringSql = `
-        SELECT COUNT(sst.id) as count
-        FROM steeringSuspensionTable sst
-        INNER JOIN steeringSuspension ss ON sst.steeringSuspensionID = ss.id
-        WHERE ss.ticketID = ?
-    `;
-    db.get(steeringSql, [ticketId], (err, result) => {
-        if (err) console.error('Steering verification error:', err);
-        results.steering.count = result ? result.count : 0;
-        results.steering.exists = results.steering.count > 0;
-        checkComplete();
-    });
-
-    // 4. Check Brakes
-    const brakesSql = `
-        SELECT COUNT(bt.id) as count
-        FROM brakesTable bt
-        INNER JOIN brakes b ON bt.brakesID = b.id
-        WHERE b.ticketID = ?
-    `;
-    db.get(brakesSql, [ticketId], (err, result) => {
-        if (err) console.error('Brakes verification error:', err);
-        results.brakes.count = result ? result.count : 0;
-        results.brakes.exists = results.brakes.count > 0;
-        checkComplete();
-    });
-
-    // 5. Check Emissions
-    const emissionsSql = `
-        SELECT COUNT(et.id) as count
-        FROM emissionsTable et
-        INNER JOIN emissions e ON et.emissionsID = e.id
-        WHERE e.ticketID = ?
-    `;
-    db.get(emissionsSql, [ticketId], (err, result) => {
-        if (err) console.error('Emissions verification error:', err);
-        results.emissions.count = result ? result.count : 0;
-        results.emissions.exists = results.emissions.count > 0;
-        checkComplete();
-    });
-
-    // 6. Check Vehicle Info
-    const vehicleSql = `SELECT id FROM vechicleInfo WHERE ticketID = ? LIMIT 1`;
-    db.get(vehicleSql, [ticketId], (err, result) => {
-        if (err) console.error('Vehicle info verification error:', err);
-        results.vehicleInfo.exists = !!result;
-        checkComplete();
-    });
-});
 // video upload route 
 router.post('/upload-video', videoUpload.single('video'), (req, res) => {
     const db = req.app.locals.db;

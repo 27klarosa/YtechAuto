@@ -93,7 +93,7 @@ router.get("/auth/callback", async (req, res) => {
         }
     } catch (error) {
         console.error('Authentication error:', error);
-        return res.status(500).send('<script>alert("Authentication failed"); window.history.back();</script>');
+        return res.status(500).send('Authentication failed');
     }
 });
 
@@ -116,7 +116,7 @@ router.post('/login', (req, res) => {
           }
         );
     } else {
-        res.status(401).send('<script>alert("Unauthorized"); window.history.back();</script>');
+        res.status(401).send('Unauthorized');
     }
 });
 
