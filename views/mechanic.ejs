@@ -668,6 +668,7 @@
         <input type="file" id="video-file" accept="video/*" style="display:none" class="editable-only">
         <button type="button" class="btn btn-secondary editable-only" id="upload-trigger">Choose File</button>
       </div>
+      <div id="video-preview" style="margin-top:8px;"></div>
       <button type="button" class="btn btn-primary editable-only" id="upload-btn" style="margin-top:1rem">Upload</button>
     </section>
 
@@ -737,5 +738,23 @@
         }
       });
     </script>
+<script>
+  // ensure this runs after DOM and after any server-side injection of uploadZoneVisible
+  try {
+    if (typeof window.__UPLOAD_ZONE_VISIBLE__ === 'undefined') {
+      // fallback to template local if you prefer direct injection:
+      window.__UPLOAD_ZONE_VISIBLE__ = <%= (typeof uploadZoneVisible === 'undefined' ? true : (!!uploadZoneVisible)) %>;
+    }
+    if (!window.__UPLOAD_ZONE_VISIBLE__) {
+      // remove upload zones to reclaim space when unusable
+      document.addEventListener('DOMContentLoaded', function () {
+        const vidZone = document.getElementById('video-upload-zone');
+        if (vidZone) vidZone.remove();
+        const imgZone = document.getElementById('image-upload-zone');
+        if (imgZone) imgZone.remove();
+      });
+    }
+  } catch (e) { /* harmless fallback */ }
+</script>
 </body>
 </html>

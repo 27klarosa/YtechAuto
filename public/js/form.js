@@ -1,50 +1,4 @@
 console.log('form.js loaded');
-function updateSubtotals() {
-  const table = document.getElementById('repairs-table');
-  if (!table) return;
-  
-  const subPartsEl = document.getElementById('subTotParts');
-  const subLaborEl = document.getElementById('subTotLabor');
-  const taxEl = document.getElementById('tax');
-  const totEstimateEl = document.getElementById('totEstimate');
-  
-  // Utility functions defined locally
-  function toNum(v) { 
-    const n = parseFloat(String(v).replace(/[^0-9.\-]/g, '')); 
-    return isNaN(n) ? 0 : n; 
-  }
-  
-  function fmt(n) { 
-    return (Math.round(n * 100) / 100).toFixed(2); 
-  }
-  
-  const rows = Array.from(table.querySelectorAll('tbody tr'));
-  let partsSum = 0, laborSum = 0;
-  
-  rows.forEach(r => {
-    const pt = toNum(r.querySelector('.rp-partstotal')?.value);
-    const lt = toNum(r.querySelector('.rp-labortotal')?.value);
-    partsSum += pt;
-    laborSum += lt;
-  });
-  
-  if (subPartsEl) subPartsEl.value = fmt(partsSum);
-  if (subLaborEl) subLaborEl.value = fmt(laborSum);
-  
-  // tax = 6% of parts sum
-  const tax = partsSum * 0.06;
-  if (taxEl) { 
-    taxEl.value = fmt(tax); 
-    taxEl.readOnly = true; 
-    taxEl.tabIndex = -1; 
-  }
-  
-  // total estimate excludes labor
-  if (totEstimateEl) totEstimateEl.value = fmt(partsSum + tax);
-  
-  console.log('updateSubtotals: calculated', { partsSum, laborSum, tax, total: partsSum + tax });
-}
-
 document.addEventListener('DOMContentLoaded', function () {
   // guard to avoid double initialization if other scripts also run
   if (window.customAccordionInitialized) {
@@ -70,11 +24,6 @@ document.addEventListener('DOMContentLoaded', function () {
           }
         });
       });
-      const allContent = document.querySelectorAll('.accordion-content');
-allContent.forEach(content => {
-    content.style.display = 'block';
-    content.classList.remove('collapsed-content');
-});
       window.customAccordionInitialized = true;
     })();
   }
@@ -97,7 +46,7 @@ allContent.forEach(content => {
         chip.textContent = t;
         const x = document.createElement('button');
         x.type = 'button';
-        x.className = 'tag-remove';
+        x.className = 'thumb-remove';
         x.textContent = '×';
         x.addEventListener('click', () => {
           tags.splice(i, 1);
@@ -316,6 +265,8 @@ allContent.forEach(content => {
             uploadBtn.disabled = true;
             uploadBtn.style.opacity = '0.5';
             uploadBtn.textContent = 'Upload';
+            // ensure any server-rendered or newly-added video previews have remove (×) handlers
+            try { if (typeof window.ensureVideoRemoveButtons === 'function') window.ensureVideoRemoveButtons(); } catch (e) {}
           } else {
             alert('Upload failed: ' + (json && json.message ? json.message : 'Unknown'));
             uploadBtn.disabled = false;
@@ -451,6 +402,13 @@ allContent.forEach(content => {
           } else {
             selectedFiles.splice(idx, 1);
           }
+          // keep the input.files in sync when possible (so any other preview logic that uses fileInput.files stays accurate)
+          try {
+            const dt = new DataTransfer();
+            selectedFiles.forEach(f => { if (f instanceof File) dt.items.add(f); });
+            fileInput.files = dt.files;
+          } catch (e) { /* ignore if platform doesn't allow programmatic FileList changes */ }
+
           updateControls();
           showPreview(selectedFiles);
         });
@@ -542,6 +500,28 @@ allContent.forEach(content => {
       try { showPreview(selectedFiles); } catch (e) { /* ignore */ }
       updateControls();
 
+      // helper: remove video "remove" buttons robustly (matches class/title/aria-label/text variants)
+      function removeVideoRemoveButtons() {
+        try {
+          const vContainer = document.getElementById('video-preview');
+          if (!vContainer) return;
+          Array.from(vContainer.querySelectorAll('button')).forEach(b => {
+            const txt = (b.textContent || '').trim();
+            const title = (b.title || '').toLowerCase();
+            const aria = (b.getAttribute && (b.getAttribute('aria-label') || '') || '').toLowerCase();
+            if (
+              b.classList.contains('video-remove') ||
+              b.classList.contains('thumb-remove') ||
+              title.includes('remove') ||
+              aria.includes('remove') ||
+              txt === '×' || txt === '✕' || txt.toLowerCase() === 'x'
+            ) {
+              b.remove();
+            }
+          });
+        } catch (e) { /* ignore */ }
+      }
+
       // visually lock zone and remove file input ability
       try {
         zone.style.backgroundColor = '#d4edda';
@@ -550,6 +530,18 @@ allContent.forEach(content => {
       try {
         // remove any visible remove buttons (showPreview already hides them when imagesLocked true)
         if (previewEl) previewEl.querySelectorAll('.thumb-remove').forEach(b => b.remove());
+        if (previewEl) previewEl.querySelectorAll('.thumb-remove').forEach(b => b.remove());
+
+        /* remove any video "remove" buttons too (server-rendered or preview previews) */
+        try {
+          const vContainer = document.getElementById('video-preview');
+          if (vContainer) {
+            vContainer.querySelectorAll('button').forEach(b => {
+              // match by class/title/text used by preview renderers
+              if (b.classList.contains('video-remove') || b.title === 'Remove video' || b.textContent.trim() === '×') b.remove();
+            });
+          }
+        } catch (e) { /* ignore */ }
       } catch (e) { }
       try { fileInput.value = ''; fileInput.disabled = true; } catch (e) { }
       try { uploadBtn.disabled = true; uploadBtn.style.opacity = '0.5'; uploadBtn.textContent = 'Uploaded'; } catch (e) { }
@@ -619,6 +611,15 @@ allContent.forEach(content => {
         if (dedup.length >= MAX_FILES) break;
       }
       selectedFiles = dedup;
+
+      // keep file input.files in sync with selectedFiles (so other preview code that relies on input.files works)
+      try {
+        const dt = new DataTransfer();
+        selectedFiles.forEach(f => { if (f instanceof File) dt.items.add(f); });
+        // if there are only server-provided objects (no File instances) we can't populate FileList — that's OK
+        if (dt.items.length) fileInput.files = dt.files;
+      } catch (e) { /* ignore */ }
+
       updateControls();
       showPreview(selectedFiles);
     }
@@ -626,8 +627,17 @@ allContent.forEach(content => {
     uploadBtn.addEventListener('click', function () {
       if (imagesLocked) return;
       if (!selectedFiles || selectedFiles.length === 0) { alert('Please select one or more images first.'); return; }
+
+      // prefer current input.files if present (keeps behavior consistent when other preview/remove code updated input.files)
+      let filesToUpload = [];
+      try {
+        if (fileInput && fileInput.files && fileInput.files.length) filesToUpload = Array.from(fileInput.files);
+      } catch (e) { filesToUpload = []; }
+
+      if (!filesToUpload.length) filesToUpload = Array.isArray(selectedFiles) ? selectedFiles.slice() : [];
+
       const fd = new FormData();
-      selectedFiles.forEach(f => fd.append('image', f instanceof File ? f : f.src));
+      filesToUpload.forEach(f => fd.append('image', f instanceof File ? f : f.src));
       let ticketId = (window.__SERVER_TICKET__ && window.__SERVER_TICKET__.id) ||
         document.getElementById('vehicle-ticketId')?.value ||
         document.getElementById('ticketId')?.value || null;
@@ -654,6 +664,21 @@ allContent.forEach(content => {
             imagesLocked = true;
             // hide all remove buttons and style zone to indicate locked state
             if (previewEl) previewEl.querySelectorAll('.thumb-remove').forEach(b => b.remove());
+
+            // robust removal for any video "remove" buttons (matches title/aria/text/class variants)
+            try {
+              const vCont = document.getElementById('video-preview');
+              if (vCont) {
+                Array.from(vCont.querySelectorAll('button')).forEach(b => {
+                  const txt = (b.textContent || '').trim();
+                  const title = (b.title || '').toLowerCase();
+                  const aria = (b.getAttribute && (b.getAttribute('aria-label') || '') || '').toLowerCase();
+                  if (b.classList.contains('video-remove') || b.classList.contains('thumb-remove') || title.includes('remove') || aria.includes('remove') || txt === '×' || txt === '✕' || txt.toLowerCase() === 'x') {
+                    b.remove();
+                  }
+                });
+              }
+            } catch (e) { /* ignore */ }
             zone.style.backgroundColor = '#d4edda';
             zone.style.borderColor = '#c3e6cb';
             // disable inputs and upload button
@@ -662,15 +687,20 @@ allContent.forEach(content => {
             // update status text
             updateControls();
           } else {
-            alert('Upload failed: ' + (data && data.message ? data.message : 'Unknown'));
+            alert('Upload failed: ' + (json && json.message ? json.message : 'Unknown'));
+            uploadBtn.disabled = false;
+            uploadBtn.style.opacity = '1';
+            uploadBtn.textContent = 'Upload';
           }
         })
-        .catch(err => { console.error('Image upload error:', err); alert('Upload failed.'); })
-        .finally(() => { if (!imagesLocked) { uploadBtn.textContent = 'Upload'; uploadBtn.disabled = false; } });
+        .catch(err => {
+          console.error('Upload error:', err);
+          alert('Upload failed. Please try again.');
+          uploadBtn.disabled = false;
+          uploadBtn.style.opacity = '1';
+          uploadBtn.textContent = 'Upload';
+        });
     });
-
-    // initial update
-    updateControlsInitial();
   })();
 
   // --- Recommended Repairs: row wiring, calc, add/remove, block '-' input ---
@@ -713,7 +743,23 @@ allContent.forEach(content => {
       updateSubtotals();
     }
 
-    
+    function updateSubtotals() {
+      const rows = Array.from(table.querySelectorAll('tbody tr'));
+      let partsSum = 0, laborSum = 0;
+      rows.forEach(r => {
+        const pt = toNum(r.querySelector('.rp-partstotal')?.value);
+        const lt = toNum(r.querySelector('.rp-labortotal')?.value);
+        partsSum += pt;
+        laborSum += lt;
+      });
+      if (subPartsEl) subPartsEl.value = fmt(partsSum);
+      if (subLaborEl) subLaborEl.value = fmt(laborSum);
+      // tax = 6% of parts sum
+      const tax = partsSum * 0.06;
+      if (taxEl) { taxEl.value = fmt(tax); taxEl.readOnly = true; taxEl.tabIndex = -1; }
+      // total estimate excludes labor
+      if (totEstimateEl) totEstimateEl.value = fmt(partsSum + tax);
+    }
 
     function sanitizeMinusInput(el) {
       el.addEventListener('keydown', function (e) {
@@ -988,7 +1034,7 @@ allContent.forEach(content => {
     }
   })();
 
-  // helper: create a local filename/path for the signature PNG (no upload)
+  // create a local filename/path for the signature PNG (no upload)
   function createSignatureFileInfo() {
     const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
     const filename = 'signature-' + unique + '.png';
@@ -1140,27 +1186,14 @@ allContent.forEach(content => {
           const qty = r.querySelector('.rp-qty')?.value.trim() || '';
           const partPrice = r.querySelector('.rp-partprice')?.value.trim() || '';
           const laborHours = r.querySelector('.rp-laborhours')?.value.trim() || '';
-          // ignore fully blank rows
           if (!desc && !qty && !partPrice && !laborHours) return;
-          // description is required when the row has any data
-          if (!desc) {
-            errors.push('Missing Description in Recommended Repairs');
+          if (qty === '') errors.push(`Row ${idx + 1}: Qty is required when adding a repair line.`);
+          else {
+            const qn = Number(qty);
+            if (!Number.isInteger(qn) || qn < 0) errors.push(`Row ${idx + 1}: Qty must be a non-negative integer.`);
           }
-          // require at least one of qty / partPrice / laborHours
-          if (qty === '' && partPrice === '' && laborHours === '') {
-            errors.push('Missing Qty, Part Price, or Labor Hours in Recommended Repairs');
-          } else {
-            if (qty !== '') {
-              const qn = Number(qty);
-              if (!Number.isInteger(qn) || qn < 0) errors.push('Invalid Qty in Recommended Repairs');
-            }
-            if (partPrice !== '') {
-              if (isNaN(parseFloat(partPrice)) || parseFloat(partPrice) < 0) errors.push('Invalid Part Price in Recommended Repairs');
-            }
-            if (laborHours !== '') {
-              if (isNaN(parseFloat(laborHours)) || parseFloat(laborHours) < 0) errors.push('Invalid Labor Hours in Recommended Repairs');
-            }
-          }
+          if (partPrice !== '' && (isNaN(parseFloat(partPrice)) || parseFloat(partPrice) < 0)) errors.push(`Row ${idx + 1}: Part Price must be a non-negative number.`);
+          if (laborHours !== '' && (isNaN(parseFloat(laborHours)) || parseFloat(laborHours) < 0)) errors.push(`Row ${idx + 1}: Labor Hours must be a non-negative number.`);
         });
       }
 
@@ -1370,181 +1403,195 @@ allContent.forEach(content => {
       });
     });
   })();
-  
+
+
+  // --- Complete Ticket button at bottom wiring ---
   (function wireCompleteTicketBottom() {
     const btn = document.getElementById('completeTicketBottom');
     if (!btn) return;
-    
-    btn.addEventListener('click', async function () {
-        const form = document.getElementById('repForm');
-        if (!form) return alert('Main form not found');
+    btn.addEventListener('click', function () {
+      const form = document.getElementById('repForm');
+      if (!form) return alert('Main form not found');
 
-        // Get ticket ID first
-        const ticketId = (window.__SERVER_TICKET__ && window.__SERVER_TICKET__.id) ||
-                        document.getElementById('vehicle-ticketId')?.value ||
-                        document.getElementById('ticketId')?.value || '';
-        
-        if (!ticketId) {
-            alert('Cannot complete ticket: ticket ID not found. Please save the ticket first.');
-            return;
-        }
-
-        try {
-            console.log('Verifying all sections for ticket:', ticketId);
-            
-            // Call the comprehensive verification endpoint
-            const res = await fetch('/mechanic/verify-all-sections', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ticketId })
+      // Run an immediate courtesy-check here and block if missing items
+      const courtesy = document.getElementById('courtesy-check');
+      if (courtesy) {
+        const table = courtesy.querySelector('table');
+        if (table) {
+          const headers = Array.from(table.querySelectorAll('thead th')).map(h => (h.textContent || '').trim());
+          const rows = Array.from(table.querySelectorAll('tbody tr'));
+          const courtesyErrors = [];
+          rows.forEach((row, rowIdx) => {
+            const firstCell = row.querySelector('td');
+            const itemName = (firstCell && firstCell.textContent) ? firstCell.textContent.trim() : `Row ${rowIdx + 1}`;
+            const selects = Array.from(row.querySelectorAll('select'));
+            selects.forEach((sel) => {
+              if (!sel.value || String(sel.value).trim() === '') {
+                const cell = sel.closest('td');
+                let colIdx = -1;
+                if (cell && cell.parentElement) colIdx = Array.from(cell.parentElement.children).indexOf(cell);
+                const header = headers[colIdx] || 'Status';
+                courtesyErrors.push(`Courtesy Check — ${itemName}: ${header} is required.`);
+              }
             });
-            
-            if (!res.ok) {
-                console.error('Verification failed with status:', res.status);
-                alert('Failed to verify ticket sections. Please try again.');
-                return;
+            const inputs = Array.from(row.querySelectorAll('input'));
+            if (inputs.length > 0) {
+              inputs.forEach((inp) => {
+                const ph = (inp.getAttribute('placeholder') || '').toLowerCase();
+                if (ph.includes('note') || ph.includes('comment')) return;
+                const cell = inp.closest('td');
+                if (cell) {
+                  const cellIdx = Array.from(cell.parentElement.children).indexOf(cell);
+                  const isLastColumn = cellIdx === (row.children.length - 1);
+                  if (isLastColumn) return;
+                  const header = headers[cellIdx] || `Column ${cellIdx + 1}`;
+                  const val = (inp.value || '').toString().trim();
+                  if (!val) courtesyErrors.push(`Courtesy Check — ${itemName}: ${header} is required.`);
+                }
+              });
             }
-            
-            const data = await res.json();
-            console.log('Verification response:', data);
-            
-            // Check if all sections are complete
-            if (!data.allSectionsComplete) {
-                const missingSections = data.missingSections || [];
-                const message = `The following sections must be completed and saved before completing the ticket:\n\n${missingSections.map(s => '• ' + s).join('\n')}\n\nPlease complete and save all sections.`;
-                alert(message);
-                return;
-            }
-            
-            console.log('All sections verified. Proceeding with ticket completion.');
-            
-        } catch (err) {
-            console.error('Verification error:', err);
-            alert('Failed to verify ticket sections. Please try again.');
+          });
+          if (courtesyErrors.length > 0) {
+            alert(courtesyErrors.join('\n'));
             return;
+          }
         }
+      }
 
-        // All sections verified - set status and submit
-        const status = document.getElementById('ticketStatus');
-        if (status) status.value = 'complete';
-        try { console.log('Complete button: submitting form via requestSubmit'); } catch (e) { }
-        try { form.requestSubmit(); } catch (e) { form.submit(); }
+      // mark the form to indicate we're completing and let the form submit handler perform validation
+      const status = document.getElementById('ticketStatus');
+      if (status) status.value = 'complete';
+      try { console.log('Complete button: submitting form via requestSubmit'); } catch (e) { }
+      try { form.requestSubmit(); } catch (e) { form.submit(); }
     });
   })();
+
 });
+
+// --- Populate form from server-provided ticket JSON (if present) ---
 (function populateFromServerTicket() {
   try {
+    // attempt to read hidden input first
     var serverEl = document.getElementById('server-ticket');
     var raw = serverEl ? serverEl.value : null;
     if (!raw && window.__SERVER_TICKET__) raw = JSON.stringify(window.__SERVER_TICKET__);
     if (!raw) return;
-    var ticket = raw ? JSON.parse(raw) : null;
+    var ticket = JSON.parse(raw);
     if (!ticket) return;
-        
-    // set time picker select values (if individual selects exist) by parsing the ticket.timeIn/timeOut
-    function applyTicket(){
-        try { 
-    console.log('Applying server ticket data to form', ticket);
-    
-    // ✅ ENSURE TIME PICKERS ARE POPULATED FIRST
-    // Force synchronous population of time picker selects
-    ['timeIn', 'timeOut'].forEach(prefix => {
-      const hour = document.getElementById(prefix + 'Hour');
-      const minute = document.getElementById(prefix + 'Minute');
-      const ampm = document.getElementById(prefix + 'AmPm');
-      
-      if (hour && !hour.dataset.populated) {
-        hour.innerHTML = '';
-        hour.appendChild(new Option('Hour', ''));
-        for (let h = 1; h <= 12; h++) hour.appendChild(new Option(String(h), String(h)));
-        hour.dataset.populated = '1';
-      }
-      
-      if (minute && !minute.dataset.populated) {
-        minute.innerHTML = '';
-        minute.appendChild(new Option('Min', ''));
-        for (let m = 0; m < 60; m++) minute.appendChild(new Option(String(m).padStart(2, '0'), String(m).padStart(2, '0')));
-        minute.dataset.populated = '1';
-      }
-      
-      if (ampm && !ampm.dataset.populated) {
-        ampm.innerHTML = '';
-        ampm.appendChild(new Option('AM/PM', ''));
-        ['AM', 'PM'].forEach(x => ampm.appendChild(new Option(x, x)));
-        ampm.dataset.populated = '1';
-      }
-    });
-    
-    // NOW set the time values
-    function setTimeSelects(prefix, timeStr) {
-      console.log('setTimeSelects called', { prefix, timeStr });
-      if (!timeStr) return;
-      const parts = timeStr.split(' ');
-      if (parts.length < 2) return;
-      const time = parts[0];
-      const period = parts[1];
-      const [h, m] = time.split(':');
-      const hEl = document.getElementById(prefix + 'Hour');
-      const mEl = document.getElementById(prefix + 'Minute');
-      const pEl = document.getElementById(prefix + 'AmPm');
-      console.log('setTimeSelects: found elements', { hEl: !!hEl, mEl: !!mEl, pEl: !!pEl });
-      
-      try { 
-        if (hEl) { 
-          hEl.value = String(parseInt(h, 10)); 
-          hEl.dispatchEvent(new Event('change')); 
-          console.log('Set hour to:', hEl.value);
-        } 
-      } catch (e) { console.error('Error setting hour:', e); }
-      
-      try { 
-        if (mEl) { 
-          mEl.value = String(m).padStart(2, '0'); 
-          mEl.dispatchEvent(new Event('change')); 
-          console.log('Set minute to:', mEl.value);
-        } 
-      } catch (e) { console.error('Error setting minute:', e); }
-      
-      try { 
-        if (pEl) { 
-          pEl.value = period; 
-          pEl.dispatchEvent(new Event('change')); 
-          console.log('Set period to:', pEl.value);
-        } 
-      } catch (e) { console.error('Error setting period:', e); }
-    }
+
+    // run when DOM is ready
+    function applyTicket() {
+      try {
+        console.log('populateFromServerTicket: applying ticket', ticket);
+        if (ticket.date) document.getElementById('roDate') && (document.getElementById('roDate').value = ticket.date || '');
+        if (ticket.techName) document.getElementById('technician') && (document.getElementById('technician').value = ticket.techName || '');
+        // Repair order can be named differently in DB: try several possibilities
+        const ro = ticket.roNum || ticket.repairOrderNumber || ticket.ro || ticket.repairOrder || ticket.repair_order || '';
+        if (ro) {
+          const roEl = document.getElementById('roNum');
+          if (roEl) roEl.value = ro;
+        }
+
+        // timeIn/timeOut: set hidden fields and the individual selects if present
+        if (ticket.timeIn) document.getElementById('timeIn') && (document.getElementById('timeIn').value = ticket.timeIn || '');
+        if (ticket.timeOut) document.getElementById('timeOut') && (document.getElementById('timeOut').value = ticket.timeOut || '');
+        if (ticket.totalTime) document.getElementById('totTime') && (document.getElementById('totTime').value = ticket.totalTime || '');
+        if (ticket.customerName) document.getElementById('custName') && (document.getElementById('custName').value = ticket.customerName || '');
+        if (ticket.customerAddress) document.getElementById('custAddress') && (document.getElementById('custAddress').value = ticket.customerAddress || '');
+        if (ticket.customerPhone) document.getElementById('custPhone') && (document.getElementById('custPhone').value = ticket.customerPhone || '');
+        if (ticket.customerEmail) document.getElementById('custEmail') && (document.getElementById('custEmail').value = ticket.customerEmail.toLowerCase() || '');
+        if (ticket.concern) document.getElementById('concern') && (document.getElementById('concern').value = ticket.concern || '');
+        if (ticket.diagnosis) document.getElementById('diagnosis') && (document.getElementById('diagnosis').value = ticket.diagnosis || '');
+        if (ticket.dateSigned) document.getElementById('sDate') && (document.getElementById('sDate').value = ticket.dateSigned || '');
+        if (ticket.customerSignature) {
+          var sigField = document.getElementById('signatureData');
+          if (sigField) sigField.value = ticket.customerSignature || '';
+        }
+
+        // populate repairs table: use same markup as the add-row template so classes are correct
+        if (Array.isArray(ticket.repairs) && ticket.repairs.length) {
+          var tbody = document.querySelector('#repairs-table tbody');
+          if (tbody) {
+            tbody.innerHTML = '';
+            ticket.repairs.forEach(function (r) {
+              var tr = document.createElement('tr');
+              tr.innerHTML = `
+                <td><input type="text" class="rp-desc" placeholder="Description"></td>
+                <td><input type="number" min="0" class="rp-qty" placeholder="1" style="width:4em"></td>
+                <td><input type="text" class="rp-um" placeholder="Part #"></td>
+                <td><input type="number" min="0" step="0.01" class="rp-partprice" placeholder="0.00"></td>
+                <td><input type="text" class="rp-partstotal" placeholder="0.00" readonly tabindex="-1" aria-readonly="true"></td>
+                <td><input type="number" min="0" step="0.01" class="rp-laborhours" placeholder="0.00"></td>
+                <td><input type="text" class="rp-labortotal" placeholder="0.00" readonly tabindex="-1" aria-readonly="true"></td>
+                <td><button type="button" class="remove-repair-line">Remove</button></td>
+              `;
+              tbody.appendChild(tr);
+              // fill values
+              try { tr.querySelector('.rp-desc').value = r.repairDescription || ''; } catch (e) { }
+              try { tr.querySelector('.rp-qty').value = (r.qty != null) ? r.qty : ''; } catch (e) { }
+              try { tr.querySelector('.rp-um').value = r.partNumber || ''; } catch (e) { }
+              try { tr.querySelector('.rp-partprice').value = (r.partPrice != null) ? r.partPrice : ''; } catch (e) { }
+              try { tr.querySelector('.rp-partstotal').value = (r.partsTotal != null) ? r.partsTotal : ''; } catch (e) { }
+              try { tr.querySelector('.rp-laborhours').value = (r.laborHours != null) ? r.laborHours : ''; } catch (e) { }
+              try { tr.querySelector('.rp-labortotal').value = (r.laborTotal != null) ? r.laborTotal : ''; } catch (e) { }
+              // wire the row behaviors already present in the page if available
+              try { if (typeof ensureRowClasses === 'function') ensureRowClasses(tr); } catch (e) { }
+              try { if (typeof wireRow === 'function') wireRow(tr); } catch (e) { }
+            });
+            // update subtotals after populating: attempt to call existing helper, otherwise compute locally
+            try {
+              if (typeof updateSubtotals === 'function') updateSubtotals();
+              else {
+                // compute sums locally
+                const rowsNow = Array.from(tbody.querySelectorAll('tr'));
+                let partsSum = 0, laborSum = 0;
+                rowsNow.forEach(rr => {
+                  const pt = parseFloat((rr.querySelector('.rp-partstotal') && rr.querySelector('.rp-partstotal').value) || '') || 0;
+                  const lt = parseFloat((rr.querySelector('.rp-labortotal') && rr.querySelector('.rp-labortotal').value) || '') || 0;
+                  // fallback: compute from qty * price or laborHours * 100
+                  if (!pt) {
+                    const qty = parseFloat((rr.querySelector('.rp-qty') && rr.querySelector('.rp-qty').value) || '') || 0;
+                    const price = parseFloat((rr.querySelector('.rp-partprice') && rr.querySelector('.rp-partprice').value) || '') || 0;
+                    partsSum += qty * price;
+                  } else partsSum += pt;
+                  if (!lt) {
+                    const lh = parseFloat((rr.querySelector('.rp-laborhours') && rr.querySelector('.rp-laborhours').value) || '') || 0;
+                    laborSum += lh * 100;
+                  } else laborSum += lt;
+                });
+                const subPartsEl = document.getElementById('subTotParts');
+                const subLaborEl = document.getElementById('subTotLabor');
+                const taxEl = document.getElementById('tax');
+                const totEstimateEl = document.getElementById('totEstimate');
+                function fmt(n) { return (Math.round(n * 100) / 100).toFixed(2); }
+                if (subPartsEl) subPartsEl.value = fmt(partsSum);
+                if (subLaborEl) subLaborEl.value = fmt(laborSum);
+                const tax = partsSum * 0.06;
+                if (taxEl) taxEl.value = fmt(tax);
+                if (totEstimateEl) totEstimateEl.value = fmt(partsSum + tax);
+              }
+            } catch (e) { }
+          }
+        }
+
+        // set time picker select values (if individual selects exist) by parsing the ticket.timeIn/timeOut
+        function setTimeSelects(prefix, timeStr) {
+          if (!timeStr) return;
+          const parts = timeStr.split(' ');
+          if (parts.length < 2) return;
+          const time = parts[0];
+          const period = parts[1];
+          const [h, m] = time.split(':');
+          const hEl = document.getElementById(prefix + 'Hour');
+          const mEl = document.getElementById(prefix + 'Minute');
+          const pEl = document.getElementById(prefix + 'AmPm');
+          try { if (hEl) { hEl.value = String(parseInt(h, 10)); hEl.dispatchEvent(new Event('change')); } } catch (e) { }
+          try { if (mEl) { mEl.value = String(m).padStart(2, '0'); mEl.dispatchEvent(new Event('change')); } } catch (e) { }
+          try { if (pEl) { pEl.value = period; pEl.dispatchEvent(new Event('change')); } } catch (e) { }
+        }
+
         setTimeSelects('timeIn', ticket.timeIn);
         setTimeSelects('timeOut', ticket.timeOut);
-         try {
-      console.log('Populating main Repair Order form fields...');
-      
-      const fieldMappings = {
-        'roNum': ticket.roNum || ticket.repairOrderNumber,
-        'roDate': ticket.roDate || ticket.date,
-        'technician': ticket.technician || ticket.techName,
-        'custName': ticket.custName || ticket.customerName,
-        'custAddress': ticket.custAddress || ticket.customerAddress,
-        'custPhone': ticket.custPhone || ticket.customerPhone,
-        'custEmail': ticket.custEmail || ticket.customerEmail,
-        'concern': ticket.concern,
-        'diagnosis': ticket.diagnosis,
-        'sDate': ticket.dateSigned || ticket.sDate
-      };
-      
-      Object.keys(fieldMappings).forEach(fieldId => {
-        const el = document.getElementById(fieldId);
-        const value = fieldMappings[fieldId];
-        if (el && value != null && value !== '') {
-          el.value = value;
-          el.dispatchEvent(new Event('input', { bubbles: true }));
-          console.log('Populated field:', fieldId, '=', value);
-        }
-      });
-      
-      console.log('Main form fields populated successfully');
-    } catch (e) {
-      console.error('Error populating main form fields:', e);
-    }
         // populate other sections from ticket.sections by table name
         try {
           const sections = ticket.sections || {};
@@ -1814,7 +1861,10 @@ allContent.forEach(content => {
                       } catch (e) { return false; }
                     });
                   }
-                  if (!rowDom) { unmatched.push(name); return; }
+                  if (!rowDom) {
+                    unmatched.push(name);
+                    return;
+                  }
 
                   // helper to set a cell value by index
                   const setCellVal = (idx, val) => {
@@ -1836,7 +1886,29 @@ allContent.forEach(content => {
                         }
                         input.dispatchEvent(new Event('change'));
                       } else {
-                        // no input; leave text alone (do not overwrite '-')
+                        // no input; leave text alone (do not overwrite plain text dashes); try to find a select elsewhere in the row that corresponds to this header
+                        try {
+                          const headerCells = Array.from(sec.querySelectorAll('thead th')).map(h => (h.textContent || '').toLowerCase());
+                          // find select in same row whose header includes the column name
+                          const sel = Array.from(rowDom.querySelectorAll('select')).find(s => {
+                            try {
+                              const selIdx = Array.from(rowDom.cells).indexOf(s.closest('td'));
+                              const hdr = headerCells[selIdx] || '';
+                              return hdr.includes(col);
+                            } catch (e) { return false; }
+                        });
+                        if (sel) {
+                          try {
+                            sel.value = val;
+                            const norm = s => (s || '').toString().toLowerCase().trim();
+                            if (norm(sel.value) !== norm(val)) {
+                              const opt = Array.from(sel.options).find(o => norm(o.text) === norm(val) || norm(o.value) === norm(val));
+                              if (opt) sel.value = opt.value;
+                            }
+                            sel.dispatchEvent(new Event('change'));
+                          } catch (e) { }
+                        }
+                        } catch (e) { /* ignore fallback */ }
                       }
                     } catch (e) { /* ignore */ }
                   };
@@ -2039,29 +2111,104 @@ allContent.forEach(content => {
             }
           }
         } catch (err) { console.warn('populate courtesy error', err); }
-      } catch (e) { 
-      console.error('Error applying server ticket to form', e); 
-       try {
-        // Give the DOM a moment to finish rendering the repairs table
-        setTimeout(() => {
-          if (typeof updateSubtotals === 'function') {
-            updateSubtotals();
-            console.log('Totals recalculated from repairs table');
+        // --- Load server-provided images & videos for this ticket (if present) ---
+        try {
+          // images can be under multiple possible keys: ticket.images, ticket.photos, ticket.media.images
+          const svcImages = ticket.images || ticket.photos || (ticket.media && ticket.media.images) || null;
+          if (Array.isArray(svcImages) && svcImages.length) {
+            // normalize to array of src strings or objects with src
+            const imgs = svcImages.map(it => {
+              if (!it) return null;
+              if (typeof it === 'string') return String(it);
+              return String(it.src || it.url || it.path || it.relativePath || '');
+            }).filter(Boolean);
+            if (imgs.length) {
+              // prefer existing helper if bound by setupImageUpload
+              if (typeof window.applyUploadedImages === 'function') {
+                try { window.applyUploadedImages(imgs); } catch (e) { console.warn('applyUploadedImages failed', e); }
+              } else {
+                // fallback: render into #image-preview directly
+                const container = document.getElementById('image-preview');
+                if (container) {
+                  container.innerHTML = '';
+                  imgs.forEach((src, i) => {
+                    let url = String(src);
+                    if (!url.match(/^data:|^https?:|^\//)) url = '/' + url.replace(/^\/+/, '');
+                    const img = document.createElement('img');
+                    img.src = url;
+                    img.alt = `image-${i}`;
+                    img.style.maxWidth = '100%';
+                    img.style.height = 'auto';
+                    img.style.display = 'block';
+                    img.style.marginBottom = '6px';
+                    container.appendChild(img);
+                  });
+                }
+              }
+            }
           }
-        }, 100);
-      } catch (e) {
-        console.warn('Failed to recalculate totals:', e);
-      }
+
+          // videos can be under ticket.videos, ticket.videoFiles, ticket.media.videos
+          const svcVideos = ticket.videos || ticket.videoFiles || (ticket.media && ticket.media.videos) || null;
+          if (Array.isArray(svcVideos) && svcVideos.length) {
+            const vContainer = document.getElementById('video-preview');
+            if (vContainer) {
+              vContainer.innerHTML = '';
+              const videoMetaList = [];
+              svcVideos.forEach((v, idx) => {
+                let src = '';
+                let name = `video-${idx}`;
+                if (!v) return;
+                if (typeof v === 'string') src = v;
+                else { src = v.src || v.url || v.path || v.relativePath || ''; name = v.filename || v.name || name; }
+                if (!src) return;
+                if (!src.match(/^data:|^https?:|^\//)) src = '/' + String(src).replace(/^\/+/, '');
+
+                const wrapper = document.createElement('div');
+                wrapper.style.position = 'relative';
+                wrapper.style.marginBottom = '8px';
+                const videoEl = document.createElement('video');
+                videoEl.controls = true;
+                videoEl.style.width = '320px';
+                videoEl.style.maxWidth = '100%';
+                videoEl.style.height = '180px';
+                videoEl.src = src;
+                wrapper.appendChild(videoEl);
+                vContainer.appendChild(wrapper);
+
+                videoMetaList.push({ src, name });
+              });
+
+              // write metadata into a hidden input so server receives info about previously uploaded videos
+              try {
+                const form = document.getElementById('repForm') || document.querySelector('form');
+                if (form && videoMetaList.length) {
+                  let hid = form.querySelector('input[name="uploadedVideos"]');
+                  if (!hid) {
+                    hid = document.createElement('input');
+                    hid.type = 'hidden';
+                    hid.name = 'uploadedVideos';
+                    form.appendChild(hid);
+                  }
+                  hid.value = JSON.stringify(videoMetaList);
+                  // after writing server-provided videos, ensure remove handlers exist
+                  try { if (typeof window.ensureVideoRemoveButtons === 'function') window.ensureVideoRemoveButtons(); } catch (e) {}
+                }
+              } catch (e) { console.warn('writing uploadedVideos hidden input failed', e); }
+            }
+          }
+        } catch (err) { console.warn('populate media error', err); }
+
+      } catch (e) { console.error('Error applying server ticket to form', e); }
     }
-  }
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', applyTicket);
     else applyTicket();
-    
   } catch (err) {
     console.warn('populateFromServerTicket: no server ticket or parse failed', err);
   }
 })();
+
 // --- Enforce mode: when a ticket is loaded but not in edit mode, lock UI to Repair Order only ---
 (function enforceRepairOrderOnlyMode() {
   function run() {
@@ -2111,7 +2258,7 @@ allContent.forEach(content => {
         } catch (e) { /* ignore individual failures */ }
       });
 
-      
+
       // explicitly disable media upload controls when in view-only mode
       const uploadControls = ['video-upload-zone', 'video-file', 'upload-trigger', 'upload-btn', 'image-upload-zone', 'image-file', 'image-upload-trigger', 'image-upload-btn'];
       uploadControls.forEach(id => {
@@ -2193,7 +2340,7 @@ allContent.forEach(content => {
 
           if (res.ok) {
             let payload = null;
-            try { payload = await res.json(); } catch (err) { payload = null; }
+            try { payload = await res.json(); } catch (e) { payload = null; }
             if (payload && payload.success) {
               console.log('Courtesy check saved');
               return;
@@ -2292,7 +2439,7 @@ allContent.forEach(content => {
 
           if (res.ok) {
             let payload = null;
-            try { payload = await res.json(); } catch (err) { payload = null; }
+            try { payload = await res.json(); } catch (e) { payload = null; }
             if (payload && payload.success) {
               console.log('Steering & Suspension saved');
               return;
@@ -2328,8 +2475,7 @@ allContent.forEach(content => {
       saveBtn.dataset.boundBrakesSave = '1';
 
       saveBtn.addEventListener('click', async function (e) {
-        e.preventDefault(); 
-        e.stopPropagation();
+        e.preventDefault(); e.stopPropagation();
 
         const ticketId = (window.__SERVER_TICKET__ && window.__SERVER_TICKET__.id) || document.getElementById('vehicle-ticketId')?.value || document.getElementById('ticketId')?.value || '';
         if (!ticketId) {
@@ -2355,22 +2501,53 @@ allContent.forEach(content => {
             try {
               const itemLabel = (row.cells && row.cells[0] ? row.cells[0].textContent : '').trim();
               if (!itemLabel) return;
-              
               const getCell = (idx) => {
                 if (idx === -1 || !row.cells[idx]) return '';
                 const cell = row.cells[idx];
                 const input = cell.querySelector('select, input, textarea');
-                if (input) return input.value || '';
-                return (cell.textContent || '').trim();
+                if (input) {
+                  // try direct assign
+                  input.value = val;
+                  // if select didn't match, try fuzzy match on options
+                  if (input.tagName && input.tagName.toLowerCase() === 'select') {
+                    const norm = s => (s || '').toString().toLowerCase().trim();
+                    if (norm(input.value) !== norm(val)) {
+                      const opt = Array.from(input.options).find(o => norm(o.text) === norm(val) || norm(o.value) === norm(val));
+                      if (opt) input.value = opt.value;
+                    }
+                  }
+                  input.dispatchEvent(new Event('change'));
+                } else {
+                  // no input; leave text alone (do not overwrite plain text dashes); try to find a select elsewhere in the row that corresponds to this header
+                  try {
+                    const headerCells = Array.from(sec.querySelectorAll('thead th')).map(h => (h.textContent || '').toLowerCase());
+                    // find select in same row whose header includes the column name
+                    const sel = Array.from(rowDom.querySelectorAll('select')).find(s => {
+                      try {
+                        const selIdx = Array.from(rowDom.cells).indexOf(s.closest('td'));
+                        const hdr = headerCells[selIdx] || '';
+                        return hdr.includes(col);
+                      } catch (e) { return false; }
+                    });
+                    if (sel) {
+                      try {
+                        sel.value = val;
+                        const norm = s => (s || '').toString().toLowerCase().trim();
+                        if (norm(sel.value) !== norm(val)) {
+                          const opt = Array.from(sel.options).find(o => norm(o.text) === norm(val) || norm(o.value) === norm(val));
+                          if (opt) sel.value = opt.value;
+                        }
+                        sel.dispatchEvent(new Event('change'));
+                      } catch (e) { }
+                    }
+                  } catch (e) { /* ignore fallback */ }
+                }
               };
 
-              items.push({
-                item: itemLabel,
-                Spec: getCell(specIdx),
-                actual: getCell(actualIdx),
-                status: getCell(statusIdx),
-                comments: getCell(commentsIdx)
-              });
+              setCellVal(specIdx, r.Spec || r.spec || '');
+              setCellVal(actualIdx, r.actual || r.Actual || r.value || '');
+              setCellVal(statusIdx, r.status || r.Status || '');
+              setCellVal(commentsIdx, r.comments || r.Notes || r.notes || '');
             } catch (e) { /* ignore row */ }
           });
         }
@@ -2388,14 +2565,11 @@ allContent.forEach(content => {
 
           if (res.status === 204) { console.log('Brakes saved (204)'); return; }
           if (res.ok) {
-            let payload = null; 
-            try { payload = await res.json(); } catch (e) { payload = null; }
+            let payload = null; try { payload = await res.json(); } catch (e) { payload = null; }
             if (payload && payload.success) { console.log('Brakes saved'); return; }
-            console.warn('Brakes save response', res.status, payload); 
-            return;
+            console.warn('Brakes save response', res.status, payload); return;
           }
-          let errPayload = null; 
-          try { errPayload = await res.json(); } catch (e) { errPayload = null; }
+          let errPayload = null; try { errPayload = await res.json(); } catch (e) { errPayload = null; }
           console.error('Brakes save failed', res.status, errPayload);
         } catch (err) {
           console.error('Brakes save failed', err);
@@ -2409,7 +2583,6 @@ allContent.forEach(content => {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
   else bind();
 })();
-
 
 // --- Emissions: save emissions table, middle info, and warnings to /mechanic/emissions ---
 (function wireEmissionsSave() {
@@ -2495,7 +2668,9 @@ allContent.forEach(content => {
           }
           let err = null; try { err = await res.json(); } catch (e) { err = null; }
           console.error('Emissions save failed', res.status, err);
-        } catch (err) { console.error('Emissions save failed', err); }
+        } catch (err) {
+          console.error('Emissions save failed', err);
+        }
       });
     } catch (err) { console.warn('wireEmissionsSave error', err); }
   };
@@ -2796,314 +2971,347 @@ document.addEventListener('DOMContentLoaded', () => {
   else initSignatureLoader();
 })();
 
-//image saver and loader 
-(function customerImageLoader() {
-  // It can be triggered on DOMContentLoaded and can attempt to find and apply any saved customer images based on ticket ID or other identifiers.
-  // render server image objects/urls into the preview area and create a hidden JSON input
-  function localApplyServerImages(images) {
-    if (!Array.isArray(images) || images.length === 0) return;
-    const preview = document.getElementById('image-preview');
-    const zone = document.getElementById('image-upload-zone');
-    let container = preview;
-    if (!container) {
-      container = zone && zone.parentNode ? zone.parentNode.querySelector('.image-preview-container') : null;
-      if (!container && zone && zone.parentNode) {
-        container = document.createElement('div');
-        container.className = 'image-preview-container';
-        zone.parentNode.insertBefore(container, zone.nextSibling);
+// --- video and image loader (fixed & improved) ---
+document.addEventListener('DOMContentLoaded', () => {
+  const videoUploadZone = document.getElementById('video-upload-zone');
+  const imageUploadZone = document.getElementById('image-upload-zone');
+  const videoinput = document.getElementById('video-file');
+  const imageinput = document.getElementById('image-file');
+  const videoPreviewContainer = document.getElementById('video-preview');
+  const imagePreviewContainer = document.getElementById('image-preview');
+
+  // helper to move file input before a button then remove zone
+  function relocateInputAndRemoveZone(inputEl, uploadBtnId, zoneEl) {
+    try {
+      const uploadBtn = document.getElementById(uploadBtnId);
+      // move the input next to the upload button so its files survive DOM changes
+      if (inputEl && uploadBtn && inputEl.parentNode !== uploadBtn.parentNode) {
+        uploadBtn.parentNode.insertBefore(inputEl, uploadBtn);
+        inputEl.style.display = 'none';
       }
-    }
-    if (!container) {
-      console.warn('customerImageLoader: no preview container to render images');
-      return;
-    }
 
-    const normalized = images.map((it, i) => {
-      if (typeof it === 'string') return { src: it, name: `image-${i}`, size: 0 };
-      return { src: it.src || it.url || it.path || '', name: it.filename || it.name || `image-${i}`, size: it.size || 0 };
-    }).filter(x => x.src);
+      if (zoneEl && zoneEl.parentNode) {
+        // If the upload button is inside the zone we're about to remove,
+        // move the upload button out first so it doesn't get removed.
+        try {
+          if (uploadBtn && zoneEl.contains(uploadBtn)) {
+            zoneEl.parentNode.insertBefore(uploadBtn, zoneEl.nextSibling);
+          }
+        } catch (e) { /* ignore move failure */ }
 
-    container.innerHTML = '';
-    normalized.forEach((f, idx) => {
-      try {
+        zoneEl.parentNode.removeChild(zoneEl);
+      }
+    } catch (e) { console.warn('relocateInputAndRemoveZone failed', e); }
+  }
+
+  // ---------- Images (flex layout, multiple, removable) ----------
+  if (imageinput) {
+    const MAX_IMAGES = 6; // allow a "few" images
+    imageinput.multiple = true;
+
+    function renderImagePreviews(fileList) {
+      if (!imagePreviewContainer) return;
+      imagePreviewContainer.innerHTML = '';
+
+      const files = Array.from(fileList || []);
+      const wrapperList = document.createElement('div');
+      wrapperList.style.display = 'flex';
+      wrapperList.style.flexWrap = 'wrap';
+      wrapperList.style.gap = '8px';
+      wrapperList.style.alignItems = 'flex-start';
+
+      files.forEach((file, idx) => {
+        const item = document.createElement('div');
+        item.style.position = 'relative';
+        item.style.width = '140px';
+        item.style.height = '100px';
+        item.style.flex = '0 0 auto';
+        item.style.border = '1px solid #e0e0e0';
+        item.style.borderRadius = '6px';
+        item.style.overflow = 'hidden';
+        item.title = file.name || '';
+
         const img = document.createElement('img');
-        img.alt = f.name || `image-${idx}`;
-        img.style.maxWidth = '100%';
-        img.style.height = 'auto';
-        img.style.display = 'block';
-        img.style.marginBottom = '6px';
-        let src = String(f.src || '');
-        // normalize relative paths to absolute-ish so they load from server root
-        if (src && !src.match(/^data:|^https?:|^\//)) src = '/' + src.replace(/^\/+/, '');
-        img.addEventListener('load', () => console.log('customerImageLoader: server image loaded', { idx, name: f.name, src: img.src, naturalWidth: img.naturalWidth, naturalHeight: img.naturalHeight }));
-        img.addEventListener('error', () => console.error('customerImageLoader: server image failed to load', { idx, name: f.name, src: img.src }));
-        console.log('customerImageLoader: setting image src', { idx, name: f.name, src });
-        img.src = src;
-        img.className = 'server-image';
-        container.appendChild(img);
-      } catch (e) { console.warn('customerImageLoader: render error', e); }
+        img.style.width = '100%';
+        img.style.height = '100%';
+        img.style.objectFit = 'cover';
+        img.alt = file.name || '';
+
+        // load preview (File or server-provided object with .src)
+        if (file instanceof File) {
+          const url = URL.createObjectURL(file);
+          img.src = url;
+          img.addEventListener('load', () => { try { URL.revokeObjectURL(url); } catch (_) { } });
+        } else if (file && file.src) {
+          img.src = file.src;
+        } else {
+          img.src = String(file);
+        }
+
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'thumb-remove';
+        removeBtn.textContent = '×';
+        removeBtn.title = 'Remove';
+        removeBtn.style.position = 'absolute';
+        removeBtn.style.top = '2px';
+        removeBtn.style.right = '2px';
+        removeBtn.style.background = 'rgba(0,0,0,0.6)';
+        removeBtn.style.color = '#fff';
+        removeBtn.style.border = 'none';
+        removeBtn.style.borderRadius = '12px';
+        removeBtn.style.width = '24px';
+        removeBtn.style.height = '24px';
+        removeBtn.style.cursor = 'pointer';
+        removeBtn.style.lineHeight = '20px';
+        removeBtn.style.padding = '0';
+        removeBtn.style.fontSize = '16px';
+
+        removeBtn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          try {
+            // Update input.files by removing the clicked file, then re-render previews.
+            const current = Array.from(imageinput.files || []);
+            if (!current.length) {
+              // nothing to do
+              return;
+            }
+
+            // prefer matching by name+size key when available
+            const key = (file && file.name && file.size) ? (file.name + '|' + file.size) : null;
+            let newFiles;
+            if (key) {
+              newFiles = current.filter(f => (f.name + '|' + (f.size || 0)) !== key);
+            } else {
+              newFiles = current.filter((_, j) => j !== idx);
+            }
+
+            // write new FileList back to input
+            const dt = new DataTransfer();
+            newFiles.forEach(f => dt.items.add(f));
+            imageinput.files = dt.files;
+
+            // re-render previews and update zone text
+            renderImagePreviews(imageinput.files);
+            updateImageZoneText();
+          } catch (err) {
+            console.warn('Failed to remove image', err);
+          }
+        });
+
+        item.appendChild(img);
+        item.appendChild(removeBtn);
+        wrapperList.appendChild(item);
+      });
+
+      imagePreviewContainer.appendChild(wrapperList);
+    }
+
+    function updateImageZoneText() {
+      try {
+        const p = imageUploadZone && imageUploadZone.querySelector('p');
+        const count = imageinput.files ? imageinput.files.length : 0;
+        if (p) p.textContent = count ? `Selected ${count} image(s)` : 'Drop images here or click to upload';
+        // indicate limit
+        if (count >= MAX_FILES) {
+          if (p) p.textContent += ` (max ${MAX_FILES})`;
+        }
+      } catch (e) { /* ignore */ }
+    }
+
+    imageinput.addEventListener('change', (e) => {
+      const files = Array.from(e.target.files || []);
+      if (!files.length) {
+        imagePreviewContainer && (imagePreviewContainer.innerHTML = '');
+        updateImageZoneText();
+        return;
+      }
+
+      // enforce max
+      const allowed = files.slice(0, MAX_FILES);
+      if (allowed.length !== files.length) {
+        // overwrite input.files to keep it consistent
+        try {
+          const dt = new DataTransfer();
+          allowed.forEach(f => dt.items.add(f));
+          imageinput.files = dt.files;
+        } catch (err) { /* ignore */ }
+      }
+      renderImagePreviews(imageinput.files);
+      updateImageZoneText();
+
+      // move input and remove visual zone so file objects survive if desired
+      relocateInputAndRemoveZone(imageinput, 'image-upload-btn', imageUploadZone);
     });
 
-    // hidden JSON input for server processing
-    try {
-      const form = document.getElementById('repForm') || document.querySelector('form');
-      if (form) {
-        let hid = form.querySelector('input[name="uploadedImages"]');
-        if (!hid) {
-          hid = document.createElement('input');
-          hid.type = 'hidden';
-          hid.name = 'uploadedImages';
-          form.appendChild(hid);
-        }
-        hid.value = JSON.stringify(normalized.map(f => ({ src: f.src, name: f.name, size: f.size || 0 })));
-      }
-    } catch (e) { /* ignore */ }
-    console.log('customerImageLoader: applied', normalized.length, 'images');
+    // initial render if there are files already (e.g. server-applied)
+    if (imageinput.files && imageinput.files.length) {
+      renderImagePreviews(imageinput.files);
+      updateImageZoneText();
+    }
   }
 
-  // expose helper (prefer existing applyUploadedImages if defined by image upload setup)
+  // ---------- Video (single file allowed) ----------
+  if (videoinput) {
+    videoinput.multiple = false; // enforce single video
+    function renderVideoPreview(file) {
+      if (!videoPreviewContainer) return;
+      videoPreviewContainer.innerHTML = '';
+      if (!file) return;
+
+      const wrapper = document.createElement('div');
+      wrapper.style.position = 'relative';
+      wrapper.style.width = '320px';
+      wrapper.style.maxWidth = '100%';
+      wrapper.style.height = '180px';
+      wrapper.style.border = '1px solid #e0e0e0';
+      wrapper.style.borderRadius = '6px';
+      wrapper.style.overflow = 'hidden';
+
+      const v = document.createElement('video');
+      v.controls = true;
+      v.style.width = '100%';
+      v.style.height = '100%';
+      v.style.objectFit = 'cover';
+      const url = URL.createObjectURL(file);
+      v.src = url;
+      v.addEventListener('loadeddata', () => { try { URL.revokeObjectURL(url); } catch (_) { } });
+
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'video-remove';
+      removeBtn.textContent = '×';
+      removeBtn.title = 'Remove video';
+      removeBtn.style.position = 'absolute';
+      removeBtn.style.top = '6px';
+      removeBtn.style.right = '6px';
+      removeBtn.style.width = '28px';
+      removeBtn.style.height = '28px';
+      removeBtn.style.border = 'none';
+      removeBtn.style.borderRadius = '14px';
+      removeBtn.style.background = 'rgba(0,0,0,0.6)';
+      removeBtn.style.color = '#fff';
+      removeBtn.style.cursor = 'pointer';
+      removeBtn.style.fontSize = '16px';
+      removeBtn.style.padding = '0';
+      removeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        try {
+          // clear and fully release the video resource to avoid blob: GET after removal
+          v.pause();
+          v.removeAttribute('src');
+          v.load && v.load();
+          try { URL.revokeObjectURL(url); } catch (_) { /* ignore */ }
+
+          // clear the file input and the preview DOM
+          videoinput.value = '';
+          videoPreviewContainer.innerHTML = '';
+
+          // re-disable upload button if present
+          const uploadBtn = document.getElementById('upload-btn');
+          if (uploadBtn) { uploadBtn.disabled = true; uploadBtn.style.opacity = '0.5'; }
+        } catch (err) {
+          console.warn('Failed to remove video file', err);
+        }
+      });
+
+      wrapper.appendChild(v);
+      wrapper.appendChild(removeBtn);
+      videoPreviewContainer.appendChild(wrapper);
+    }
+
+    videoinput.addEventListener('change', (e) => {
+      const file = (e.target.files && e.target.files[0]) || null;
+      if (!file) {
+        renderVideoPreview(null);
+        return;
+      }
+      // simple type check (accept common video types)
+      const isVideo = (file.type && file.type.startsWith('video/')) || /\.(mp4|mov|avi|mkv|webm|3gp|mpeg)$/i.test(file.name || '');
+      if (!isVideo) {
+        alert('Please select a video file.');
+        videoinput.value = '';
+        return;
+      }
+
+      renderVideoPreview(file);
+
+      // keep the upload zone visible — do not relocate or remove the video upload zone
+      // (users can continue to upload/change videos from the same zone)
+    });
+
+    // initial if already has file
+    if (videoinput.files && videoinput.files[0]) renderVideoPreview(videoinput.files[0]);
+  }
+
+  // Helper: ensure each video preview in #video-preview has a working remove (×) button.
+  // Creates a .video-remove button on wrappers that don't have one and updates the uploadedVideos hidden input.
   try {
-    if (!window.applyUploadedImages) window.applyUploadedImages = localApplyServerImages;
-    else {
-      // wrap existing to ensure logs when invoked
-      const orig = window.applyUploadedImages;
-      window.applyUploadedImages = function (imgs) { console.log('customerImageLoader: delegating to window.applyUploadedImages'); try { return orig(imgs); } catch (e) { console.warn('applyUploadedImages threw, falling back', e); return localApplyServerImages(imgs); } };
-    }
-  } catch (e) { console.warn('customerImageLoader: expose helper failed', e); }
-
-  // fetch saved images for ticket from server (POST /ticket-check) if not present on window.__SERVER_TICKET__
-  async function fetchImagesForTicket(ticketId) {
-    if (!ticketId) return null;
-    try {
-      // quick check server-injected object
-      const st = window.__SERVER_TICKET__ || null;
-      if (st && String(st.id) === String(ticketId)) {
-        const imgs = st.images || st.photos || st.customerImages || st.savedImages || st.imagesSaved || null;
-        if (Array.isArray(imgs) && imgs.length) {
-          console.log('customerImageLoader: found images on server ticket object', imgs);
-          return imgs;
-        }
-      }
-
-      // fallback: ask server endpoint for images (reuse ticket-check)
-      const res = await fetch('/ticket-check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ticketId: String(ticketId) }) });
-      if (!res.ok) { console.warn('customerImageLoader: /ticket-check returned', res.status); return null; }
-      let json = null;
-      try { json = await res.json(); } catch (e) { json = null; }
-      if (!json) return null;
-      // server may return images under different keys
-      const imgs = json.images || json.photos || json.savedImages || json.data || json.customerImages || null;
-      if (Array.isArray(imgs) && imgs.length) {
-        console.log('customerImageLoader: /ticket-check returned images', imgs);
-        return imgs;
-      }
-      // sometimes server returns nested object
-      if (json.signature && !Array.isArray(imgs)) return null;
-      return null;
-    } catch (err) {
-      console.error('customerImageLoader: fetchImagesForTicket error', err);
-      return null;
-    }
-  }
-
-  // resolve ticket id from same fallbacks used elsewhere
-  function resolveTicketId() {
-    const id =
-      (window.__SERVER_TICKET__ && window.__SERVER_TICKET__.id) ||
-      document.getElementById('vehicle-ticketId')?.value ||
-      document.getElementById('ticketId')?.value ||
-      document.getElementById('ticketIdHidden')?.value ||
-      '';
-    if (id) return String(id);
-    try {
-      const p = new URLSearchParams(window.location.search);
-      return p.get('id') || p.get('ticketId') || p.get('ticketID') || '';
-    } catch (e) { return ''; }
-  }
-
-  // attempt load with retries until ticketId available or images applied
-  (async function attemptLoadWithRetries() {
-    const maxAttempts = 20;
-    let attempt = 0;
-    let applied = false;
-    async function tryOnce() {
-      attempt++;
-      const id = resolveTicketId();
-      if (!id) return false;
+    window.ensureVideoRemoveButtons = function () {
       try {
-        const imgs = await fetchImagesForTicket(id);
-        if (!imgs || !imgs.length) return false;
-        // prefer global helper if present
-        if (window.applyUploadedImages) {
-          try { window.applyUploadedImages(imgs); applied = true; return true; } catch (e) { console.warn('customerImageLoader: window.applyUploadedImages threw', e); }
+        const vContainer = document.getElementById('video-preview');
+        if (!vContainer) return;
+
+        const form = document.getElementById('repForm') || document.querySelector('form');
+
+        function updateUploadedVideosHidden(removedSrc) {
+          try {
+            if (!form) return;
+            const hid = form.querySelector('input[name="uploadedVideos"]');
+            if (!hid || !hid.value) return;
+            let arr = [];
+            try { arr = JSON.parse(hid.value || '[]'); } catch (e) { arr = []; }
+            arr = arr.filter(i => {
+              const src = (i && (i.src || i.url || i)) || '';
+              return String(src).replace(/^\/+/, '') !== String(removedSrc || '').replace(/^\/+/, '');
+            });
+            hid.value = JSON.stringify(arr);
+          } catch (e) { console.warn('updateUploadedVideosHidden error', e); }
         }
-        localApplyServerImages(imgs);
-        applied = true;
-        return true;
-      } catch (e) { console.error('customerImageLoader tryOnce error', e); return false; }
-    }
 
-    if (await tryOnce()) return;
-    const iv = setInterval(async () => {
-      if (attempt >= maxAttempts || applied) { clearInterval(iv); if (!applied) console.log('customerImageLoader: giving up after', attempt, 'attempts'); return; }
-      try {
-        if (await tryOnce()) { clearInterval(iv); console.log('customerImageLoader: images applied on attempt', attempt); }
-      } catch (e) { console.error('customerImageLoader interval error', e); }
-    }, 500);
-  })();
-  console.log('customerImageLoader: initialized');
-})();
+        Array.from(vContainer.children).forEach(wrapper => {
+          try {
+            // skip if already has button
+            if (wrapper.querySelector && wrapper.querySelector('button.video-remove')) return;
+            const videoEl = wrapper.querySelector && wrapper.querySelector('video');
+            // create remove button
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'video-remove';
+            removeBtn.textContent = '×';
+            removeBtn.title = 'Remove video';
+            removeBtn.style.position = 'absolute';
+            removeBtn.style.top = '6px';
+            removeBtn.style.right = '6px';
+            removeBtn.style.width = '28px';
+            removeBtn.style.height = '28px';
+            removeBtn.style.border = 'none';
+            removeBtn.style.borderRadius = '14px';
+            removeBtn.style.background = 'rgba(0,0,0,0.6)';
+            removeBtn.style.color = '#fff';
+            removeBtn.style.cursor = 'pointer';
+            removeBtn.style.fontSize = '16px';
+            removeBtn.style.padding = '0';
+            removeBtn.addEventListener('click', function (e) {
+              e.stopPropagation();
+              try {
+                // revoke blob URL if used
+                try { if (videoEl && videoEl.src && videoEl.src.startsWith('blob:')) URL.revokeObjectURL(videoEl.src); } catch (err) {}
+                const src = videoEl && (videoEl.getAttribute('src') || videoEl.src) || '';
+                if (wrapper.parentNode) wrapper.parentNode.removeChild(wrapper);
+                // update hidden uploadedVideos
+                updateUploadedVideosHidden(src);
+                // clear any file input local selection and disable upload control if present
+                try { const vidInput = document.getElementById('video-file'); if (vidInput) vidInput.value = ''; } catch (e) {}
+                try { const up = document.getElementById('upload-btn'); if (up) { up.disabled = true; up.style.opacity = '0.5'; } } catch (e) {}
+              } catch (err) { console.warn('video remove handler error', err); }
+            });
 
-(function customerPdfDownload() {
-  // attempt immediately
-  if (!tryLoad()) {
-    // if not present yet, listen for changes on likely inputs and try again once
-    const watch = document.querySelector('#vehicle-ticketId, #ticketId, #ticketIdHidden');
-    if (watch) {
-      const onChange = () => { tryLoad(); watch.removeEventListener('change', onChange); };
-      watch.addEventListener('change', onChange);
-    } else {
-      // fallback: re-attempt after a short delay (covers server-inserted inputs)
-      setTimeout(tryLoad, 500);
-    }
-  }
-});
-
-(function bindPagePdfDownloadsDiagnostics() {
-  // remove any previous binding marker so this block can be reloaded during dev
-  if (window.__PDF_BINDINGS_DIAG_LOADED__) {
-    console.log('PDF bindings (diag) already loaded');
-    return;
-  }
-  window.__PDF_BINDINGS_DIAG_LOADED__ = true;
-
-  function loadScript(url) {
-    return new Promise((resolve, reject) => {
-      if (document.querySelector('script[src="' + url + '"]')) {
-        console.log('loadScript: already present', url);
-        return resolve();
-      }
-      const s = document.createElement('script');
-      s.src = url;
-      s.async = true;
-      s.onload = () => { console.log('loadScript: loaded', url); resolve(); };
-      s.onerror = (e) => { console.error('loadScript: failed', url, e); reject(e); };
-      document.head.appendChild(s);
-    });
-  }
-
-  async function ensureHtml2Pdf() {
-    if (window.html2pdf) {
-      console.log('ensureHtml2Pdf: html2pdf already available');
-      return;
-    }
-    const cdn = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.2/html2pdf.bundle.min.js';
-    console.log('ensureHtml2Pdf: loading', cdn);
-    await loadScript(cdn);
-    if (!window.html2pdf) throw new Error('html2pdf did not attach to window after loading bundle');
-    console.log('ensureHtml2Pdf: html2pdf ready');
-  }
-
-  async function generatePdf(ticketId) {
-    try {
-      await ensureHtml2Pdf();
-    } catch (err) {
-      console.error('generatePdf: html2pdf load failed', err);
-      alert('PDF generator could not be loaded. See console.');
-      return;
-    }
-
-    const target = document.querySelector('main.main-content') || document.body;
-    if (!target) {
-      console.error('generatePdf: target element not found (main.main-content or body)');
-      alert('PDF target element missing. See console.');
-      return;
-    }
-    const filename = `ticket-${ticketId || 'page'}.pdf`;
-    const opt = {
-      margin: 10,
-      filename: filename,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, logging: false },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            try { wrapper.style.position = wrapper.style.position || 'relative'; } catch (e) {}
+            wrapper.appendChild(removeBtn);
+          } catch (e) { console.warn('ensureVideoRemoveButtons per-item error', e); }
+        });
+      } catch (e) { console.warn('ensureVideoRemoveButtons error', e); }
     };
-
-    try {
-      console.log('generatePdf: starting html2pdf', { filename, opt });
-      await window.html2pdf().set(opt).from(target).save();
-      console.log('generatePdf: saved', filename);
-    } catch (err) {
-      console.error('generatePdf: failed', err);
-      alert('PDF generation failed. See console for details.');
-    }
-  }
-
-  function bindId(id) {
-    const btn = document.getElementById(id);
-    if (!btn) {
-      console.warn('bindId: button not found', id);
-      return;
-    }
-    if (btn.dataset.pdfBound) {
-      console.log('bindId: already bound', id);
-      return;
-    }
-
-    console.log('bindId: binding click for', id);
-    btn.addEventListener('click', (ev) => {
-      ev.preventDefault();
-      try {
-        const ticketId = btn.dataset && btn.dataset.ticketId ? String(btn.dataset.ticketId) : 'page';
-        console.log('PDF button clicked', id, 'ticketId=', ticketId);
-        generatePdf(ticketId);
-      } catch (e) {
-        console.error('PDF click handler error', e);
-      }
-    });
-    btn.dataset.pdfBound = '1';
-  }
-
-  document.addEventListener('DOMContentLoaded', () => {
-    console.log('PDF diagnostics: DOMContentLoaded - attempting to bind buttons');
-
-    // Always attempt to bind customer download button if present
-    const custBtn = document.getElementById('downloadPage');
-    if (custBtn) {
-      console.log('PDF diagnostics: downloadPage found - binding');
-      bindId('downloadPage');
-    } else {
-      console.log('PDF diagnostics: no downloadPage button found on this page');
-    }
-
-    // Mechanic download: only bind when button present AND ticket stat === 'complete'
-    const mechBtn = document.getElementById('downloadMechPage');
-    if (!mechBtn) {
-      console.log('PDF diagnostics: no downloadMechPage button found on this page — nothing more to bind');
-      return;
-    }
-
-    // resolve ticket object from window or hidden input
-    let ticket = window.__SERVER_TICKET__ || null;
-    if (!ticket) {
-      const hidden = document.getElementById('server-ticket');
-      if (hidden && hidden.value) {
-        try { ticket = JSON.parse(hidden.value); } catch (e) { ticket = null; }
-      }
-    }
-    const stat = ticket && (ticket.stat || ticket.ticketStatus || ticket.status);
-    const isComplete = stat && String(stat).toLowerCase() === 'complete';
-
-    if (isComplete) {
-      console.log('PDF diagnostics: ticket is complete — binding downloadMechPage');
-      bindId('downloadMechPage');
-    } else {
-      // visually disable the mechanic download link when not allowed
-      try {
-        mechBtn.style.pointerEvents = 'none';
-        mechBtn.style.opacity = '0.6';
-        mechBtn.setAttribute('aria-disabled', 'true');
-      } catch (e) { /* ignore styling failures */ }
-      console.log('PDF diagnostics: mechanic download present but ticket not complete — left disabled');
-    }
-  });
-})();
+  } catch (e) { /* ignore helper binding errors */ }
+});

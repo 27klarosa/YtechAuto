@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Customer - Auto Repair Ticket System</title>
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
   <header class="site-header">
@@ -179,22 +179,16 @@
       <section class="section image-section">
         <h2>Inspection Images</h2>
         <p>Review the images taken during the inspection.</p>
-
-        <% 
-          // normalize images from possible template variables
-          const imgsRaw = (typeof images !== 'undefined' && images) || (ticket && ticket.images) || (ticket && ticket.photos) || [];
-          const imgs = Array.isArray(imgsRaw) ? imgsRaw : (typeof imgsRaw === 'string' ? [imgsRaw] : []);
-        %>
-
-        <% if (imgs && imgs.length) { %>
+        <% /* Prefer the images array (passed from route). Fall back to single image for backward compatibility */ %>
+        <% const imgsToRender = (typeof images !== 'undefined' && Array.isArray(images)) ? images : ((typeof image !== 'undefined' && image) ? [image] : []); %>
+        <% if (imgsToRender && imgsToRender.length) { %>
           <div class="image-gallery" style="display:flex;flex-wrap:wrap;gap:12px;margin-top:12px;">
-            <% imgs.forEach((it, i) => { 
-                 // allow string or object image descriptors
-                 const src = (typeof it === 'string') ? it : (it.webPath || it.src || it.url || it.path || it.location || '');
+            <% imgsToRender.forEach((it, i) => { 
+                 const src = (typeof it === 'string') ? it : (it.webPath || it.src || it.url || it.path || '');
                  const name = (typeof it === 'object' && (it.originalName || it.filename || it.name)) ? (it.originalName || it.filename || it.name) : (`image-${i}`);
             %>
               <figure style="width:200px;margin:0;">
-                <img src="<%= src %>" alt="<%= name %>" style="width:100%;height:auto;border:1px solid #ddd;border-radius:4px;display:block;">
+                <img src="<%= src %>" alt="<%= name %>" class="inspection-image" data-name="<%= name %>" data-src="<%= src %>" style="width:100%;height:auto;border:1px solid #ddd;border-radius:4px;display:block;">
                 <figcaption style="font-size:12px;margin-top:6px;display:flex;justify-content:space-between;align-items:center;">
                   <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px;"><%= name %></span>
                   <a href="<%= src %>" download="<%= name %>" class="image-download-link" style="font-size:12px;">Download</a>
@@ -207,9 +201,18 @@
         <% } %>
       </section>
 
-           
-      </section>
-
+      <!-- Inject server payload and quick inline diagnostic logs for troubleshooting -->
+      <script>
+        try {
+          // inject raw so client loaders can use it
+          window.__SERVER_TICKET__ = <%- JSON.stringify(ticket || null) %>;
+          console.log('customer.ejs: injected window.__SERVER_TICKET__', window.__SERVER_TICKET__);
+          window.__IMAGES_VAR__ = <%- JSON.stringify(images || []) %>;
+          console.log('customer.ejs: images array passed to template', window.__IMAGES_VAR__);
+          // quick inline marker to ensure this inline script runs
+          console.log('customer.ejs: inline diagnostic script executed');
+        } catch (e) { console.warn('customer.ejs: diagnostic injection failed', e); }
+      </script>
 
       <div >
             <a id="downloadPage" href="#" data-ticket-id="<%= ticket && ticket.id ? ticket.id : '' %>">Download Page As PDF</a>
