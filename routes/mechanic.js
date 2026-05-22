@@ -108,7 +108,8 @@ router.get('/mechanic', ensureLoggedIn, (req, res) => {
     const ticketId = req.query.id || req.query.ticketId;
     const db = req.app.locals.db;
     if (!ticketId) {
-        return res.render('mechanic', { user });
+        // when no ticket loaded we allow upload zone (new ticket UI)
+        return res.render('mechanic', { user, uploadZoneVisible: true });
     }
 
     if (!db) return res.status(500).send('Database not available');
@@ -141,7 +142,7 @@ router.get('/mechanic', ensureLoggedIn, (req, res) => {
                 db.all("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'", [], (err4, tables) => {
                     const renderWithJoinedSections = () => {
                         const courtesyJoinSql = `
-                          SELECT cti.*, ct.ticketID AS courtesyTicketID, ct.comments AS courtesyComments
+                          SELECT cti.item, cti.status, cti.notes 
                           FROM courtesyTableItems cti
                           INNER JOIN courtesyTable ct ON cti.tableID = ct.id
                           WHERE ct.ticketID = ?
@@ -155,12 +156,53 @@ router.get('/mechanic', ensureLoggedIn, (req, res) => {
                                                     ORDER BY sst.id ASC
                                                 `;
 
+                        // helper to fetch media and then render (attaches .videos and .pictures with webPath)
+                        const fetchMediaAndRender = (ticketObj) => {
+                            // fetch latest video(s) and all pictures for the ticket, attach webPath for client use
+                            db.all('SELECT * FROM videos WHERE ticketID = ? ORDER BY id DESC', [ticketId], (vErr, vids) => {
+                                if (!vErr && Array.isArray(vids) && vids.length) {
+                                    ticketObj.videos = vids.map(v => {
+                                        const rel = v.relativePath || v.path || ('upload/videos/' + v.filename);
+                                        // ensure leading slash for serving via express.static('/upload', ...)
+                                        return Object.assign({}, v, { webPath: '/' + String(rel).replace(/^\/+/, '') });
+                                    });
+                                    // also provide single latest for backwards compatibility
+                                    ticketObj.video = ticketObj.videos[0] || null;
+                                } else {
+                                    ticketObj.videos = [];
+                                    ticketObj.video = null;
+                                }
+
+                                db.all('SELECT * FROM pictures WHERE ticketID = ? ORDER BY id ASC', [ticketId], (pErr, pics) => {
+                                    if (!pErr && Array.isArray(pics) && pics.length) {
+                                        ticketObj.pictures = pics.map(p => {
+                                            const rel = p.relativePath || p.path || ('upload/images/' + p.filename);
+                                            return Object.assign({}, p, { webPath: '/' + String(rel).replace(/^\/+/, '') });
+                                        });
+                                        // keep single-image compatibility
+                                        ticketObj.images = ticketObj.pictures;
+                                        ticketObj.image = ticketObj.pictures[0] || null;
+                                    } else {
+                                        ticketObj.pictures = [];
+                                        ticketObj.images = [];
+                                        ticketObj.image = null;
+                                    }
+
+                                    // finally render mechanic view with media attached
+                                    // hide upload zones when not in edit mode or the ticket is complete
+                                    const showUploads = !!explicitEdit && String(ticketObj && ticketObj.stat).toLowerCase() !== 'complete';
+                                    return res.render('mechanic', { ticket: ticketObj, editMode: explicitEdit, uploadZoneVisible: showUploads });
+                                });
+                            });
+                        };
+
                         db.all(courtesyJoinSql, [ticketId], (cErr, courtesyRows) => {
-                            if (cErr) {
-                                console.error('Error loading courtesy joined rows:', cErr);
-                            } else if (Array.isArray(courtesyRows) && courtesyRows.length) {
-                                ticket.sections.courtesyTableItems = courtesyRows;
-                            }
+                            const catRows = Array.isArray(courtesyRows) ? courtesyRows : [];
+                            catRows.forEach(r => {
+                                ticket.sections = ticket.sections || {};
+                                ticket.sections.courtesyTableItems = ticket.sections.courtesyTableItems || [];
+                                ticket.sections.courtesyTableItems.push(r);
+                            });
 
                             db.all(steeringJoinSql, [ticketId], (sErr, steeringRows) => {
                                 if (sErr) {
@@ -216,11 +258,12 @@ router.get('/mechanic', ensureLoggedIn, (req, res) => {
                                                 db.all('SELECT * FROM warningsTable WHERE emissionsID = ?', [emissionsParent.id], (wErr, warnRows) => {
                                                     if (wErr) console.error('Error loading emissions warnings:', wErr);
                                                     ticket.sections.emissionsWarnings = warnRows || [];
-                                                    return res.render('mechanic', { ticket, editMode: explicitEdit });
+                                                    // replace direct res.render with media-aware helper
+                                                    return fetchMediaAndRender(ticket);
                                                 });
                                             } else {
                                                 ticket.sections.emissionsWarnings = [];
-                                                return res.render('mechanic', { ticket, editMode: explicitEdit });
+                                                return fetchMediaAndRender(ticket);
                                             }
                                         });
                                     });
@@ -1389,6 +1432,7 @@ router.post('/ticket-check', (req, res) => {
     const sql = `SELECT id, ticketID, filename, originalName, relativePath, uploadDate
                FROM signatures
                WHERE ticketID = ?
+              
                ORDER BY id DESC
                LIMIT 1`;
     db.get(sql, [ticketId], (err, row) => {
