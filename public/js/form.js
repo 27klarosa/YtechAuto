@@ -265,6 +265,8 @@ document.addEventListener('DOMContentLoaded', function () {
             uploadBtn.disabled = true;
             uploadBtn.style.opacity = '0.5';
             uploadBtn.textContent = 'Upload';
+            // ensure any server-rendered or newly-added video previews have remove (×) handlers
+            try { if (typeof window.ensureVideoRemoveButtons === 'function') window.ensureVideoRemoveButtons(); } catch (e) {}
           } else {
             alert('Upload failed: ' + (json && json.message ? json.message : 'Unknown'));
             uploadBtn.disabled = false;
@@ -2189,6 +2191,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     form.appendChild(hid);
                   }
                   hid.value = JSON.stringify(videoMetaList);
+                  // after writing server-provided videos, ensure remove handlers exist
+                  try { if (typeof window.ensureVideoRemoveButtons === 'function') window.ensureVideoRemoveButtons(); } catch (e) {}
                 }
               } catch (e) { console.warn('writing uploadedVideos hidden input failed', e); }
             }
@@ -2664,7 +2668,9 @@ document.addEventListener('DOMContentLoaded', function () {
           }
           let err = null; try { err = await res.json(); } catch (e) { err = null; }
           console.error('Emissions save failed', res.status, err);
-        } catch (err) { console.error('Emissions save failed', err); }
+        } catch (err) {
+          console.error('Emissions save failed', err);
+        }
       });
     } catch (err) { console.warn('wireEmissionsSave error', err); }
   };
@@ -3237,162 +3243,75 @@ document.addEventListener('DOMContentLoaded', () => {
     // initial if already has file
     if (videoinput.files && videoinput.files[0]) renderVideoPreview(videoinput.files[0]);
   }
-});
 
+  // Helper: ensure each video preview in #video-preview has a working remove (×) button.
+  // Creates a .video-remove button on wrappers that don't have one and updates the uploadedVideos hidden input.
+  try {
+    window.ensureVideoRemoveButtons = function () {
+      try {
+        const vContainer = document.getElementById('video-preview');
+        if (!vContainer) return;
 
-(function customerPdfDownload() {
-  // attempt immediately
-  if (!tryLoad()) {
-    // if not present yet, listen for changes on likely inputs and try again once
+        const form = document.getElementById('repForm') || document.querySelector('form');
 
-    const watch = document.querySelector('#vehicle-ticketId, #ticketId, #ticketIdHidden');
-    if (watch) {
-      const onChange = () => { tryLoad(); watch.removeEventListener('change', onChange); };
-      watch.addEventListener('change', onChange);
-    } else {
-      // fallback: re-attempt after a short delay (covers server-inserted inputs)
-      setTimeout(tryLoad, 500);
-    }
-  }
-});
+        function updateUploadedVideosHidden(removedSrc) {
+          try {
+            if (!form) return;
+            const hid = form.querySelector('input[name="uploadedVideos"]');
+            if (!hid || !hid.value) return;
+            let arr = [];
+            try { arr = JSON.parse(hid.value || '[]'); } catch (e) { arr = []; }
+            arr = arr.filter(i => {
+              const src = (i && (i.src || i.url || i)) || '';
+              return String(src).replace(/^\/+/, '') !== String(removedSrc || '').replace(/^\/+/, '');
+            });
+            hid.value = JSON.stringify(arr);
+          } catch (e) { console.warn('updateUploadedVideosHidden error', e); }
+        }
 
-(function bindPagePdfDownloadsDiagnostics() {
-  // remove any previous binding marker so this block can be reloaded during dev
-  if (window.__PDF_BINDINGS_DIAG_LOADED__) {
-    console.log('PDF bindings (diag) already loaded');
+        Array.from(vContainer.children).forEach(wrapper => {
+          try {
+            // skip if already has button
+            if (wrapper.querySelector && wrapper.querySelector('button.video-remove')) return;
+            const videoEl = wrapper.querySelector && wrapper.querySelector('video');
+            // create remove button
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'video-remove';
+            removeBtn.textContent = '×';
+            removeBtn.title = 'Remove video';
+            removeBtn.style.position = 'absolute';
+            removeBtn.style.top = '6px';
+            removeBtn.style.right = '6px';
+            removeBtn.style.width = '28px';
+            removeBtn.style.height = '28px';
+            removeBtn.style.border = 'none';
+            removeBtn.style.borderRadius = '14px';
+            removeBtn.style.background = 'rgba(0,0,0,0.6)';
+            removeBtn.style.color = '#fff';
+            removeBtn.style.cursor = 'pointer';
+            removeBtn.style.fontSize = '16px';
+            removeBtn.style.padding = '0';
+            removeBtn.addEventListener('click', function (e) {
+              e.stopPropagation();
+              try {
+                // revoke blob URL if used
+                try { if (videoEl && videoEl.src && videoEl.src.startsWith('blob:')) URL.revokeObjectURL(videoEl.src); } catch (err) {}
+                const src = videoEl && (videoEl.getAttribute('src') || videoEl.src) || '';
+                if (wrapper.parentNode) wrapper.parentNode.removeChild(wrapper);
+                // update hidden uploadedVideos
+                updateUploadedVideosHidden(src);
+                // clear any file input local selection and disable upload control if present
+                try { const vidInput = document.getElementById('video-file'); if (vidInput) vidInput.value = ''; } catch (e) {}
+                try { const up = document.getElementById('upload-btn'); if (up) { up.disabled = true; up.style.opacity = '0.5'; } } catch (e) {}
+              } catch (err) { console.warn('video remove handler error', err); }
+            });
 
-    return;
-  }
-  window.__PDF_BINDINGS_DIAG_LOADED__ = true;
-
-  function loadScript(url) {
-    return new Promise((resolve, reject) => {
-      if (document.querySelector('script[src="' + url + '"]')) {
-        console.log('loadScript: already present', url);
-        return resolve();
-      }
-      const s = document.createElement('script');
-      s.src = url;
-      s.async = true;
-      s.onload = () => { console.log('loadScript: loaded', url); resolve(); };
-      s.onerror = (e) => { console.error('loadScript: failed', url, e); reject(e); };
-      document.head.appendChild(s);
-    });
-  }
-
-  async function ensureHtml2Pdf() {
-    if (window.html2pdf) {
-      console.log('ensureHtml2Pdf: html2pdf already available');
-      return;
-    }
-    const cdn = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.2/html2pdf.bundle.min.js';
-    console.log('ensureHtml2Pdf: loading', cdn);
-    await loadScript(cdn);
-    if (!window.html2pdf) throw new Error('html2pdf did not attach to window after loading bundle');
-    console.log('ensureHtml2Pdf: html2pdf ready');
-  }
-
-  async function generatePdf(ticketId) {
-    try {
-      await ensureHtml2Pdf();
-    } catch (err) {
-      console.error('generatePdf: html2pdf load failed', err);
-      alert('PDF generator could not be loaded. See console.');
-      return;
-    }
-
-    const target = document.querySelector('main.main-content') || document.body;
-
-    if (!target) {
-      console.error('generatePdf: target element not found (main.main-content or body)');
-      alert('PDF target element missing. See console.');
-      return;
-    }
-    const filename = `ticket-${ticketId || 'page'}.pdf`;
-    const opt = {
-      margin: 10,
-      filename: filename,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, logging: false },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            try { wrapper.style.position = wrapper.style.position || 'relative'; } catch (e) {}
+            wrapper.appendChild(removeBtn);
+          } catch (e) { console.warn('ensureVideoRemoveButtons per-item error', e); }
+        });
+      } catch (e) { console.warn('ensureVideoRemoveButtons error', e); }
     };
-
-    try {
-      console.log('generatePdf: starting html2pdf', { filename, opt });
-      await window.html2pdf().set(opt).from(target).save();
-      console.log('generatePdf: saved', filename);
-    } catch (err) {
-      console.error('generatePdf: failed', err);
-      alert('PDF generation failed. See console for details.');
-    }
-  }
-
-  function bindId(id) {
-    const btn = document.getElementById(id);
-    if (!btn) {
-      console.warn('bindId: button not found', id);
-      return;
-    }
-    if (btn.dataset.pdfBound) {
-      console.log('bindId: already bound', id);
-      return;
-    }
-
-    console.log('bindId: binding click for', id);
-    btn.addEventListener('click', (ev) => {
-      ev.preventDefault();
-      try {
-        const ticketId = btn.dataset && btn.dataset.ticketId ? String(btn.dataset.ticketId) : 'page';
-        console.log('PDF button clicked', id, 'ticketId=', ticketId);
-        generatePdf(ticketId);
-      } catch (e) {
-        console.error('PDF click handler error', e);
-      }
-    });
-    btn.dataset.pdfBound = '1';
-  }
-
-  document.addEventListener('DOMContentLoaded', () => {
-    console.log('PDF diagnostics: DOMContentLoaded - attempting to bind buttons');
-
-    // Always attempt to bind customer download button if present
-    const custBtn = document.getElementById('downloadPage');
-    if (custBtn) {
-      console.log('PDF diagnostics: downloadPage found - binding');
-      bindId('downloadPage');
-    } else {
-      console.log('PDF diagnostics: no downloadPage button found on this page');
-    }
-
-    // Mechanic download: only bind when button present AND ticket stat === 'complete'
-    const mechBtn = document.getElementById('downloadMechPage');
-    if (!mechBtn) {
-      console.log('PDF diagnostics: no downloadMechPage button found on this page — nothing more to bind');
-      return;
-    }
-
-    // resolve ticket object from window or hidden input
-    let ticket = window.__SERVER_TICKET__ || null;
-    if (!ticket) {
-      const hidden = document.getElementById('server-ticket');
-      if (hidden && hidden.value) {
-        try { ticket = JSON.parse(hidden.value); } catch (e) { ticket = null; }
-      }
-    }
-    const stat = ticket && (ticket.stat || ticket.ticketStatus || ticket.status);
-    const isComplete = stat && String(stat).toLowerCase() === 'complete';
-
-    if (isComplete) {
-      console.log('PDF diagnostics: ticket is complete — binding downloadMechPage');
-      bindId('downloadMechPage');
-    } else {
-      // visually disable the mechanic download link when not allowed
-      try {
-        mechBtn.style.pointerEvents = 'none';
-        mechBtn.style.opacity = '0.6';
-        mechBtn.setAttribute('aria-disabled', 'true');
-      } catch (e) { /* ignore styling failures */ }
-      console.log('PDF diagnostics: mechanic download present but ticket not complete — left disabled');
-    }
-  });
-})();
+  } catch (e) { /* ignore helper binding errors */ }
+});
