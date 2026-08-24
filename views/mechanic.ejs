@@ -236,8 +236,8 @@
                 <div class="form-group"><label for="mfgdate">MFG Date</label><input id="mfgdate" name="mfgdate" type="text"></div>
                 <div class="form-group"><label for="engineSize">Engine Size</label><input id="engineSize" name="engineSize" type="text"></div>
                 <div class="form-group"><label for="transType">Trans Type</label><select id="transType" name="transType"><option>Auto</option><option>Manual</option><option>N/A</option></select></div>
-                <div class="form-group"><label for="mileageC">Mileage (Current)</label><input id="mileageC" name="mileageC" type="text"></div>
-                <div class="form-group"><label for="mileageO">Mileage (Old)</label><input id="mileageO" name="mileageO" type="text"></div>
+                <div class="form-group"><label for="mileageIn">Mileage In</label><input id="mileageIn" name="mileageIn" type="text"></div>
+                <div class="form-group"><label for="mileageOut">Mileage Out</label><input id="mileageOut" name="mileageOut" type="text"></div>
                 <div class="form-group"><label for="dateV">Date</label><input id="dateV" name="dateV" type="date"></div>
                 <div class="form-group"><label for="plate">Plate</label><input id="plate" name="plate" type="text"></div>
                 <div class="form-group full-width"><label for="comments">Comments</label><input id="comments" name="comments" type="text"></div>
@@ -392,12 +392,11 @@
               <div class="form-grid">
           <div class="form-group"><label>Size</label><input type="text" name="tireSize" placeholder="Size" ></div>
           <div class="form-group"><label>Speed Rating</label><input type="text" name="speedRating" placeholder="Speed Rating"></div>
-          <div class="form-group"><label>LF</label><input type="text" name="tireLF" placeholder="Tread"></div>
-          <div class="form-group"><label>RF</label><input type="text" name="tireRF" placeholder="Tread"></div>
-          <div class="form-group"><label>LR</label><input type="text" name="tireLR" placeholder="Tread"></div>
-          <div class="form-group"><label>RR</label><input type="text" name="tireRR" placeholder="Tread"></div>
+          <div class="form-group"><label>LF Tread Depth (32nd)</label><input type="text" name="tireLF" placeholder="Depth"></div>
+          <div class="form-group"><label>RF Tread Depth (32nd)</label><input type="text" name="tireRF" placeholder="Depth"></div>
+          <div class="form-group"><label>LR Tread Depth (32nd)</label><input type="text" name="tireLR" placeholder="Depth"></div>
+          <div class="form-group"><label>RR Tread Depth (32nd)</label><input type="text" name="tireRR" placeholder="Depth"></div>
           <div class="form-group"><label>SP</label><input type="text" name="tireSpare" placeholder="Spare"></div>
-          <div class="form-group"><label>Tread Depth (32nds)</label><input type="text" name="treadDepth" placeholder="Depth"></div>
           <div class="form-group"><label>Rotation Due?</label><select name="rotationDue"><option>Yes</option><option>No</option><option>N/A</option></select></div>
           <div class="form-group"><label>Balance?</label><select name="balanceDue"><option>Yes</option><option>No</option><option>N/A</option></select></div>
           <div class="form-group"><label>Alignment Check?</label><select name="alignmentCheck"><option>Yes</option><option>No</option><option>N/A</option></select></div>
@@ -568,34 +567,34 @@
             <div class="table-wrapper">
               <table>
                 <thead>
-                  <tr><th></th><th>Spec</th><th>Actual</th></tr>
+                  <tr><th></th><th>Spec</th><th>Actual (in 32nds)</th></tr>
                 </thead>
                 <tbody>
                   
-                  <tr><td>Pads/Shoes FR</td><td>-</td><td><select><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option><option>11</option><option>12</option></select></td></tr>
-                  <tr><td>Pads/Shoes RL</td><td>-</td><td><select><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option><option>11</option><option>12</option></select></td></tr>
-                  <tr><td>Pads/Shoes RR</td><td>-</td><td><select><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option><option>11</option><option>12</option></select></td></tr>
-                  <tr><td>Pads/Shoes FL</td><td>-</td><td><select><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option><option>11</option><option>12</option></select></td></tr>
+                  <tr><td>Pads/Shoes FR</td><td></td><td><select><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option><option>11</option><option>12</option></select></td></tr>
+                  <tr><td>Pads/Shoes RL</td><td></td><td><select><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option><option>11</option><option>12</option></select></td></tr>
+                  <tr><td>Pads/Shoes RR</td><td></td><td><select><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option><option>11</option><option>12</option></select></td></tr>
+                  <tr><td>Pads/Shoes FL</td><td></td><td><select><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option><option>11</option><option>12</option></select></td></tr>
 
                   <tr>
                     <td>Rotor/Drum FL (Thickness/Max Dia.)</td>
                     <td><input type="text" placeholder="Spec"></td>
-                    <td><input type="text" placeholder="Actual"></td>
+                    <td><input type="text" placeholder="Actual (in 32nds)"></td>
                   </tr>
                   <tr>
                     <td>Rotor/Drum FR (Thickness/Max Dia.)</td>
                     <td><input type="text" placeholder="Spec"></td>
-                    <td><input type="text" placeholder="Actual"></td>
+                    <td><input type="text" placeholder="Actual (in 32nds)"></td>
                   </tr>
                   <tr>
                     <td>Rotor/Drum RL (Thickness/Max Dia.)</td>
                     <td><input type="text" placeholder="Spec"></td>
-                    <td><input type="text" placeholder="Actual"></td>
+                    <td><input type="text" placeholder="Actual (in 32nds)"></td>
                   </tr>
                   <tr>
                     <td>Rotor/Drum RR (Thickness/Max Dia.)</td>
                     <td><input type="text" placeholder="Spec"></td>
-                    <td><input type="text" placeholder="Actual"></td>
+                    <td><input type="text" placeholder="Actual (in 32nds)"></td>
                   </tr>
 
                   <tr><td>Wheel Bearings FL</td><td><select><option>OK</option><option>Replace</option><option>N/A</option></select></td><td>-</td></tr>
@@ -636,8 +635,6 @@
               <div class="form-group"><label>State Inspection Due (M/Y)</label><input type="text" placeholder="e.g. 03/2025"></div>
               <div class="form-group"><label>Emission Due (M/Y)</label><input type="text" placeholder="e.g. 03/2025"></div>
               <div class="form-group"><label>Next Oil Change Mileage</label><input type="text" placeholder="Mileage"></div>
-              <div class="form-group"><label>Inspected By</label><input type="text" placeholder="Name"></div>
-              <div class="form-group"><label>Re-Inspected By</label><input type="text" placeholder="Name"></div>
               <!-- Tags input inserted by assistant: placed above Comments -->
               <div class="form-group full-width">
                 <label>Warnings</label>

@@ -1070,6 +1070,8 @@ document.addEventListener('DOMContentLoaded', function () {
       const taxEl = document.getElementById('tax');
       const totEstimateEl = document.getElementById('totEstimate');
       const signatureData = document.getElementById('signatureData');
+      const ticketStatusElTop = document.getElementById('ticketStatus');
+      const tryingToCompleteTop = ticketStatusElTop && String(ticketStatusElTop.value).toLowerCase() === 'complete';
 
       // treat a saved/loaded signature as present if any of:
       // - signatureData (dataURL) has a value
@@ -1090,8 +1092,6 @@ document.addEventListener('DOMContentLoaded', function () {
       if (!hasSignature) errors.push('Customer signature is required.');
 
       // if the user clicked Complete Ticket, we should validate the Digital Courtesy Check first
-      const ticketStatusElTop = document.getElementById('ticketStatus');
-      const tryingToCompleteTop = ticketStatusElTop && ticketStatusElTop.value === 'complete';
       try { console.log('validateAndSubmit: ticketStatus=', ticketStatusElTop ? ticketStatusElTop.value : '(none)'); } catch (e) { }
       if (tryingToCompleteTop) {
         const courtesy = document.getElementById('courtesy-check');
@@ -1141,8 +1141,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
       // basic required checks
       const roNum = roNumEl ? roNumEl.value.trim() : '';
-      if (!roNum) errors.push('Repair Order number is required.');
-      else {
+      if (tryingToCompleteTop && !roNum) errors.push('Repair Order or Task Number is required to complete the ticket.');
+      if (roNum) {
         // allow alphanumeric repair order identifiers (letters, numbers, hyphen, underscore and spaces)
         const validRo = /^[A-Za-z0-9\-_ ]+$/;
         if (!validRo.test(roNum)) errors.push('Repair Order must contain only letters, numbers, hyphen, underscore or spaces.');
@@ -1153,9 +1153,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
       const technician = technicianEl ? technicianEl.value.trim() : '';
       if (!technician) errors.push('Technician is required.');
-
-      if (!timeInEl || !timeInEl.value) errors.push('Time In must be selected.');
-      if (!timeOutEl || !timeOutEl.value) errors.push('Time Out must be selected.');
 
       const custName = custNameEl ? custNameEl.value.trim() : '';
       if (!custName) errors.push('Customer name is required.');
@@ -1487,7 +1484,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (ticket.techName) document.getElementById('technician') && (document.getElementById('technician').value = ticket.techName || '');
         // Repair order can be named differently in DB: try several possibilities
         const ro = ticket.roNum || ticket.repairOrderNumber || ticket.ro || ticket.repairOrder || ticket.repair_order || '';
-        if (ro) {
+        if (ro && !/^DRAFT-/i.test(String(ro))) {
           const roEl = document.getElementById('roNum');
           if (roEl) roEl.value = ro;
         }
@@ -1611,8 +1608,9 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (k == null) return;
                     const lk = String(k).toLowerCase();
                     const v = row[k] == null ? '' : row[k];
+                    const mappedKey = lk === 'mileagec' ? 'mileagein' : (lk === 'mileageo' ? 'mileageout' : lk);
                     // find by name or id (case-insensitive)
-                    const el = inputs.find(i => ((i.name && i.name.toLowerCase() === lk) || (i.id && i.id.toLowerCase() === lk)));
+                    const el = inputs.find(i => ((i.name && i.name.toLowerCase() === mappedKey) || (i.id && i.id.toLowerCase() === mappedKey)));
                     if (el) { try { el.value = v; el.dispatchEvent(new Event('change')); } catch (e) { } }
                   });
                 } catch (e) { console.warn('setFormValuesFromRow error', e); }
@@ -1715,7 +1713,6 @@ document.addEventListener('DOMContentLoaded', function () {
                   else if (lab.includes('lr')) input.value = r.LR || r.lr || '';
                   else if (lab.includes('rr')) input.value = r.RR || r.rr || '';
                   else if (lab.includes('sp')) input.value = r.SP || r.sp || '';
-                  else if (lab.includes('tread')) input.value = r.treadDepth32 || r.treadDepth || r.treadDepth32 || '';
                   else if (lab.includes('rotation')) input.value = r.rotationDue || r.rotation || '';
                   else if (lab.includes('balance')) input.value = r.balance || '';
                   else if (lab.includes('alignment')) input.value = r.alignment || '';
