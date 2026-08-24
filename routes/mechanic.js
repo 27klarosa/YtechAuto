@@ -355,6 +355,7 @@ router.post('/mechanic', async (req, res) => {
     const sDate = body.sDate || body.dateSigned || '';
     const ticketStatus = body.ticketStatus || body.stat || 'open';
     const incomingTicketId = body.ticketId || body.ticketID || body.id || req.query.id || req.query.ticketId || null;
+    const isCompleting = String(ticketStatus).toLowerCase() === 'complete';
     // debug: log incoming payload shape so we can see why recommended repairs aren't present
     try {
         console.log('POST /mechanic payload keys:', Object.keys(body || {}));
@@ -364,8 +365,8 @@ router.post('/mechanic', async (req, res) => {
     }
     console.log('incomingTicketId:', incomingTicketId);
 
-    if (!roNum) {
-        return res.status(400).send('Repair Order number (roNum) is required');
+    if (isCompleting && !roNum) {
+        return res.status(400).send('Repair Order or Task Number is required to complete the ticket');
     }
 
     // parse repairs array from several possible field names (handles JSON string or object from multipart)
@@ -538,8 +539,9 @@ router.post('/mechanic', async (req, res) => {
 
     // Helper: perform update for existing ticket id
     const performUpdate = (targetId) => {
+        const storedRoNum = roNum || `DRAFT-${Date.now()}-${Math.round(Math.random() * 1E9)}`;
         const updateSql = `UPDATE tickets SET repairOrderNumber = ?, date = ?, techName = ?, timeIn = ?, timeOut = ?, totalTime = ?, customerName = ?, customerAddress = ?, customerPhone = ?, customerEmail = ?, concern = ?, diagnosis = ?, recommendedRepairs = ?, dateSigned = ?, stat = ? WHERE id = ?`;
-        const params = [roNum, roDate, technician, timeArrive, timeOut, totTime, custName, custAdd, custPhone, custEmail, concern, diagnosis, recommendedRepairsText, sDate, ticketStatus, targetId];
+        const params = [storedRoNum, roDate, technician, timeArrive, timeOut, totTime, custName, custAdd, custPhone, custEmail, concern, diagnosis, recommendedRepairsText, sDate, ticketStatus, targetId];
         db.run(updateSql, params, function(updErr) {
             if (updErr) {
                 console.error('Failed to update ticket:', updErr);
@@ -552,6 +554,7 @@ router.post('/mechanic', async (req, res) => {
 
     // Creating new ticket: first check for duplicate repairOrderNumber
     const tryInsertNew = () => {
+        if (!roNum) return insertNewTicket();
         const checkSql = `SELECT id FROM tickets WHERE repairOrderNumber = ? LIMIT 1`;
         db.get(checkSql, [roNum], (chkErr, existing) => {
             if (chkErr) {
@@ -564,8 +567,14 @@ router.post('/mechanic', async (req, res) => {
                 return res.status(409).send('<script>alert("The RONum already exist"); window.history.back();</script>');
             }
 
+            return insertNewTicket();
+        });
+    };
+
+    const insertNewTicket = () => {
+            const storedRoNum = roNum || `DRAFT-${Date.now()}-${Math.round(Math.random() * 1E9)}`;
             const insertSql = `INSERT INTO tickets (repairOrderNumber, date, techName, timeIn, timeOut, totalTime, customerName, customerAddress, customerPhone, customerEmail, concern, diagnosis, recommendedRepairs, dateSigned, stat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-            const params = [roNum, roDate, technician, timeArrive, timeOut, totTime, custName, custAdd, custPhone, custEmail, concern, diagnosis, recommendedRepairsText, sDate, ticketStatus];
+            const params = [storedRoNum, roDate, technician, timeArrive, timeOut, totTime, custName, custAdd, custPhone, custEmail, concern, diagnosis, recommendedRepairsText, sDate, ticketStatus];
             db.run(insertSql, params, function(insErr) {
                 if (insErr) {
                     console.error('Failed to insert new ticket:', insErr);
@@ -575,7 +584,6 @@ router.post('/mechanic', async (req, res) => {
                 // finalize repairs/signature save and redirect
                 return finalizeSave(newId);
             });
-        });
     };
 
     // Main flow: if incomingTicketId present -> update existing ticket (ensure it exists first)
@@ -588,7 +596,8 @@ router.post('/mechanic', async (req, res) => {
             if (!row) {
                 return res.status(404).send('Ticket to update not found');
             }
-            // If roNum collides with another ticket (different id), block the change
+            // If a supplied RO collides with another ticket (different id), block the change.
+            if (!roNum) return performUpdate(incomingTicketId);
             db.get('SELECT id FROM tickets WHERE repairOrderNumber = ? LIMIT 1', [roNum], (chkErr, found) => {
                 if (chkErr) {
                     console.error('Failed checking RO on update:', chkErr);
@@ -610,7 +619,9 @@ router.post('/mechanic/vehicle-info', (req, res) => {
     const db = req.app.locals.db;
     if (!db) return res.status(500).json({ success: false, message: 'Database not available' });
 
-    const { ticketId, yearV, make, model, color, vin, mfgdate, engineSize, transType, mileageC, mileageO, dateV, plate, comments } = req.body;
+    const { ticketId, yearV, make, model, color, vin, mfgdate, engineSize, transType, mileageIn, mileageOut, mileageC, mileageO, dateV, plate, comments } = req.body;
+    const mileageCurrent = typeof mileageIn !== 'undefined' ? mileageIn : mileageC;
+    const mileagePrevious = typeof mileageOut !== 'undefined' ? mileageOut : mileageO;
     if (!ticketId) return res.status(400).json({ success: false, message: 'ticketId is required' });
 
 
@@ -622,7 +633,7 @@ router.post('/mechanic/vehicle-info', (req, res) => {
 
         if (row) {
             const upd = `UPDATE vechicleInfo SET yearV=?, make=?, model=?, color=?, vin=?, mfgdate=?, engineSize=?, transType=?, mileageC=?, mileageO=?, dateV=?, plate=?, comments=? WHERE ticketID=?`;
-            const params = [yearV, make, model, color, vin, mfgdate, engineSize, transType, mileageC, mileageO, dateV, plate, comments, ticketId];
+            const params = [yearV, make, model, color, vin, mfgdate, engineSize, transType, mileageCurrent, mileagePrevious, dateV, plate, comments, ticketId];
             db.run(upd, params, function (err3) {
                 if (err3) {
                     console.error('Failed update vechicleInfo:', err3);
@@ -633,7 +644,7 @@ router.post('/mechanic/vehicle-info', (req, res) => {
             });
         } else {
             const sql = `INSERT INTO vechicleInfo (ticketID, yearV, make, model, color, vin, mfgdate, engineSize, transType, mileageC, mileageO, dateV, plate, comments) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-            const params = [ticketId, yearV, make, model, color, vin, mfgdate, engineSize, transType, mileageC, mileageO, dateV, plate, comments];
+            const params = [ticketId, yearV, make, model, color, vin, mfgdate, engineSize, transType, mileageCurrent, mileagePrevious, dateV, plate, comments];
             db.run(sql, params, function (err4) {
                 if (err4) {
                     console.error('Failed insert vechicleInfo:', err4);
