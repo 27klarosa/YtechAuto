@@ -129,7 +129,6 @@ document.addEventListener('DOMContentLoaded', function () {
       ev.preventDefault();
       const text = (ev.clipboardData || window.clipboardData).getData('text') || '';
       const digits = onlyDigits(text);
-      const currentDigits = onlyDigits(el.value);
       // insert pasted digits at cursor position
       const selStart = el.selectionStart || 0;
       const selEnd = el.selectionEnd || 0;
@@ -268,7 +267,7 @@ document.addEventListener('DOMContentLoaded', function () {
             // ensure any server-rendered or newly-added video previews have remove (×) handlers
             try { if (typeof window.ensureVideoRemoveButtons === 'function') window.ensureVideoRemoveButtons(); } catch (e) {}
           } else {
-            alert('Upload failed: ' + (json && json.message ? json.message : 'Unknown'));
+            alert('Upload failed: ' + (data && data.message ? data.message : 'Unknown'));
             uploadBtn.disabled = false;
             uploadBtn.style.opacity = '1';
             uploadBtn.textContent = 'Upload';
@@ -501,27 +500,6 @@ document.addEventListener('DOMContentLoaded', function () {
       updateControls();
 
       // helper: remove video "remove" buttons robustly (matches class/title/aria-label/text variants)
-      function removeVideoRemoveButtons() {
-        try {
-          const vContainer = document.getElementById('video-preview');
-          if (!vContainer) return;
-          Array.from(vContainer.querySelectorAll('button')).forEach(b => {
-            const txt = (b.textContent || '').trim();
-            const title = (b.title || '').toLowerCase();
-            const aria = (b.getAttribute && (b.getAttribute('aria-label') || '') || '').toLowerCase();
-            if (
-              b.classList.contains('video-remove') ||
-              b.classList.contains('thumb-remove') ||
-              title.includes('remove') ||
-              aria.includes('remove') ||
-              txt === '×' || txt === '✕' || txt.toLowerCase() === 'x'
-            ) {
-              b.remove();
-            }
-          });
-        } catch (e) { /* ignore */ }
-      }
-
       // visually lock zone and remove file input ability
       try {
         zone.style.backgroundColor = '#d4edda';
@@ -529,7 +507,6 @@ document.addEventListener('DOMContentLoaded', function () {
       } catch (e) { }
       try {
         // remove any visible remove buttons (showPreview already hides them when imagesLocked true)
-        if (previewEl) previewEl.querySelectorAll('.thumb-remove').forEach(b => b.remove());
         if (previewEl) previewEl.querySelectorAll('.thumb-remove').forEach(b => b.remove());
 
         /* remove any video "remove" buttons too (server-rendered or preview previews) */
@@ -560,8 +537,6 @@ document.addEventListener('DOMContentLoaded', function () {
       window.applyUploadedImages = applyServerImages;
       console.log('setupImageUpload: window.applyUploadedImages bound');
     } catch (e) { console.warn('setupImageUpload: failed to bind window.applyUploadedImages', e); }
-
-    function updateControlsInitial() { updateControls(); }
 
     if (trigger) {
       trigger.addEventListener('click', function (e) { e.preventDefault(); if (!imagesLocked) fileInput.click(); });
@@ -687,7 +662,7 @@ document.addEventListener('DOMContentLoaded', function () {
             // update status text
             updateControls();
           } else {
-            alert('Upload failed: ' + (json && json.message ? json.message : 'Unknown'));
+            alert('Upload failed: ' + (data && data.message ? data.message : 'Unknown'));
             uploadBtn.disabled = false;
             uploadBtn.style.opacity = '1';
             uploadBtn.textContent = 'Upload';
@@ -719,7 +694,6 @@ document.addEventListener('DOMContentLoaded', function () {
     function fmt(n) { return (Math.round(n * 100) / 100).toFixed(2); }
 
     function calcRow(row) {
-      const desc = row.querySelector('.rp-desc');
       const qtyEl = row.querySelector('.rp-qty');
       const partsPriceEl = row.querySelector('.rp-partprice');
       const partsTotalEl = row.querySelector('.rp-partstotal');
@@ -1048,14 +1022,42 @@ document.addEventListener('DOMContentLoaded', function () {
     const form = document.getElementById('repForm');
     if (!form) return;
 
+    const invalidElements = new Set();
+
+    function markInvalid(element) {
+      if (element) invalidElements.add(element);
+    }
+
+    function clearValidationHighlights() {
+      document.querySelectorAll('.validation-missing').forEach(element => element.classList.remove('validation-missing'));
+      document.querySelectorAll('.validation-section-error').forEach(section => section.classList.remove('validation-section-error'));
+    }
+
     function showErrors(errors) {
       if (!errors || errors.length === 0) return;
+      invalidElements.forEach(element => {
+        element.classList.add('validation-missing');
+        const section = element.closest('.section');
+        if (section) section.classList.add('validation-section-error');
+        if (!element.dataset.validationClearAttached) {
+          const clearHighlight = () => {
+            element.classList.remove('validation-missing');
+            if (section && !section.querySelector('.validation-missing')) section.classList.remove('validation-section-error');
+          };
+          element.addEventListener('input', clearHighlight);
+          element.addEventListener('change', clearHighlight);
+          element.addEventListener('pointerdown', clearHighlight);
+          element.dataset.validationClearAttached = '1';
+        }
+      });
       alert(errors.join('\n'));
     }
 
     async function validateAndSubmit(e) {
       e.preventDefault();
       try { console.log('validateAndSubmit invoked'); } catch (e) { }
+      clearValidationHighlights();
+      invalidElements.clear();
       const errors = [];
 
       // collect elements used earlier in your validation
@@ -1089,79 +1091,40 @@ document.addEventListener('DOMContentLoaded', function () {
         (signatureIdEl && signatureIdEl.value && String(signatureIdEl.value).trim() !== '') ||
         !!signatureImg;
 
-      if (!hasSignature) errors.push('Customer signature is required.');
-
-      // if the user clicked Complete Ticket, we should validate the Digital Courtesy Check first
-      try { console.log('validateAndSubmit: ticketStatus=', ticketStatusElTop ? ticketStatusElTop.value : '(none)'); } catch (e) { }
-      if (tryingToCompleteTop) {
-        const courtesy = document.getElementById('courtesy-check');
-        if (courtesy) {
-          const table = courtesy.querySelector('table');
-          if (table) {
-            const headers = Array.from(table.querySelectorAll('thead th')).map(h => (h.textContent || '').trim());
-            const rows = Array.from(table.querySelectorAll('tbody tr'));
-            const courtesyErrors = [];
-            rows.forEach((row, rowIdx) => {
-              const firstCell = row.querySelector('td');
-              const itemName = (firstCell && firstCell.textContent) ? firstCell.textContent.trim() : `Row ${rowIdx + 1}`;
-              const selects = Array.from(row.querySelectorAll('select'));
-              selects.forEach((sel) => {
-                if (!sel.value || String(sel.value).trim() === '') {
-                  const cell = sel.closest('td');
-                  let colIdx = -1;
-                  if (cell && cell.parentElement) colIdx = Array.from(cell.parentElement.children).indexOf(cell);
-                  const header = headers[colIdx] || 'Status';
-                  courtesyErrors.push(`Courtesy Check — ${itemName}: ${header} is required.`);
-                }
-              });
-              const inputs = Array.from(row.querySelectorAll('input'));
-              if (inputs.length > 0) {
-                inputs.forEach((inp) => {
-                  const ph = (inp.getAttribute('placeholder') || '').toLowerCase();
-                  if (ph.includes('note') || ph.includes('comment')) return;
-                  const cell = inp.closest('td');
-                  if (cell) {
-                    const cellIdx = Array.from(cell.parentElement.children).indexOf(cell);
-                    const isLastColumn = cellIdx === (row.children.length - 1);
-                    if (isLastColumn) return;
-                    const header = headers[cellIdx] || `Column ${cellIdx + 1}`;
-                    const val = (inp.value || '').toString().trim();
-                    if (!val) courtesyErrors.push(`Courtesy Check — ${itemName}: ${header} is required.`);
-                  }
-                });
-              }
-            });
-            if (courtesyErrors.length > 0) {
-              showErrors(courtesyErrors);
-              return false;
-            }
-          }
-        }
+      if (!hasSignature) {
+        errors.push('Customer signature is required.');
+        markInvalid(document.getElementById('signatureCanvas') || document.querySelector('.signature-container'));
       }
 
       // basic required checks
       const roNum = roNumEl ? roNumEl.value.trim() : '';
-      if (tryingToCompleteTop && !roNum) errors.push('Repair Order or Task Number is required to complete the ticket.');
+      if (tryingToCompleteTop && !roNum) {
+        errors.push('Repair Order or Task Number is required to complete the ticket.');
+        markInvalid(roNumEl);
+      }
       if (roNum) {
         // allow alphanumeric repair order identifiers (letters, numbers, hyphen, underscore and spaces)
         const validRo = /^[A-Za-z0-9\-_ ]+$/;
-        if (!validRo.test(roNum)) errors.push('Repair Order must contain only letters, numbers, hyphen, underscore or spaces.');
+        if (!validRo.test(roNum)) {
+          errors.push('Repair Order must contain only letters, numbers, hyphen, underscore or spaces.');
+          markInvalid(roNumEl);
+        }
       }
 
       const roDate = roDateEl ? roDateEl.value : '';
-      if (!roDate) errors.push('Date is required.');
+      if (!roDate) { errors.push('Date is required.'); markInvalid(roDateEl); }
 
       const technician = technicianEl ? technicianEl.value.trim() : '';
-      if (!technician) errors.push('Technician is required.');
+      if (!technician) { errors.push('Technician is required.'); markInvalid(technicianEl); }
 
       const custName = custNameEl ? custNameEl.value.trim() : '';
-      if (!custName) errors.push('Customer name is required.');
+      if (!custName) { errors.push('Customer name is required.'); markInvalid(custNameEl); }
 
       const custAddress = custAddressEl ? custAddressEl.value.trim() : '';
-      if (!custAddress) errors.push('Customer address is required.');
+      if (!custAddress) { errors.push('Customer address is required.'); markInvalid(custAddressEl); }
 
       const diagnosis = diagnosisEl ? diagnosisEl.value.trim() : '';
-      if (!diagnosis) errors.push('Diagnosis is required. Put N/A if none.');
+      if (!diagnosis) { errors.push('Diagnosis is required. Put N/A if none.'); markInvalid(diagnosisEl); }
 
       if (taxEl) {
         const t = taxEl.value.trim();
@@ -1184,13 +1147,25 @@ document.addEventListener('DOMContentLoaded', function () {
           const partPrice = r.querySelector('.rp-partprice')?.value.trim() || '';
           const laborHours = r.querySelector('.rp-laborhours')?.value.trim() || '';
           if (!desc && !qty && !partPrice && !laborHours) return;
-          if (qty === '') errors.push(`Row ${idx + 1}: Qty is required when adding a repair line.`);
+          if (qty === '') {
+            errors.push(`Row ${idx + 1}: Qty is required when adding a repair line.`);
+            markInvalid(r.querySelector('.rp-qty'));
+          }
           else {
             const qn = Number(qty);
-            if (!Number.isInteger(qn) || qn < 0) errors.push(`Row ${idx + 1}: Qty must be a non-negative integer.`);
+            if (!Number.isInteger(qn) || qn < 0) {
+              errors.push(`Row ${idx + 1}: Qty must be a non-negative integer.`);
+              markInvalid(r.querySelector('.rp-qty'));
+            }
           }
-          if (partPrice !== '' && (isNaN(parseFloat(partPrice)) || parseFloat(partPrice) < 0)) errors.push(`Row ${idx + 1}: Part Price must be a non-negative number.`);
-          if (laborHours !== '' && (isNaN(parseFloat(laborHours)) || parseFloat(laborHours) < 0)) errors.push(`Row ${idx + 1}: Labor Hours must be a non-negative number.`);
+          if (partPrice !== '' && (isNaN(parseFloat(partPrice)) || parseFloat(partPrice) < 0)) {
+            errors.push(`Row ${idx + 1}: Part Price must be a non-negative number.`);
+            markInvalid(r.querySelector('.rp-partprice'));
+          }
+          if (laborHours !== '' && (isNaN(parseFloat(laborHours)) || parseFloat(laborHours) < 0)) {
+            errors.push(`Row ${idx + 1}: Labor Hours must be a non-negative number.`);
+            markInvalid(r.querySelector('.rp-laborhours'));
+          }
         });
       }
 
@@ -1246,6 +1221,7 @@ document.addEventListener('DOMContentLoaded', function () {
               selects.forEach((sel) => {
                 if (!sel.value || String(sel.value).trim() === '') {
                   errors.push(`Courtesy Check row ${idx + 1}: status must be selected.`);
+                  markInvalid(sel);
                 }
               });
 
@@ -1257,6 +1233,7 @@ document.addEventListener('DOMContentLoaded', function () {
                   if (i === inputs.length - 1) return; // skip notes
                   if (!String(inp.value || '').trim()) {
                     errors.push(`Courtesy Check row ${idx + 1}: required field is empty.`);
+                    markInvalid(inp);
                   }
                 });
               }
@@ -1308,6 +1285,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (!el.value || String(el.value).trim() === '') {
                   const name = labelText || el.name || el.id || el.getAttribute('placeholder') || el.getAttribute('aria-label') || 'Field (no label)';
                   errors.push(`Required: ${name}`);
+                  markInvalid(el);
                 }
                 return;
               }
@@ -1317,12 +1295,21 @@ document.addEventListener('DOMContentLoaded', function () {
               if (!val) {
                 const name = labelText || el.name || el.id || el.getAttribute('placeholder') || el.getAttribute('aria-label') || 'Field (no label)';
                 errors.push(`Required: ${name}`);
+                markInvalid(el);
               }
             } catch (e) {
               console.warn('Validation check error for element', el, e);
             }
           });
         })();
+
+        // Capture browser-level failures such as malformed email or number fields.
+        const main = document.querySelector('main');
+        if (main) {
+          main.querySelectorAll(':invalid').forEach((el) => {
+            if (!el.disabled && el.type !== 'hidden' && el.type !== 'file' && !el.readOnly) markInvalid(el);
+          });
+        }
       }
 
       // If the complete-ticket checks added any errors, show them and stop submission
@@ -1410,56 +1397,14 @@ document.addEventListener('DOMContentLoaded', function () {
       const form = document.getElementById('repForm');
       if (!form) return alert('Main form not found');
 
-      // Run an immediate courtesy-check here and block if missing items
-      const courtesy = document.getElementById('courtesy-check');
-      if (courtesy) {
-        const table = courtesy.querySelector('table');
-        if (table) {
-          const headers = Array.from(table.querySelectorAll('thead th')).map(h => (h.textContent || '').trim());
-          const rows = Array.from(table.querySelectorAll('tbody tr'));
-          const courtesyErrors = [];
-          rows.forEach((row, rowIdx) => {
-            const firstCell = row.querySelector('td');
-            const itemName = (firstCell && firstCell.textContent) ? firstCell.textContent.trim() : `Row ${rowIdx + 1}`;
-            const selects = Array.from(row.querySelectorAll('select'));
-            selects.forEach((sel) => {
-              if (!sel.value || String(sel.value).trim() === '') {
-                const cell = sel.closest('td');
-                let colIdx = -1;
-                if (cell && cell.parentElement) colIdx = Array.from(cell.parentElement.children).indexOf(cell);
-                const header = headers[colIdx] || 'Status';
-                courtesyErrors.push(`Courtesy Check — ${itemName}: ${header} is required.`);
-              }
-            });
-            const inputs = Array.from(row.querySelectorAll('input'));
-            if (inputs.length > 0) {
-              inputs.forEach((inp) => {
-                const ph = (inp.getAttribute('placeholder') || '').toLowerCase();
-                if (ph.includes('note') || ph.includes('comment')) return;
-                const cell = inp.closest('td');
-                if (cell) {
-                  const cellIdx = Array.from(cell.parentElement.children).indexOf(cell);
-                  const isLastColumn = cellIdx === (row.children.length - 1);
-                  if (isLastColumn) return;
-                  const header = headers[cellIdx] || `Column ${cellIdx + 1}`;
-                  const val = (inp.value || '').toString().trim();
-                  if (!val) courtesyErrors.push(`Courtesy Check — ${itemName}: ${header} is required.`);
-                }
-              });
-            }
-          });
-          if (courtesyErrors.length > 0) {
-            alert(courtesyErrors.join('\n'));
-            return;
-          }
-        }
-      }
-
       // mark the form to indicate we're completing and let the form submit handler perform validation
       const status = document.getElementById('ticketStatus');
       if (status) status.value = 'complete';
       try { console.log('Complete button: submitting form via requestSubmit'); } catch (e) { }
-      try { form.requestSubmit(); } catch (e) { form.submit(); }
+      try {
+        form.noValidate = true;
+        form.requestSubmit();
+      } catch (e) { form.submit(); }
     });
   })();
 
@@ -1623,7 +1568,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
               }
 
-              if (key === 'recrepairs' || key === 'recrepair' || key === 'recrepairs' || key === 'recrepairs' || key === 'recrepairs') {
+              if (key === 'recrepairs' || key === 'recrepair') {
                 // populate repairs table similarly to ticket.repairs
                 const tbody = document.querySelector('#repairs-table tbody');
                 if (!tbody) return;
@@ -2615,7 +2560,6 @@ document.addEventListener('DOMContentLoaded', function () {
         // collect middle emissions info
         const emissionsInfo = {};
         try {
-          const selects = emissionsSection.querySelectorAll('.form-grid .form-group');
           // find inputs by label text
           const groups = Array.from(emissionsSection.querySelectorAll('.form-grid .form-group'));
           groups.forEach(g => {
@@ -3003,7 +2947,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ---------- Images (flex layout, multiple, removable) ----------
   if (imageinput) {
-    const MAX_IMAGES = 6; // allow a "few" images
+    const MAX_FILES = 6;
     imageinput.multiple = true;
 
     function renderImagePreviews(fileList) {

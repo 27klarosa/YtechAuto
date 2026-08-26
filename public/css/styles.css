@@ -280,6 +280,20 @@ body {
   resize: vertical;
 }
 
+.validation-missing {
+  background-color: #fff3a3 !important;
+  border-color: #d6a700 !important;
+}
+
+.validation-section-error {
+  border-color: #d6a700 !important;
+}
+
+.validation-missing:focus {
+  outline: 2px solid #d6a700;
+  outline-offset: 1px;
+}
+
 /* Tables */
 .table-wrapper {
   overflow-x: auto;
