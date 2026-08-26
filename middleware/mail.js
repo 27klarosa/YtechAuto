@@ -13,20 +13,20 @@ const RATE_LIMIT = 60000; // 1 minute in milliseconds
  * @param {string} html - HTML content of the message.
  * @returns {void}
  */
-function sendMail(recipient, subject, html) {
+function sendMail(recipient, subject, html, attachments = []) {
 
     // Get the email user and password from the environment variable
     // If the email user or password is not set, return
     const emailPassword = process.env.EMAIL_PASSWORD;
     const emailUser = process.env.EMAIL_USER;
-    if (!emailPassword || !emailUser) return;
+    if (!emailPassword || !emailUser) return Promise.resolve(false);
 
     // Get the current time
     // Check if the user has sent an email within the specified time period
     const currentTime = Date.now();
     if (limitStore.has(recipient) && currentTime - limitStore.get(recipient) < RATE_LIMIT) {
-        logger.log("info", `Email rejected: ${recipient} exceeded rate limit`);
-        return;
+        console.log(`[mail] Email rejected: ${recipient} exceeded rate limit`);
+        return Promise.resolve(false);
     }
 
     // Configure the SMTP transport
@@ -49,17 +49,20 @@ function sendMail(recipient, subject, html) {
         to: recipient,
         subject: subject,
         html: html,
+        attachments,
     };
 
-    // Sends the mail through the transporter, and adds the recipient to the limitStore
-    transporter.sendMail(mailOptions, (error, info) => {
-        if (error) {
-            console.error("Error sending email:", error);
-        } else {
-            // Log email and store the current time for the recipient
-            console.log(`[mail] Email sent to ${recipient}`);
-            limitStore.set(recipient, currentTime);
-        }
+    return new Promise((resolve) => {
+        transporter.sendMail(mailOptions, (error) => {
+            if (error) {
+                console.error("Error sending email:", error);
+                resolve(false);
+            } else {
+                console.log(`[mail] Email sent to ${recipient}`);
+                limitStore.set(recipient, currentTime);
+                resolve(true);
+            }
+        });
     });
 }
 

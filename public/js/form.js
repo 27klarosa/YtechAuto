@@ -1350,6 +1350,26 @@ document.addEventListener('DOMContentLoaded', function () {
         console.error('Failed to serialize repairs:', err);
       }
 
+      if (tryingToComplete && typeof window.generatePagePdf === 'function') {
+        try {
+          const ticketId = form.querySelector('[name="ticketId"]')?.value || 'page';
+          const pdf = await window.generatePagePdf(ticketId, false);
+          if (!pdf) throw new Error('PDF generation returned no document');
+          const formData = new FormData(form);
+          formData.append('completionPdf', pdf, `ticket-${ticketId}.pdf`);
+          const response = await fetch(form.action || '/mechanic', {
+            method: 'POST',
+            body: formData
+          });
+          if (!response.ok) throw new Error(`Ticket save failed: ${response.status}`);
+          window.location.assign(response.url || `/mechanic?id=${encodeURIComponent(ticketId)}`);
+        } catch (err) {
+          console.error('Completed ticket PDF submission failed:', err);
+          alert('The completed ticket could not be saved with its PDF. Please try again.');
+        }
+        return true;
+      }
+
       form.submit();
       return true;
     }
@@ -2177,7 +2197,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!window.html2pdf) throw new Error('html2pdf did not load');
   }
 
-  async function generatePdf(ticketId) {
+  async function generatePdf(ticketId, shouldDownload = true) {
     try {
       await ensureHtml2Pdf();
       const target = document.querySelector('main.main-content') || document.querySelector('main') || document.body;
@@ -2189,12 +2209,22 @@ document.addEventListener('DOMContentLoaded', function () {
         html2canvas: { scale: 2, useCORS: true, logging: false },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
       };
-      await window.html2pdf().set(options).from(target).save();
+      const pdf = await window.html2pdf().set(options).from(target).outputPdf('blob');
+      if (shouldDownload) {
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(pdf);
+        link.download = filename;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(link.href), 0);
+      }
+      return pdf;
     } catch (error) {
       console.error('PDF generation failed:', error);
       alert('PDF generation failed. See the browser console for details.');
     }
   }
+
+  window.generatePagePdf = generatePdf;
 
   function bindId(id) {
     const button = document.getElementById(id);
