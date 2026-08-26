@@ -1040,6 +1040,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function showErrors(errors) {
       if (!errors || errors.length === 0) return;
+      const completeButton = document.getElementById('completeTicketBottom');
+      if (completeButton) completeButton.disabled = false;
       invalidElements.forEach(element => {
         element.classList.add('validation-missing');
         const section = element.closest('.section');
@@ -1312,7 +1314,11 @@ document.addEventListener('DOMContentLoaded', function () {
         const main = document.querySelector('main');
         if (main) {
           main.querySelectorAll(':invalid').forEach((el) => {
-            if (!el.disabled && el.type !== 'hidden' && el.type !== 'file' && !el.readOnly) markInvalid(el);
+            if (!el.disabled && el.type !== 'hidden' && el.type !== 'file' && !el.readOnly) {
+              markInvalid(el);
+              const name = el.labels?.[0]?.textContent?.trim() || el.name || el.id || 'Field';
+              errors.push(`${name} is invalid.`);
+            }
           });
         }
       }
@@ -1399,16 +1405,27 @@ document.addEventListener('DOMContentLoaded', function () {
     const btn = document.getElementById('completeTicketBottom');
     if (!btn) return;
     btn.addEventListener('click', function () {
+      if (btn.disabled) return;
       const form = document.getElementById('repForm');
       if (!form) return alert('Main form not found');
 
       // mark the form to indicate we're completing and let the form submit handler perform validation
-      const status = document.getElementById('ticketStatus');
-      if (status) status.value = 'complete';
+      let status = document.getElementById('ticketStatus');
+      if (!status) {
+        status = document.createElement('input');
+        status.type = 'hidden';
+        status.id = 'ticketStatus';
+        status.name = 'ticketStatus';
+        form.appendChild(status);
+      }
+      status.value = 'complete';
+      btn.disabled = true;
       try { console.log('Complete button: submitting form via requestSubmit'); } catch (e) { }
       try {
+        const previousNoValidate = form.noValidate;
         form.noValidate = true;
         form.requestSubmit();
+        form.noValidate = previousNoValidate;
       } catch (e) { form.submit(); }
     });
   })();

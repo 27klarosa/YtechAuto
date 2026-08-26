@@ -356,6 +356,25 @@ router.post('/mechanic', async (req, res) => {
     if (isCompleting && !roNum) {
         return res.status(400).send('Repair Order or Task Number is required to complete the ticket');
     }
+    if (isCompleting) {
+        const requiredFields = [
+            ['roDate', roDate, 'Date'],
+            ['technician', technician, 'Technician'],
+            ['custName', custName, 'Customer name'],
+            ['custAddress', custAdd, 'Customer address'],
+            ['diagnosis', diagnosis, 'Diagnosis']
+        ];
+        const missingField = requiredFields.find(([, value]) => !String(value).trim());
+        if (missingField) {
+            return res.status(400).send(`${missingField[2]} is required to complete the ticket`);
+        }
+        if (custEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(custEmail).trim())) {
+            return res.status(400).send('A valid customer email is required to complete the ticket');
+        }
+        if (!/^[A-Za-z0-9\-_ ]+$/.test(roNum)) {
+            return res.status(400).send('Repair Order must contain only letters, numbers, hyphen, underscore or spaces');
+        }
+    }
 
     // parse repairs array from several possible field names (handles JSON string or object from multipart)
     let repairs = [];
@@ -461,7 +480,10 @@ router.post('/mechanic', async (req, res) => {
     const saveRecRepairs = (ticketId, repairsArr, cb) => {
         // Always remove existing recRepairs for this ticket first so updates that remove lines clear DB
         db.run('DELETE FROM recRepairs WHERE ticketId = ?', [ticketId], (delErr) => {
-            if (delErr) console.warn('Failed to delete old recRepairs for ticket', ticketId, delErr);
+            if (delErr) {
+                console.error('Failed to delete old recRepairs for ticket', ticketId, delErr);
+                return cb && cb(delErr);
+            }
 
             // If no repairs provided, we're done after deletion
             if (!Array.isArray(repairsArr) || repairsArr.length === 0) {
@@ -507,8 +529,7 @@ router.post('/mechanic', async (req, res) => {
                     .then(() => res.redirect('/mechanic?id=' + targetId))
                     .catch((sigErr) => {
                         console.error('Failed to save signature for ticket', targetId, sigErr);
-                        // still redirect even if signature save fails
-                        return res.redirect('/mechanic?id=' + targetId);
+                        return res.status(500).send('Failed to save customer signature');
                     });
             } else {
                 return res.redirect('/mechanic?id=' + targetId);
