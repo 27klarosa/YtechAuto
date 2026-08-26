@@ -22,8 +22,8 @@ async function emailCompletedTicket(db, ticketId, pdfBuffer) {
     if (!ticket || !ticket.customerEmail || !pdfBuffer) return;
     await sendMail(
         ticket.customerEmail,
-        `Completed repair ticket #${ticket.id}`,
-        `<p>Your repair ticket #${ticket.id} is complete. The completed ticket is attached as a PDF.</p>`,
+        `Completed repair ticket`,
+        `<p>Your Automotive repair ticket is complete. The completed ticket is attached as a PDF. This is from the Auto Repair Ticket System of the York County School of Technology </p>`,
         [{ filename: `ticket-${ticket.id}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }]
     );
 }
