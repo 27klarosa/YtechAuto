@@ -24,6 +24,11 @@ document.addEventListener('DOMContentLoaded', function () {
           }
         });
       });
+      const allContent = document.querySelectorAll('.accordion-content');
+      allContent.forEach(content => {
+        content.style.display = 'block';
+        content.classList.remove('collapsed-content');
+      });
       window.customAccordionInitialized = true;
     })();
   }
@@ -2149,6 +2154,158 @@ document.addEventListener('DOMContentLoaded', function () {
   } catch (err) {
     console.warn('populateFromServerTicket: no server ticket or parse failed', err);
   }
+})();
+// --- PDF page downloads ---
+(function bindPagePdfDownloads() {
+  if (window.__PDF_BINDINGS_LOADED__) return;
+  window.__PDF_BINDINGS_LOADED__ = true;
+
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = src;
+      script.onload = resolve;
+      script.onerror = () => reject(new Error(`Failed to load ${src}`));
+      document.head.appendChild(script);
+    });
+  }
+
+  async function ensureHtml2Pdf() {
+    if (!window.html2pdf) {
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.2/html2pdf.bundle.min.js');
+    }
+    if (!window.html2pdf) throw new Error('html2pdf did not load');
+  }
+
+  async function generatePdf(ticketId) {
+    try {
+      await ensureHtml2Pdf();
+      const target = document.querySelector('main.main-content') || document.querySelector('main') || document.body;
+      const filename = `ticket-${ticketId || 'page'}.pdf`;
+      const options = {
+        margin: 10,
+        filename,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, logging: false },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+      await window.html2pdf().set(options).from(target).save();
+    } catch (error) {
+      console.error('PDF generation failed:', error);
+      alert('PDF generation failed. See the browser console for details.');
+    }
+  }
+
+  function bindId(id) {
+    const button = document.getElementById(id);
+    if (!button || button.dataset.pdfBound === '1') return;
+    button.dataset.pdfBound = '1';
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      generatePdf(button.dataset.ticketId || 'page');
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    bindId('downloadPage');
+
+    const mechanicButton = document.getElementById('downloadMechPage');
+    if (!mechanicButton) return;
+
+    let ticket = window.__SERVER_TICKET__ || null;
+    if (!ticket) {
+      const hidden = document.getElementById('server-ticket');
+      if (hidden && hidden.value) {
+        try { ticket = JSON.parse(hidden.value); } catch (error) { ticket = null; }
+      }
+    }
+
+    const status = ticket && (ticket.stat || ticket.ticketStatus || ticket.status);
+    const isComplete = status && String(status).toLowerCase() === 'complete';
+    if (isComplete) {
+      bindId('downloadMechPage');
+    } else {
+      mechanicButton.style.pointerEvents = 'none';
+      mechanicButton.style.opacity = '0.6';
+      mechanicButton.setAttribute('aria-disabled', 'true');
+    }
+  });
+})();
+// --- PDF page downloads ---
+(function bindPagePdfDownloads() {
+  if (window.__PDF_BINDINGS_LOADED__) return;
+  window.__PDF_BINDINGS_LOADED__ = true;
+
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = src;
+      script.onload = resolve;
+      script.onerror = () => reject(new Error(`Failed to load ${src}`));
+      document.head.appendChild(script);
+    });
+  }
+
+  async function ensureHtml2Pdf() {
+    if (!window.html2pdf) {
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.2/html2pdf.bundle.min.js');
+    }
+    if (!window.html2pdf) throw new Error('html2pdf did not load');
+  }
+
+  async function generatePdf(ticketId) {
+    try {
+      await ensureHtml2Pdf();
+      const target = document.querySelector('main.main-content') || document.querySelector('main') || document.body;
+      const filename = `ticket-${ticketId || 'page'}.pdf`;
+      const options = {
+        margin: 10,
+        filename,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, logging: false },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+      await window.html2pdf().set(options).from(target).save();
+    } catch (error) {
+      console.error('PDF generation failed:', error);
+      alert('PDF generation failed. See the browser console for details.');
+    }
+  }
+
+  function bindId(id) {
+    const button = document.getElementById(id);
+    if (!button || button.dataset.pdfBound === '1') return;
+    button.dataset.pdfBound = '1';
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      generatePdf(button.dataset.ticketId || 'page');
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    bindId('downloadPage');
+
+    const mechanicButton = document.getElementById('downloadMechPage');
+    if (!mechanicButton) return;
+
+    let ticket = window.__SERVER_TICKET__ || null;
+    if (!ticket) {
+      const hidden = document.getElementById('server-ticket');
+      if (hidden && hidden.value) {
+        try { ticket = JSON.parse(hidden.value); } catch (error) { ticket = null; }
+      }
+    }
+
+    const status = ticket && (ticket.stat || ticket.ticketStatus || ticket.status);
+    const isComplete = status && String(status).toLowerCase() === 'complete';
+    if (isComplete) {
+      bindId('downloadMechPage');
+    } else {
+      mechanicButton.style.pointerEvents = 'none';
+      mechanicButton.style.opacity = '0.6';
+      mechanicButton.setAttribute('aria-disabled', 'true');
+    }
+  });
 })();
 
 // --- Enforce mode: when a ticket is loaded but not in edit mode, lock UI to Repair Order only ---
