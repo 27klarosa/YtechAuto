@@ -2,9 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const router = express.Router();
-const sqlite3 = require('sqlite3').verbose();
 const fs = require('fs');
-const e = require('express');
 const { ensureLoggedIn } = require('../middleware/auth');
 
 const videoDir = path.join(__dirname, '..', 'upload', 'videos');
@@ -90,16 +88,6 @@ const imageUpload = multer({
     fileFilter: function (req, file, cb) {
         if (file.mimetype && file.mimetype.startsWith('image/')) cb(null, true);
         else cb(new Error('Only image files are allowed'));
-    }
-});
-
-// signature storage 
-const signatureStorage = multer.diskStorage({
-    destination: function (req, file, cb) { cb(null, signatureDir); },
-    filename: function (req, file, cb) {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-        const ext = path.extname(file.originalname) || '.png';
-        cb(null, 'signature-' + uniqueSuffix + ext);
     }
 });
 
