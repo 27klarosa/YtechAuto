@@ -1040,6 +1040,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function showErrors(errors) {
       if (!errors || errors.length === 0) return;
+      const completeButton = document.getElementById('completeTicketBottom');
+      if (completeButton) completeButton.disabled = false;
       invalidElements.forEach(element => {
         element.classList.add('validation-missing');
         const section = element.closest('.section');
@@ -1174,43 +1176,6 @@ document.addEventListener('DOMContentLoaded', function () {
         });
       }
 
-      if (errors.length > 0) {
-        showErrors(errors);
-        return false;
-      }
-
-      // upload signature (so server stores PNG) then submit
-      if (signatureData && signatureData.value) {
-        try {
-          // put the dataURL into a hidden input named "signature" so router.post('/mechanic') can save it
-          let sigEl = document.querySelector('input[name="signature"]') || document.getElementById('signature');
-          if (!sigEl) {
-            sigEl = document.createElement('input');
-            sigEl.type = 'hidden';
-            sigEl.name = 'signature';
-            sigEl.id = 'signature';
-            form.appendChild(sigEl);
-          }
-          sigEl.value = signatureData.value;
-
-          // optionally include client filename (server will sanitize/use or ignore)
-          let sigFileEl = document.querySelector('input[name="signatureFilename"]') || document.getElementById('signatureFilename');
-          if (!sigFileEl) {
-            sigFileEl = document.createElement('input');
-            sigFileEl.type = 'hidden';
-            sigFileEl.name = 'signatureFilename';
-            sigFileEl.id = 'signatureFilename';
-            form.appendChild(sigFileEl);
-          }
-          if (!sigFileEl.value) sigFileEl.value = (createSignatureFileInfo && createSignatureFileInfo().filename) || 'signature.png';
-
-        } catch (err) {
-          console.error('Signature upload failed:', err);
-          showErrors(['Failed to upload signature. Please try again.']);
-          return false;
-        }
-      }
-
       // If completing the ticket, enforce full Digital Courtesy Check validation
       const ticketStatusEl = document.getElementById('ticketStatus');
       const tryingToComplete = ticketStatusEl && ticketStatusEl.value === 'complete';
@@ -1312,7 +1277,11 @@ document.addEventListener('DOMContentLoaded', function () {
         const main = document.querySelector('main');
         if (main) {
           main.querySelectorAll(':invalid').forEach((el) => {
-            if (!el.disabled && el.type !== 'hidden' && el.type !== 'file' && !el.readOnly) markInvalid(el);
+            if (!el.disabled && el.type !== 'hidden' && el.type !== 'file' && !el.readOnly) {
+              markInvalid(el);
+              const name = el.labels?.[0]?.textContent?.trim() || el.name || el.id || 'Field';
+              errors.push(`${name} is invalid.`);
+            }
           });
         }
       }
@@ -1321,6 +1290,34 @@ document.addEventListener('DOMContentLoaded', function () {
       if (errors.length > 0) {
         showErrors(errors);
         return false;
+      }
+
+      if (signatureData && signatureData.value) {
+        try {
+          let sigEl = document.querySelector('input[name="signature"]') || document.getElementById('signature');
+          if (!sigEl) {
+            sigEl = document.createElement('input');
+            sigEl.type = 'hidden';
+            sigEl.name = 'signature';
+            sigEl.id = 'signature';
+            form.appendChild(sigEl);
+          }
+          sigEl.value = signatureData.value;
+
+          let sigFileEl = document.querySelector('input[name="signatureFilename"]') || document.getElementById('signatureFilename');
+          if (!sigFileEl) {
+            sigFileEl = document.createElement('input');
+            sigFileEl.type = 'hidden';
+            sigFileEl.name = 'signatureFilename';
+            sigFileEl.id = 'signatureFilename';
+            form.appendChild(sigFileEl);
+          }
+          if (!sigFileEl.value) sigFileEl.value = (createSignatureFileInfo && createSignatureFileInfo().filename) || 'signature.png';
+        } catch (err) {
+          console.error('Signature preparation failed:', err);
+          showErrors(['Failed to prepare signature. Please try again.']);
+          return false;
+        }
       }
 
       // all good -> submit
@@ -1419,17 +1416,30 @@ document.addEventListener('DOMContentLoaded', function () {
     const btn = document.getElementById('completeTicketBottom');
     if (!btn) return;
     btn.addEventListener('click', function () {
+      if (btn.disabled) return;
       const form = document.getElementById('repForm');
       if (!form) return alert('Main form not found');
 
       // mark the form to indicate we're completing and let the form submit handler perform validation
-      const status = document.getElementById('ticketStatus');
-      if (status) status.value = 'complete';
+      let status = document.getElementById('ticketStatus');
+      if (!status) {
+        status = document.createElement('input');
+        status.type = 'hidden';
+        status.id = 'ticketStatus';
+        status.name = 'ticketStatus';
+        form.appendChild(status);
+      }
+      status.value = 'complete';
+      btn.disabled = true;
       try { console.log('Complete button: submitting form via requestSubmit'); } catch (e) { }
       try {
+        const previousNoValidate = form.noValidate;
         form.noValidate = true;
         form.requestSubmit();
-      } catch (e) { form.submit(); }
+        form.noValidate = previousNoValidate;
+      } catch (e) {
+        form.dispatchEvent(new Event('submit', { cancelable: true }));
+      }
     });
   })();
 

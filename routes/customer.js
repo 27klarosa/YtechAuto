@@ -48,11 +48,10 @@ router.get('/customer', ensureLoggedIn, (req, res) => {
                     let repairs = [];
                     try {
                         if (ticket.recommendedRepairs && ticket.recommendedRepairs.trim() !== '') {
-                            // If it's JSON, parse it
                             if (ticket.recommendedRepairs.startsWith('[') || ticket.recommendedRepairs.startsWith('{')) {
-                                repairs = JSON.parse(ticket.recommendedRepairs);
+                                const parsed = JSON.parse(ticket.recommendedRepairs);
+                                repairs = Array.isArray(parsed) ? parsed : [parsed];
                             } else {
-                                // If it's plain text, create a simple repair object
                                 repairs = [{
                                     repairDescription: ticket.recommendedRepairs,
                                     qty: '',
@@ -64,7 +63,6 @@ router.get('/customer', ensureLoggedIn, (req, res) => {
                         }
                     } catch (parseError) {
                         console.error('Error parsing recommendedRepairs:', parseError);
-                        // Treat as plain text
                         repairs = [{
                             repairDescription: ticket.recommendedRepairs || 'No repairs listed',
                             qty: '',
@@ -74,7 +72,8 @@ router.get('/customer', ensureLoggedIn, (req, res) => {
                         }];
                     }
 
-                    console.log('Parsed repairs:', repairs);
+                    const normalizedRepairs = Array.isArray(repairs) ? repairs : [];
+                    console.log('Parsed repairs:', normalizedRepairs);
 
                     // Get vehicle info for this ticket
                     db.get('SELECT * FROM vechicleInfo WHERE ticketID = ?', [ticketId], (err, vehicle) => {
@@ -89,8 +88,8 @@ router.get('/customer', ensureLoggedIn, (req, res) => {
                         let partsSubtotal = 0;
                         let laborSubtotal = 0;
 
-                        if (repairs && repairs.length > 0) {
-                            repairs.forEach(repair => {
+                        if (normalizedRepairs.length > 0) {
+                            normalizedRepairs.forEach(repair => {
                                 partsSubtotal += parseFloat(repair.partsTotal || 0);
                                 laborSubtotal += parseFloat(repair.laborTotal || 0);
                             });
@@ -100,7 +99,7 @@ router.get('/customer', ensureLoggedIn, (req, res) => {
                         const total = partsSubtotal + tax;
 
                         console.log(`Rendering customer page for ticket ${ticketId}`);
-                        console.log(`   - Repairs to display: ${repairs.length}`);
+                        console.log(`   - Repairs to display: ${normalizedRepairs.length}`);
 
                         // --- fetch inspection data and categorize into good/monitor/bad ---
                         const dbAll = (sql, params) => new Promise((resolve, reject) => {
@@ -328,7 +327,7 @@ router.get('/customer', ensureLoggedIn, (req, res) => {
                                 res.render('customer', {
                                     user: user,
                                     ticket: ticket,
-                                    repairs: repairs,
+                                    repairs: normalizedRepairs,
                                     vehicle: vehicle || {},
                                     inspection: { monitorItems: [], badItems: [] },
                                     video: null,

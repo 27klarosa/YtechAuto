@@ -10,20 +10,12 @@ const multer = require('multer');
 const PORT = process.env.PORT || 3000;
 const http = require('http');
 const server = require('http').createServer(app);
-const sqlite3 = require('sqlite3').verbose();
+const initializeDatabase = require('./scripts/initDatabase');
 
 const fs = require('fs');
 
-const db = new sqlite3.Database('./database/database.sqlite', (err) => {
-    if (err) {
-        console.error('Could not connect to database', err);
-    } else {
-        console.log('Connected to database');
-    }
-});
-
-// Make database available to other modules
-app.locals.db = db;
+// Make database available to other modules after initialization
+app.locals.db = null;
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
@@ -65,10 +57,17 @@ app.use('/', mechanicDisRouter);
 app.use('/', mechanicEditRouter);
 app.use('/', loginRouter);
 app.use('/', ticketRoute);
-                                    
 
-server.listen(PORT, () => {
-    console.log(`Example app listening on port http://localhost:${PORT}`);
-});
+initializeDatabase()
+    .then((db) => {
+        app.locals.db = db;
+        server.listen(PORT, () => {
+            console.log(`Example app listening on port http://localhost:${PORT}`);
+        });
+    })
+    .catch((err) => {
+        console.error('Database initialization failed:', err);
+        process.exit(1);
+    });
 
 module.exports = app;

@@ -175,7 +175,7 @@ CREATE TABLE signatures (
     originalName TEXT NOT NULL,
     relativePath TEXT NOT NULL,
     uploadDate TEXT DEFAULT (datetime('now'))
-)
+);
  
 -- "uploads/ filenamefromdb" + ".png"
  
