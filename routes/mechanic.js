@@ -3,14 +3,30 @@ const multer = require('multer');
 const path = require('path');
 const router = express.Router();
 const fs = require('fs');
+const { sendMail } = require('../middleware/mail');
 const { ensureLoggedIn } = require('../middleware/auth');
 
 const videoDir = path.join(__dirname, '..', 'upload', 'videos');
 const imageDir = path.join(__dirname, '..', 'upload', 'images');
 const signatureDir = path.join(__dirname, '..', 'upload', 'signatures');
+const completionPdfUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 20 * 1024 * 1024 }
+});
 fs.mkdirSync(videoDir, { recursive: true });
 fs.mkdirSync(imageDir, { recursive: true });
 fs.mkdirSync(signatureDir, { recursive: true });
+
+async function emailCompletedTicket(db, ticketId, pdfBuffer) {
+    const ticket = await new Promise((resolve, reject) => db.get('SELECT * FROM tickets WHERE id = ?', [ticketId], (err, row) => err ? reject(err) : resolve(row)));
+    if (!ticket || !ticket.customerEmail || !pdfBuffer) return;
+    await sendMail(
+        ticket.customerEmail,
+        `Completed repair ticket`,
+        `<p>Your Automotive repair ticket is complete. The completed ticket is attached as a PDF. This is from the Auto Repair Ticket System of the York County School of Technology </p>`,
+        [{ filename: `ticket-${ticket.id}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }]
+    );
+}
 
 // save signature dataURL to signatures table (write file, insert DB row)
 async function saveSignatureFromDataUrl(db, dataUrl, clientName, ticketId = null) {
@@ -322,7 +338,7 @@ router.get('/mechanic', ensureLoggedIn, (req, res) => {
     });
 });
 
-router.post('/mechanic', async (req, res) => {
+router.post('/mechanic', completionPdfUpload.single('completionPdf'), async (req, res) => {
     const db = req.app.locals.db;
     if (!db) return res.status(500).send('Database not available');
 
@@ -545,7 +561,7 @@ router.post('/mechanic', async (req, res) => {
         });
     };
 
-    // finalize save actions: save recRepairs (if provided) then save signature (if provided), then redirect
+    // finalize save actions: save repairs/signature, email completed tickets, then redirect
     const finalizeSave = (targetId) => {
         const failSave = (message, error) => {
             if (error) console.error(message, error);
