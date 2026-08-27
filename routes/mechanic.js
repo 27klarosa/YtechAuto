@@ -11,7 +11,7 @@ const imageDir = path.join(__dirname, '..', 'upload', 'images');
 const signatureDir = path.join(__dirname, '..', 'upload', 'signatures');
 const completionPdfUpload = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: 20 * 1024 * 1024 }
+    limits: { fileSize: 10 * 1024 * 1024 }
 });
 fs.mkdirSync(videoDir, { recursive: true });
 fs.mkdirSync(imageDir, { recursive: true });
@@ -85,8 +85,13 @@ const videoUpload = multer({
     storage: videoStorage,
     limits: { fileSize: 500 * 1024 * 1024 }, // 500MB
     fileFilter: function (req, file, cb) {
-        if (file.mimetype && file.mimetype.startsWith('video/')) cb(null, true);
-        else cb(new Error('Only video files are allowed'));
+        const allowedExtensions = /\.(mp4|mov|avi|mkv|webm|wmv|m4v)$/i;
+        const allowedMime = /^video\//i;
+        if ((file.mimetype && allowedMime.test(file.mimetype)) || allowedExtensions.test(file.originalname || '')) {
+            cb(null, true);
+        } else {
+            cb(new Error('Only common video files are allowed'));
+        }
     }
 });
 
@@ -103,8 +108,13 @@ const imageUpload = multer({
     storage: imageStorage,
     limits: { fileSize: 100 * 1024 * 1024 }, // 100MB
     fileFilter: function (req, file, cb) {
-        if (file.mimetype && file.mimetype.startsWith('image/')) cb(null, true);
-        else cb(new Error('Only image files are allowed'));
+        const allowedExtensions = /\.(png|jpg|jpeg|gif|bmp|webp)$/i;
+        const allowedMime = /^image\//i;
+        if ((file.mimetype && allowedMime.test(file.mimetype)) || allowedExtensions.test(file.originalname || '')) {
+            cb(null, true);
+        } else {
+            cb(new Error('Only image files are allowed'));
+        }
     }
 });
 
@@ -338,7 +348,7 @@ router.get('/mechanic', ensureLoggedIn, (req, res) => {
     });
 });
 
-router.post('/mechanic', completionPdfUpload.single('completionPdf'), async (req, res) => {
+router.post('/mechanic', ensureLoggedIn, completionPdfUpload.single('completionPdf'), async (req, res) => {
     const db = req.app.locals.db;
     if (!db) return res.status(500).send('Database not available');
 
@@ -695,7 +705,7 @@ router.post('/mechanic', completionPdfUpload.single('completionPdf'), async (req
 
 });
 
-router.post('/mechanic/vehicle-info', (req, res) => {
+router.post('/mechanic/vehicle-info', ensureLoggedIn, (req, res) => {
     const db = req.app.locals.db;
     if (!db) return res.status(500).json({ success: false, message: 'Database not available' });
 
@@ -737,7 +747,7 @@ router.post('/mechanic/vehicle-info', (req, res) => {
     });
 });
 
-router.post('/mechanic/courtesy-check', (req, res) => {
+router.post('/mechanic/courtesy-check', ensureLoggedIn, (req, res) => {
     const db = req.app.locals.db;
     if (!db) return res.status(500).send('Database not available');
 
@@ -890,7 +900,7 @@ router.post('/mechanic/courtesy-check', (req, res) => {
         });
     });
 });
-router.post('/mechanic/tires', (req, res) => {
+router.post('/mechanic/tires', ensureLoggedIn, (req, res) => {
     const db = req.app.locals.db;
     if (!db) return res.status(500).json({ error: 'Database not available' });
 
@@ -953,7 +963,7 @@ router.post('/mechanic/tires', (req, res) => {
 });
 
 
-router.post('/mechanic/steering-suspension', (req, res) => {
+router.post('/mechanic/steering-suspension', ensureLoggedIn, (req, res) => {
     const db = req.app.locals.db;
     if (!db) return res.status(500).send('Database not available');
 
@@ -1069,7 +1079,7 @@ router.post('/mechanic/steering-suspension', (req, res) => {
     });
 });
 
-router.post('/mechanic/brakes', (req, res) => {
+router.post('/mechanic/brakes', ensureLoggedIn, (req, res) => {
     const db = req.app.locals.db;
     if (!db) return res.status(500).json({ error: 'Database not available' });
     const ticketId = req.body.ticketId || req.body.ticketID || req.query.ticketId || req.query.ticketID;
@@ -1216,7 +1226,7 @@ router.post('/mechanic/brakes', (req, res) => {
 
 });
 
-router.post('/mechanic/emissions', (req, res) => {
+router.post('/mechanic/emissions', ensureLoggedIn, (req, res) => {
     const db = req.app.locals.db;
     if (!db) return res.status(500).json({ error: 'Database not available' });
 
