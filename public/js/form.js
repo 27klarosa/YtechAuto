@@ -1353,7 +1353,7 @@ document.addEventListener('DOMContentLoaded', function () {
       if (tryingToComplete && typeof window.generatePagePdf === 'function') {
         try {
           const ticketId = form.querySelector('[name="ticketId"]')?.value || 'page';
-          const pdf = await window.generatePagePdf(ticketId, false);
+          const pdf = await window.generatePagePdf(ticketId, false, true);
           if (!pdf) throw new Error('PDF generation returned no document');
           const formData = new FormData(form);
           formData.append('completionPdf', pdf, `ticket-${ticketId}.pdf`);
@@ -2197,7 +2197,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!window.html2pdf) throw new Error('html2pdf did not load');
   }
 
-  async function generatePdf(ticketId, shouldDownload = true) {
+  async function generatePdf(ticketId, shouldDownload = true, excludeEmailOnlyContent = false) {
     try {
       await ensureHtml2Pdf();
       const target = document.querySelector('main.main-content') || document.querySelector('main') || document.body;
@@ -2206,7 +2206,18 @@ document.addEventListener('DOMContentLoaded', function () {
         margin: 10,
         filename,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, logging: false },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          onclone: excludeEmailOnlyContent ? (clonedDocument) => {
+            clonedDocument.querySelectorAll('section').forEach((section) => {
+              const heading = section.querySelector('h2')?.textContent.trim().toLowerCase();
+              if (heading === 'upload video' || heading === 'upload image') section.remove();
+            });
+            clonedDocument.querySelectorAll('#downloadMechPage, #downloadPage').forEach((element) => element.remove());
+          } : undefined
+        },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
       };
       const pdf = await window.html2pdf().set(options).from(target).outputPdf('blob');
