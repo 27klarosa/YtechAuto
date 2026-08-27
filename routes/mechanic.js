@@ -16,11 +16,12 @@ fs.mkdirSync(signatureDir, { recursive: true });
 async function saveSignatureFromDataUrl(db, dataUrl, clientName, ticketId = null) {
     return new Promise((resolve, reject) => {
         if (!dataUrl || typeof dataUrl !== 'string') return resolve(null);
-        const comma = dataUrl.indexOf(',');
-        if (comma === -1) return resolve(null);
-        const b64 = dataUrl.slice(comma + 1);
+        const match = /^data:image\/png;base64,([A-Za-z0-9+/]+={0,2})$/.exec(dataUrl.trim());
+        if (!match) return reject(new Error('Invalid signature format'));
+        const b64 = match[1];
         let buffer;
         try { buffer = Buffer.from(b64, 'base64'); } catch (e) { return resolve(null); }
+        if (!buffer.length || buffer.length > 2 * 1024 * 1024) return reject(new Error('Invalid signature size'));
 
         const filename = `signature-${Date.now()}.png`;
         const savePath = path.join(signatureDir, filename);
@@ -374,7 +375,30 @@ router.post('/mechanic', async (req, res) => {
         if (!/^[A-Za-z0-9\-_ ]+$/.test(roNum)) {
             return res.status(400).send('Repair Order must contain only letters, numbers, hyphen, underscore or spaces');
         }
+        if (body.signature && typeof body.signature !== 'string') {
+            return res.status(400).send('Invalid customer signature');
+        }
     }
+
+    const ensureCompletionSignature = (ticketId, callback) => {
+        if (!isCompleting) return callback(null);
+        if (body.signature) {
+            const signatureMatch = /^data:image\/png;base64,([A-Za-z0-9+/]+={0,2})$/.exec(String(body.signature).trim());
+            if (signatureMatch) {
+                const signatureBytes = Buffer.from(signatureMatch[1], 'base64');
+                if (!signatureBytes.length || signatureBytes.length > 2 * 1024 * 1024) {
+                    return callback(new Error('Invalid signature size'));
+                }
+                return callback(null);
+            }
+        }
+        if (!ticketId) return callback(new Error('Customer signature is required to complete the ticket'));
+        db.get('SELECT id FROM signatures WHERE ticketID = ? ORDER BY id DESC LIMIT 1', [ticketId], (sigErr, signature) => {
+            if (sigErr) return callback(sigErr);
+            if (!signature) return callback(new Error('Customer signature is required to complete the ticket'));
+            callback(null);
+        });
+    };
 
     // parse repairs array from several possible field names (handles JSON string or object from multipart)
     let repairs = [];
@@ -523,22 +547,31 @@ router.post('/mechanic', async (req, res) => {
 
     // finalize save actions: save recRepairs (if provided) then save signature (if provided), then redirect
     const finalizeSave = (targetId) => {
+        const failSave = (message, error) => {
+            if (error) console.error(message, error);
+            db.run('ROLLBACK', () => res.status(500).send(message));
+        };
         const afterRepairs = () => {
-            if (body.signature && typeof body.signature === 'string' && body.signature.trim() !== '') {
+            if (body.signature && /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(body.signature.trim())) {
                 saveSignatureFromDataUrl(db, body.signature, custName, targetId)
-                    .then(() => res.redirect('/mechanic?id=' + targetId))
+                    .then(() => db.run('COMMIT', (commitErr) => {
+                        if (commitErr) return failSave('Failed to finalize ticket save', commitErr);
+                        return res.redirect('/mechanic?id=' + targetId);
+                    }))
                     .catch((sigErr) => {
-                        console.error('Failed to save signature for ticket', targetId, sigErr);
-                        return res.status(500).send('Failed to save customer signature');
+                        failSave('Failed to save customer signature', sigErr);
                     });
             } else {
-                return res.redirect('/mechanic?id=' + targetId);
+                return db.run('COMMIT', (commitErr) => {
+                    if (commitErr) return failSave('Failed to finalize ticket save', commitErr);
+                    return res.redirect('/mechanic?id=' + targetId);
+                });
             }
         };
 
         if (repairsProvided) {
             saveRecRepairs(targetId, repairs, (rErr) => {
-                if (rErr) { console.error('Failed saving recRepairs on save:', rErr); return res.status(500).send('Failed to save repairs'); }
+                if (rErr) return failSave('Failed to save repairs', rErr);
                 return afterRepairs();
             });
         } else {
@@ -551,19 +584,27 @@ router.post('/mechanic', async (req, res) => {
         const storedRoNum = roNum || `DRAFT-${Date.now()}-${Math.round(Math.random() * 1E9)}`;
         const updateSql = `UPDATE tickets SET repairOrderNumber = ?, date = ?, techName = ?, timeIn = ?, timeOut = ?, totalTime = ?, customerName = ?, customerAddress = ?, customerPhone = ?, customerEmail = ?, concern = ?, diagnosis = ?, recommendedRepairs = ?, dateSigned = ?, stat = ? WHERE id = ?`;
         const params = [storedRoNum, roDate, technician, timeArrive, timeOut, totTime, custName, custAdd, custPhone, custEmail, concern, diagnosis, recommendedRepairsText, sDate, ticketStatus, targetId];
-        db.run(updateSql, params, function(updErr) {
+        db.run('BEGIN TRANSACTION', (beginErr) => {
+            if (beginErr) return res.status(500).send('Failed to begin ticket save');
+            db.run(updateSql, params, function(updErr) {
             if (updErr) {
                 console.error('Failed to update ticket:', updErr);
-                return res.status(500).send('Failed to update ticket: ' + (updErr.message || updErr));
+                if (updErr.code === 'SQLITE_CONSTRAINT') {
+                    return db.run('ROLLBACK', () => res.status(409).send('A ticket with this Repair Order already exists'));
+                }
+                return db.run('ROLLBACK', () => res.status(500).send('Failed to update ticket: ' + (updErr.message || updErr)));
             }
             // perform child saves (repairs + signature) then redirect
             return finalizeSave(targetId);
+            });
         });
     };
 
     // Creating new ticket: first check for duplicate repairOrderNumber
     const tryInsertNew = () => {
-        if (!roNum) return insertNewTicket();
+        ensureCompletionSignature(null, (signatureErr) => {
+            if (signatureErr) return res.status(400).send(signatureErr.message);
+            if (!roNum) return insertNewTicket();
         const checkSql = `SELECT id FROM tickets WHERE repairOrderNumber = ? LIMIT 1`;
         db.get(checkSql, [roNum], (chkErr, existing) => {
             if (chkErr) {
@@ -578,20 +619,27 @@ router.post('/mechanic', async (req, res) => {
 
             return insertNewTicket();
         });
+        });
     };
 
     const insertNewTicket = () => {
             const storedRoNum = roNum || `DRAFT-${Date.now()}-${Math.round(Math.random() * 1E9)}`;
             const insertSql = `INSERT INTO tickets (repairOrderNumber, date, techName, timeIn, timeOut, totalTime, customerName, customerAddress, customerPhone, customerEmail, concern, diagnosis, recommendedRepairs, dateSigned, stat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
             const params = [storedRoNum, roDate, technician, timeArrive, timeOut, totTime, custName, custAdd, custPhone, custEmail, concern, diagnosis, recommendedRepairsText, sDate, ticketStatus];
+            db.run('BEGIN TRANSACTION', (beginErr) => {
+                if (beginErr) return res.status(500).send('Failed to begin ticket save');
             db.run(insertSql, params, function(insErr) {
                 if (insErr) {
                     console.error('Failed to insert new ticket:', insErr);
-                    return res.status(500).send('Failed to create ticket: ' + (insErr.message || insErr));
+                    if (insErr.code === 'SQLITE_CONSTRAINT') {
+                        return db.run('ROLLBACK', () => res.status(409).send('A ticket with this Repair Order already exists'));
+                    }
+                    return db.run('ROLLBACK', () => res.status(500).send('Failed to create ticket: ' + (insErr.message || insErr)));
                 }
                 const newId = this.lastID;
                 // finalize repairs/signature save and redirect
                 return finalizeSave(newId);
+            });
             });
     };
 
@@ -605,6 +653,12 @@ router.post('/mechanic', async (req, res) => {
             if (!row) {
                 return res.status(404).send('Ticket to update not found');
             }
+            ensureCompletionSignature(incomingTicketId, (signatureErr) => {
+                if (signatureErr) {
+                    if (signatureErr.message.includes('required')) return res.status(400).send(signatureErr.message);
+                    console.error('Failed checking existing signature:', signatureErr);
+                    return res.status(500).send('Failed to verify customer signature');
+                }
             // If a supplied RO collides with another ticket (different id), block the change.
             if (!roNum) return performUpdate(incomingTicketId);
             db.get('SELECT id FROM tickets WHERE repairOrderNumber = ? LIMIT 1', [roNum], (chkErr, found) => {
@@ -616,6 +670,7 @@ router.post('/mechanic', async (req, res) => {
                     return res.status(409).send('<script>alert("The RONum already exist"); window.history.back();</script>');
                 }
                 return performUpdate(incomingTicketId);
+            });
             });
         });
     } else {

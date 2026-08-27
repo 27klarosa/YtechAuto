@@ -1176,43 +1176,6 @@ document.addEventListener('DOMContentLoaded', function () {
         });
       }
 
-      if (errors.length > 0) {
-        showErrors(errors);
-        return false;
-      }
-
-      // upload signature (so server stores PNG) then submit
-      if (signatureData && signatureData.value) {
-        try {
-          // put the dataURL into a hidden input named "signature" so router.post('/mechanic') can save it
-          let sigEl = document.querySelector('input[name="signature"]') || document.getElementById('signature');
-          if (!sigEl) {
-            sigEl = document.createElement('input');
-            sigEl.type = 'hidden';
-            sigEl.name = 'signature';
-            sigEl.id = 'signature';
-            form.appendChild(sigEl);
-          }
-          sigEl.value = signatureData.value;
-
-          // optionally include client filename (server will sanitize/use or ignore)
-          let sigFileEl = document.querySelector('input[name="signatureFilename"]') || document.getElementById('signatureFilename');
-          if (!sigFileEl) {
-            sigFileEl = document.createElement('input');
-            sigFileEl.type = 'hidden';
-            sigFileEl.name = 'signatureFilename';
-            sigFileEl.id = 'signatureFilename';
-            form.appendChild(sigFileEl);
-          }
-          if (!sigFileEl.value) sigFileEl.value = (createSignatureFileInfo && createSignatureFileInfo().filename) || 'signature.png';
-
-        } catch (err) {
-          console.error('Signature upload failed:', err);
-          showErrors(['Failed to upload signature. Please try again.']);
-          return false;
-        }
-      }
-
       // If completing the ticket, enforce full Digital Courtesy Check validation
       const ticketStatusEl = document.getElementById('ticketStatus');
       const tryingToComplete = ticketStatusEl && ticketStatusEl.value === 'complete';
@@ -1329,6 +1292,34 @@ document.addEventListener('DOMContentLoaded', function () {
         return false;
       }
 
+      if (signatureData && signatureData.value) {
+        try {
+          let sigEl = document.querySelector('input[name="signature"]') || document.getElementById('signature');
+          if (!sigEl) {
+            sigEl = document.createElement('input');
+            sigEl.type = 'hidden';
+            sigEl.name = 'signature';
+            sigEl.id = 'signature';
+            form.appendChild(sigEl);
+          }
+          sigEl.value = signatureData.value;
+
+          let sigFileEl = document.querySelector('input[name="signatureFilename"]') || document.getElementById('signatureFilename');
+          if (!sigFileEl) {
+            sigFileEl = document.createElement('input');
+            sigFileEl.type = 'hidden';
+            sigFileEl.name = 'signatureFilename';
+            sigFileEl.id = 'signatureFilename';
+            form.appendChild(sigFileEl);
+          }
+          if (!sigFileEl.value) sigFileEl.value = (createSignatureFileInfo && createSignatureFileInfo().filename) || 'signature.png';
+        } catch (err) {
+          console.error('Signature preparation failed:', err);
+          showErrors(['Failed to prepare signature. Please try again.']);
+          return false;
+        }
+      }
+
       // all good -> submit
       // serialize recommended repairs into hidden input so server can process them
       try {
@@ -1426,7 +1417,9 @@ document.addEventListener('DOMContentLoaded', function () {
         form.noValidate = true;
         form.requestSubmit();
         form.noValidate = previousNoValidate;
-      } catch (e) { form.submit(); }
+      } catch (e) {
+        form.dispatchEvent(new Event('submit', { cancelable: true }));
+      }
     });
   })();
 

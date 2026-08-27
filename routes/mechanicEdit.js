@@ -20,17 +20,38 @@ router.get('/mechanic/incomplete', (req, res) => {
     });
 });
 
-router.post('/mechanic/completeTicket', (req, res) => {
+router.post('/mechanic/completeTicket', ensureLoggedIn, (req, res) => {
     const db = req.app.locals.db;
     if (!db) return res.status(500).json({ error: 'Database not available' });
     const { ticketId } = req.body;
-    const sql = `UPDATE tickets SET stat = 'complete' WHERE id = ?`;
-    db.run(sql, [ticketId], function(err) {
-        if (err) {
-            console.error('Failed to complete ticket', err);
-            return res.status(500).json({ error: 'Failed to complete ticket' });
-        }
-        return res.sendStatus(204);
+    const parsedTicketId = Number(ticketId);
+    if (!Number.isInteger(parsedTicketId) || parsedTicketId <= 0) {
+        return res.status(400).json({ error: 'A valid ticketId is required' });
+    }
+
+    db.get('SELECT * FROM tickets WHERE id = ?', [parsedTicketId], (findErr, ticket) => {
+        if (findErr) return res.status(500).json({ error: 'Failed to load ticket' });
+        if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
+
+        const requiredFields = ['repairOrderNumber', 'date', 'techName', 'customerName', 'customerAddress', 'diagnosis'];
+        const missingField = requiredFields.find(field => !String(ticket[field] || '').trim());
+        if (missingField) return res.status(400).json({ error: `${missingField} is required` });
+
+        db.get('SELECT id FROM signatures WHERE ticketID = ? LIMIT 1', [parsedTicketId], (signatureErr, signature) => {
+            if (signatureErr) return res.status(500).json({ error: 'Failed to verify signature' });
+            if (!signature && !ticket.customerSignature) {
+                return res.status(400).json({ error: 'Customer signature is required' });
+            }
+
+            const sql = `UPDATE tickets SET stat = 'complete' WHERE id = ?`;
+            db.run(sql, [parsedTicketId], function(err) {
+                if (err) {
+                    console.error('Failed to complete ticket', err);
+                    return res.status(500).json({ error: 'Failed to complete ticket' });
+                }
+                return res.sendStatus(204);
+            });
+        });
     });
 });
 module.exports = router;
