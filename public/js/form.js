@@ -3305,7 +3305,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const MAX_FILES = 3;
     videoinput.multiple = true;
 
-    function renderImagePreviews(fileList) {
+    function renderVideoPreviews(fileList) {
       if (!videoPreviewContainer) return;
       videoPreviewContainer.innerHTML = '';
 
@@ -3327,22 +3327,14 @@ document.addEventListener('DOMContentLoaded', () => {
         item.style.overflow = 'hidden';
         item.title = file.name || '';
 
-        const img = document.createElement('img');
-        img.style.width = '100%';
-        img.style.height = '100%';
-        img.style.objectFit = 'cover';
-        img.alt = file.name || '';
-
-        // load preview (File or server-provided object with .src)
-        if (file instanceof File) {
-          const url = URL.createObjectURL(file);
-          img.src = url;
-          img.addEventListener('load', () => { try { URL.revokeObjectURL(url); } catch (_) { } });
-        } else if (file && file.src) {
-          img.src = file.src;
-        } else {
-          img.src = String(file);
-        }
+        const v = document.createElement('video');
+        v.controls = true;
+        v.style.width = '100%';
+        v.style.height = '100%';
+        v.style.objectFit = 'cover';
+        const url = URL.createObjectURL(file);
+        v.src = url;
+        v.addEventListener('loadeddata', () => { try { URL.revokeObjectURL(url); } catch (_) { } });
 
         const removeBtn = document.createElement('button');
         removeBtn.type = 'button';
@@ -3367,7 +3359,7 @@ document.addEventListener('DOMContentLoaded', () => {
           e.stopPropagation();
           try {
             // Update input.files by removing the clicked file, then re-render previews.
-            const current = Array.from(imageinput.files || []);
+            const current = Array.from(videoinput.files || []);
             if (!current.length) {
               // nothing to do
               return;
@@ -3385,29 +3377,29 @@ document.addEventListener('DOMContentLoaded', () => {
             // write new FileList back to input
             const dt = new DataTransfer();
             newFiles.forEach(f => dt.items.add(f));
-            imageinput.files = dt.files;
+            videoinput.files = dt.files;
 
             // re-render previews and update zone text
-            renderImagePreviews(imageinput.files);
-            updateImageZoneText();
+            renderVideoPreviews(videoinput.files);
+            updateVideoZoneText();
           } catch (err) {
-            console.warn('Failed to remove image', err);
+            console.warn('Failed to remove video', err);
           }
         });
 
-        item.appendChild(img);
+        item.appendChild(v);
         item.appendChild(removeBtn);
         wrapperList.appendChild(item);
       });
 
-      imagePreviewContainer.appendChild(wrapperList);
+      videoPreviewContainer.appendChild(wrapperList);
     }
 
-    function updateImageZoneText() {
+    function updateVideoZoneText() {
       try {
-        const p = imageUploadZone && imageUploadZone.querySelector('p');
-        const count = imageinput.files ? imageinput.files.length : 0;
-        if (p) p.textContent = count ? `Selected ${count} image(s)` : 'Drop images here or click to upload';
+        const p = videoUploadZone && videoUploadZone.querySelector('p');
+        const count = videoinput.files ? videoinput.files.length : 0;
+        if (p) p.textContent = count ? `Selected ${count} video(s)` : 'Drop videos here or click to upload';
         // indicate limit
         if (count >= MAX_FILES) {
           if (p) p.textContent += ` (max ${MAX_FILES})`;
@@ -3415,11 +3407,11 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (e) { /* ignore */ }
     }
 
-    imageinput.addEventListener('change', (e) => {
+    videoinput.addEventListener('change', (e) => {
       const files = Array.from(e.target.files || []);
       if (!files.length) {
-        imagePreviewContainer && (imagePreviewContainer.innerHTML = '');
-        updateImageZoneText();
+        videoPreviewContainer && (videoPreviewContainer.innerHTML = '');
+        updateVideoZoneText();
         return;
       }
 
@@ -3430,20 +3422,20 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
           const dt = new DataTransfer();
           allowed.forEach(f => dt.items.add(f));
-          imageinput.files = dt.files;
+          videoinput.files = dt.files;
         } catch (err) { /* ignore */ }
       }
-      renderImagePreviews(imageinput.files);
-      updateImageZoneText();
+      renderVideoPreviews(videoinput.files);
+      updateVideoZoneText();
 
       // move input and remove visual zone so file objects survive if desired
-      relocateInputAndRemoveZone(imageinput, 'image-upload-btn', imageUploadZone);
+      relocateInputAndRemoveZone(videoinput, 'video-upload-btn', videoUploadZone);
     });
 
     // initial render if there are files already (e.g. server-applied)
-    if (imageinput.files && imageinput.files.length) {
-      renderImagePreviews(imageinput.files);
-      updateImageZoneText();
+    if (videoinput.files && videoinput.files.length) {
+      renderVideoPreviews(videoinput.files);
+      updateVideoZoneText();
     }
   }
 })
