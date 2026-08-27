@@ -270,7 +270,7 @@ document.addEventListener('DOMContentLoaded', function () {
             uploadBtn.style.opacity = '0.5';
             uploadBtn.textContent = 'Upload';
             // ensure any server-rendered or newly-added video previews have remove (×) handlers
-            try { if (typeof window.ensureVideoRemoveButtons === 'function') window.ensureVideoRemoveButtons(); } catch (e) {}
+            try { if (typeof window.ensureVideoRemoveButtons === 'function') window.ensureVideoRemoveButtons(); } catch (e) { }
           } else {
             alert('Upload failed: ' + (data && data.message ? data.message : 'Unknown'));
             uploadBtn.disabled = false;
@@ -1873,18 +1873,18 @@ document.addEventListener('DOMContentLoaded', function () {
                               const hdr = headerCells[selIdx] || '';
                               return hdr.includes(col);
                             } catch (e) { return false; }
-                        });
-                        if (sel) {
-                          try {
-                            sel.value = val;
-                            const norm = s => (s || '').toString().toLowerCase().trim();
-                            if (norm(sel.value) !== norm(val)) {
-                              const opt = Array.from(sel.options).find(o => norm(o.text) === norm(val) || norm(o.value) === norm(val));
-                              if (opt) sel.value = opt.value;
-                            }
-                            sel.dispatchEvent(new Event('change'));
-                          } catch (e) { }
-                        }
+                          });
+                          if (sel) {
+                            try {
+                              sel.value = val;
+                              const norm = s => (s || '').toString().toLowerCase().trim();
+                              if (norm(sel.value) !== norm(val)) {
+                                const opt = Array.from(sel.options).find(o => norm(o.text) === norm(val) || norm(o.value) === norm(val));
+                                if (opt) sel.value = opt.value;
+                              }
+                              sel.dispatchEvent(new Event('change'));
+                            } catch (e) { }
+                          }
                         } catch (e) { /* ignore fallback */ }
                       }
                     } catch (e) { /* ignore */ }
@@ -2169,7 +2169,7 @@ document.addEventListener('DOMContentLoaded', function () {
                   }
                   hid.value = JSON.stringify(videoMetaList);
                   // after writing server-provided videos, ensure remove handlers exist
-                  try { if (typeof window.ensureVideoRemoveButtons === 'function') window.ensureVideoRemoveButtons(); } catch (e) {}
+                  try { if (typeof window.ensureVideoRemoveButtons === 'function') window.ensureVideoRemoveButtons(); } catch (e) { }
                 }
               } catch (e) { console.warn('writing uploadedVideos hidden input failed', e); }
             }
@@ -3301,166 +3301,149 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ---------- Video (single file allowed) ----------
-  if (videoinput) {
-    videoinput.multiple = false; // enforce single video
-    function renderVideoPreview(file) {
+  if (videoUploadZone) {
+    const MAX_FILES = 3;
+    videoinput.multiple = true;
+
+    function renderImagePreviews(fileList) {
       if (!videoPreviewContainer) return;
       videoPreviewContainer.innerHTML = '';
-      if (!file) return;
 
-      const wrapper = document.createElement('div');
-      wrapper.style.position = 'relative';
-      wrapper.style.width = '320px';
-      wrapper.style.maxWidth = '100%';
-      wrapper.style.height = '180px';
-      wrapper.style.border = '1px solid #e0e0e0';
-      wrapper.style.borderRadius = '6px';
-      wrapper.style.overflow = 'hidden';
+      const files = Array.from(fileList || []);
+      const wrapperList = document.createElement('div');
+      wrapperList.style.display = 'flex';
+      wrapperList.style.flexWrap = 'wrap';
+      wrapperList.style.gap = '8px';
+      wrapperList.style.alignItems = 'flex-start';
 
-      const v = document.createElement('video');
-      v.controls = true;
-      v.style.width = '100%';
-      v.style.height = '100%';
-      v.style.objectFit = 'cover';
-      const url = URL.createObjectURL(file);
-      v.src = url;
-      v.addEventListener('loadeddata', () => { try { URL.revokeObjectURL(url); } catch (_) { } });
+      files.forEach((file, idx) => {
+        const item = document.createElement('div');
+        item.style.position = 'relative';
+        item.style.width = '140px';
+        item.style.height = '100px';
+        item.style.flex = '0 0 auto';
+        item.style.border = '1px solid #e0e0e0';
+        item.style.borderRadius = '6px';
+        item.style.overflow = 'hidden';
+        item.title = file.name || '';
 
-      const removeBtn = document.createElement('button');
-      removeBtn.type = 'button';
-      removeBtn.className = 'video-remove';
-      removeBtn.textContent = '×';
-      removeBtn.title = 'Remove video';
-      removeBtn.style.position = 'absolute';
-      removeBtn.style.top = '6px';
-      removeBtn.style.right = '6px';
-      removeBtn.style.width = '28px';
-      removeBtn.style.height = '28px';
-      removeBtn.style.border = 'none';
-      removeBtn.style.borderRadius = '14px';
-      removeBtn.style.background = 'rgba(0,0,0,0.6)';
-      removeBtn.style.color = '#fff';
-      removeBtn.style.cursor = 'pointer';
-      removeBtn.style.fontSize = '16px';
-      removeBtn.style.padding = '0';
-      removeBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        try {
-          // clear and fully release the video resource to avoid blob: GET after removal
-          v.pause();
-          v.removeAttribute('src');
-          v.load && v.load();
-          try { URL.revokeObjectURL(url); } catch (_) { /* ignore */ }
+        const img = document.createElement('img');
+        img.style.width = '100%';
+        img.style.height = '100%';
+        img.style.objectFit = 'cover';
+        img.alt = file.name || '';
 
-          // clear the file input and the preview DOM
-          videoinput.value = '';
-          videoPreviewContainer.innerHTML = '';
-
-          // re-disable upload button if present
-          const uploadBtn = document.getElementById('upload-btn');
-          if (uploadBtn) { uploadBtn.disabled = true; uploadBtn.style.opacity = '0.5'; }
-        } catch (err) {
-          console.warn('Failed to remove video file', err);
+        // load preview (File or server-provided object with .src)
+        if (file instanceof File) {
+          const url = URL.createObjectURL(file);
+          img.src = url;
+          img.addEventListener('load', () => { try { URL.revokeObjectURL(url); } catch (_) { } });
+        } else if (file && file.src) {
+          img.src = file.src;
+        } else {
+          img.src = String(file);
         }
+
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'thumb-remove';
+        removeBtn.textContent = '×';
+        removeBtn.title = 'Remove';
+        removeBtn.style.position = 'absolute';
+        removeBtn.style.top = '2px';
+        removeBtn.style.right = '2px';
+        removeBtn.style.background = 'rgba(0,0,0,0.6)';
+        removeBtn.style.color = '#fff';
+        removeBtn.style.border = 'none';
+        removeBtn.style.borderRadius = '12px';
+        removeBtn.style.width = '24px';
+        removeBtn.style.height = '24px';
+        removeBtn.style.cursor = 'pointer';
+        removeBtn.style.lineHeight = '20px';
+        removeBtn.style.padding = '0';
+        removeBtn.style.fontSize = '16px';
+
+        removeBtn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          try {
+            // Update input.files by removing the clicked file, then re-render previews.
+            const current = Array.from(imageinput.files || []);
+            if (!current.length) {
+              // nothing to do
+              return;
+            }
+
+            // prefer matching by name+size key when available
+            const key = (file && file.name && file.size) ? (file.name + '|' + file.size) : null;
+            let newFiles;
+            if (key) {
+              newFiles = current.filter(f => (f.name + '|' + (f.size || 0)) !== key);
+            } else {
+              newFiles = current.filter((_, j) => j !== idx);
+            }
+
+            // write new FileList back to input
+            const dt = new DataTransfer();
+            newFiles.forEach(f => dt.items.add(f));
+            imageinput.files = dt.files;
+
+            // re-render previews and update zone text
+            renderImagePreviews(imageinput.files);
+            updateImageZoneText();
+          } catch (err) {
+            console.warn('Failed to remove image', err);
+          }
+        });
+
+        item.appendChild(img);
+        item.appendChild(removeBtn);
+        wrapperList.appendChild(item);
       });
 
-      wrapper.appendChild(v);
-      wrapper.appendChild(removeBtn);
-      videoPreviewContainer.appendChild(wrapper);
+      imagePreviewContainer.appendChild(wrapperList);
     }
 
-    videoinput.addEventListener('change', (e) => {
-      const file = (e.target.files && e.target.files[0]) || null;
-      if (!file) {
-        renderVideoPreview(null);
-        return;
-      }
-      // simple type check (accept common video types)
-      const isVideo = (file.type && file.type.startsWith('video/')) || /\.(mp4|mov|avi|mkv|webm|3gp|mpeg)$/i.test(file.name || '');
-      if (!isVideo) {
-        alert('Please select a video file.');
-        videoinput.value = '';
+    function updateImageZoneText() {
+      try {
+        const p = imageUploadZone && imageUploadZone.querySelector('p');
+        const count = imageinput.files ? imageinput.files.length : 0;
+        if (p) p.textContent = count ? `Selected ${count} image(s)` : 'Drop images here or click to upload';
+        // indicate limit
+        if (count >= MAX_FILES) {
+          if (p) p.textContent += ` (max ${MAX_FILES})`;
+        }
+      } catch (e) { /* ignore */ }
+    }
+
+    imageinput.addEventListener('change', (e) => {
+      const files = Array.from(e.target.files || []);
+      if (!files.length) {
+        imagePreviewContainer && (imagePreviewContainer.innerHTML = '');
+        updateImageZoneText();
         return;
       }
 
-      renderVideoPreview(file);
+      // enforce max
+      const allowed = files.slice(0, MAX_FILES);
+      if (allowed.length !== files.length) {
+        // overwrite input.files to keep it consistent
+        try {
+          const dt = new DataTransfer();
+          allowed.forEach(f => dt.items.add(f));
+          imageinput.files = dt.files;
+        } catch (err) { /* ignore */ }
+      }
+      renderImagePreviews(imageinput.files);
+      updateImageZoneText();
 
-      // keep the upload zone visible — do not relocate or remove the video upload zone
-      // (users can continue to upload/change videos from the same zone)
+      // move input and remove visual zone so file objects survive if desired
+      relocateInputAndRemoveZone(imageinput, 'image-upload-btn', imageUploadZone);
     });
 
-    // initial if already has file
-    if (videoinput.files && videoinput.files[0]) renderVideoPreview(videoinput.files[0]);
+    // initial render if there are files already (e.g. server-applied)
+    if (imageinput.files && imageinput.files.length) {
+      renderImagePreviews(imageinput.files);
+      updateImageZoneText();
+    }
   }
-
-  // Helper: ensure each video preview in #video-preview has a working remove (×) button.
-  // Creates a .video-remove button on wrappers that don't have one and updates the uploadedVideos hidden input.
-  try {
-    window.ensureVideoRemoveButtons = function () {
-      try {
-        const vContainer = document.getElementById('video-preview');
-        if (!vContainer) return;
-
-        const form = document.getElementById('repForm') || document.querySelector('form');
-
-        function updateUploadedVideosHidden(removedSrc) {
-          try {
-            if (!form) return;
-            const hid = form.querySelector('input[name="uploadedVideos"]');
-            if (!hid || !hid.value) return;
-            let arr = [];
-            try { arr = JSON.parse(hid.value || '[]'); } catch (e) { arr = []; }
-            arr = arr.filter(i => {
-              const src = (i && (i.src || i.url || i)) || '';
-              return String(src).replace(/^\/+/, '') !== String(removedSrc || '').replace(/^\/+/, '');
-            });
-            hid.value = JSON.stringify(arr);
-          } catch (e) { console.warn('updateUploadedVideosHidden error', e); }
-        }
-
-        Array.from(vContainer.children).forEach(wrapper => {
-          try {
-            // skip if already has button
-            if (wrapper.querySelector && wrapper.querySelector('button.video-remove')) return;
-            const videoEl = wrapper.querySelector && wrapper.querySelector('video');
-            // create remove button
-            const removeBtn = document.createElement('button');
-            removeBtn.type = 'button';
-            removeBtn.className = 'video-remove';
-            removeBtn.textContent = '×';
-            removeBtn.title = 'Remove video';
-            removeBtn.style.position = 'absolute';
-            removeBtn.style.top = '6px';
-            removeBtn.style.right = '6px';
-            removeBtn.style.width = '28px';
-            removeBtn.style.height = '28px';
-            removeBtn.style.border = 'none';
-            removeBtn.style.borderRadius = '14px';
-            removeBtn.style.background = 'rgba(0,0,0,0.6)';
-            removeBtn.style.color = '#fff';
-            removeBtn.style.cursor = 'pointer';
-            removeBtn.style.fontSize = '16px';
-            removeBtn.style.padding = '0';
-            removeBtn.addEventListener('click', function (e) {
-              e.stopPropagation();
-              try {
-                // revoke blob URL if used
-                try { if (videoEl && videoEl.src && videoEl.src.startsWith('blob:')) URL.revokeObjectURL(videoEl.src); } catch (err) {}
-                const src = videoEl && (videoEl.getAttribute('src') || videoEl.src) || '';
-                if (wrapper.parentNode) wrapper.parentNode.removeChild(wrapper);
-                // update hidden uploadedVideos
-                updateUploadedVideosHidden(src);
-                // clear any file input local selection and disable upload control if present
-                try { const vidInput = document.getElementById('video-file'); if (vidInput) vidInput.value = ''; } catch (e) {}
-                try { const up = document.getElementById('upload-btn'); if (up) { up.disabled = true; up.style.opacity = '0.5'; } } catch (e) {}
-              } catch (err) { console.warn('video remove handler error', err); }
-            });
-
-            try { wrapper.style.position = wrapper.style.position || 'relative'; } catch (e) {}
-            wrapper.appendChild(removeBtn);
-          } catch (e) { console.warn('ensureVideoRemoveButtons per-item error', e); }
-        });
-      } catch (e) { console.warn('ensureVideoRemoveButtons error', e); }
-    };
-  } catch (e) { /* ignore helper binding errors */ }
-});
+})
