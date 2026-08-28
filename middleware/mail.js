@@ -6,6 +6,23 @@ const limitStore = new Map();
 const RATE_LIMIT = 60000; // 1 minute in milliseconds
 
 /**
+ * Escape HTML special characters to prevent HTML injection/XSS
+ * @param {string} text - Text to escape
+ * @returns {string} - Escaped text safe for HTML
+ */
+function escapeHtml(text) {
+    if (!text) return '';
+    const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return String(text).replace(/[&<>"']/g, (char) => map[char]);
+}
+
+/**
  * Send an email via SMTP.
  * Applies per-recipient rate limiting.
  * @param {string} recipient - Recipient email address.
@@ -66,9 +83,10 @@ function sendMail(recipient, subject, html, attachments = []) {
     });
 }
 
-// Export the sendMail function
+// Export the sendMail function and sanitization helper
 module.exports = {
     sendMail,
+    escapeHtml,
     limitStore,
     RATE_LIMIT,
 };

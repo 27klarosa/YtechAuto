@@ -34,23 +34,32 @@ async function initializeDatabase() {
                 return reject(err);
             }
 
-            const schemaSql = fs.existsSync(initSqlPath)
-                ? fs.readFileSync(initSqlPath, 'utf8')
-                : sqlCommands.trim();
-
-            const normalizedSchemaSql = schemaSql
-                .replace(/CREATE\s+TABLE\s+(?!IF\s+NOT\s+EXISTS)/gi, 'CREATE TABLE IF NOT EXISTS ')
-                .trim();
-
-            db.exec(normalizedSchemaSql, (schemaErr) => {
-                if (schemaErr) {
-                    console.error(`Failed to initialize database schema: ${schemaErr.message}`);
+            // Enable foreign key constraints (required for FOREIGN KEY constraints to be enforced)
+            db.run('PRAGMA foreign_keys = ON;', (pragmaErr) => {
+                if (pragmaErr) {
+                    console.error(`Failed to enable foreign keys: ${pragmaErr.message}`);
                     db.close();
-                    return reject(new Error(`Database initialization failed: ${schemaErr.message}`));
+                    return reject(pragmaErr);
                 }
 
-                console.log('SQLite schema verified.');
-                resolve(db);
+                const schemaSql = fs.existsSync(initSqlPath)
+                    ? fs.readFileSync(initSqlPath, 'utf8')
+                    : sqlCommands.trim();
+
+                const normalizedSchemaSql = schemaSql
+                    .replace(/CREATE\s+TABLE\s+(?!IF\s+NOT\s+EXISTS)/gi, 'CREATE TABLE IF NOT EXISTS ')
+                    .trim();
+
+                db.exec(normalizedSchemaSql, (schemaErr) => {
+                    if (schemaErr) {
+                        console.error(`Failed to initialize database schema: ${schemaErr.message}`);
+                        db.close();
+                        return reject(new Error(`Database initialization failed: ${schemaErr.message}`));
+                    }
+
+                    console.log('SQLite schema verified with foreign key constraints enabled.');
+                    resolve(db);
+                });
             });
         });
     });
