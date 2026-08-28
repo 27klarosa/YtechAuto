@@ -5,7 +5,7 @@ CREATE TABLE users (
     stat text,
     resetToken TEXT
 );
- 
+
 CREATE TABLE tickets (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     repairOrderNumber TEXT NOT NULL UNIQUE,
@@ -35,7 +35,8 @@ CREATE TABLE recRepairs (
     partPrice REAL NOT NULL,
     partsTotal REAL NOT NULL,
     laborHours REAL NOT NULL,
-    laborTotal REAL NOT NULL
+    laborTotal REAL NOT NULL,
+    FOREIGN KEY (ticketId) REFERENCES tickets(id) ON DELETE CASCADE
 );
  
 CREATE TABLE vechicleInfo (
@@ -53,14 +54,16 @@ CREATE TABLE vechicleInfo (
     mileageO TEXT NOT NULL,
     dateV TEXT NOT NULL,
     plate TEXT NOT NULL,
-    comments TEXT
+    comments TEXT,
+    FOREIGN KEY (ticketID) REFERENCES tickets(id) ON DELETE CASCADE
 );
  
 CREATE TABLE courtesyTable (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ticketID INTEGER NOT NULL,
     item TEXT NOT NULL,
-    comments TEXT
+    comments TEXT,
+    FOREIGN KEY (ticketID) REFERENCES tickets(id) ON DELETE CASCADE
 );
  
 CREATE TABLE courtesyTableItems (
@@ -68,7 +71,8 @@ CREATE TABLE courtesyTableItems (
     tableID INTEGER NOT NULL,
     item TEXT NOT NULL,
     status TEXT NOT NULL,
-    notes TEXT
+    notes TEXT,
+    FOREIGN KEY (tableID) REFERENCES courtesyTable(id) ON DELETE CASCADE
 );
  
 CREATE TABLE tires (
@@ -85,14 +89,16 @@ CREATE TABLE tires (
     rotationDue TEXT NOT NULL,
     balance TEXT NOT NULL,
     alignment TEXT NOT NULL,
-    comments TEXT
+    comments TEXT,
+    FOREIGN KEY (ticketID) REFERENCES tickets(id) ON DELETE CASCADE
 );
  
 CREATE TABLE steeringSuspension (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ticketID INTEGER NOT NULL,
     item TEXT NOT NULL,
-    comments
+    comments TEXT,
+    FOREIGN KEY (ticketID) REFERENCES tickets(id) ON DELETE CASCADE
 );
  
 CREATE TABLE steeringSuspensionTable (
@@ -102,14 +108,16 @@ CREATE TABLE steeringSuspensionTable (
     left TEXT,
     right TEXT,
     front TEXT,
-    rear TEXT
+    rear TEXT,
+    FOREIGN KEY (steeringSuspensionID) REFERENCES steeringSuspension(id) ON DELETE CASCADE
 );
  
 CREATE TABLE brakes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ticketID INTEGER NOT NULL,
     item TEXT NOT NULL,
-    comments
+    comments TEXT,
+    FOREIGN KEY (ticketID) REFERENCES tickets(id) ON DELETE CASCADE
 );
  
 CREATE TABLE brakesTable (
@@ -117,7 +125,8 @@ CREATE TABLE brakesTable (
     brakesID INTEGER NOT NULL,
     item TEXT NOT NULL,
     Spec TEXT,
-    actual TEXT
+    actual TEXT,
+    FOREIGN KEY (brakesID) REFERENCES brakes(id) ON DELETE CASCADE
 );
  
 CREATE TABLE emissionsTable (
@@ -125,7 +134,8 @@ CREATE TABLE emissionsTable (
     emissionsID INTEGER NOT NULL,
     item TEXT NOT NULL,
     status TEXT NOT NULL,
-    notes TEXT
+    notes TEXT,
+    FOREIGN KEY (emissionsID) REFERENCES emissions(id) ON DELETE CASCADE
 );
  
 CREATE TABLE emissions (
@@ -137,13 +147,15 @@ CREATE TABLE emissions (
     nextOilChange TEXT NOT NULL,
     inspectedBy TEXT NOT NULL,
     reInspectedBy TEXT NOT NULL,
-    comments TEXT
+    comments TEXT,
+    FOREIGN KEY (ticketID) REFERENCES tickets(id) ON DELETE CASCADE
 );
  
 CREATE TABLE warningsTable (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     emissionsID INTEGER NOT NULL,
-    item TEXT NOT NULL
+    item TEXT NOT NULL,
+    FOREIGN KEY (emissionsID) REFERENCES emissionsTable(id) ON DELETE CASCADE
 );
  
 CREATE TABLE pictures (
@@ -154,7 +166,8 @@ CREATE TABLE pictures (
     relativePath TEXT NOT NULL,
     mimeType TEXT NOT NULL,
     sizeBytes INTEGER NOT NULL,
-    uploadDate TEXT DEFAULT (datetime('now'))
+    uploadDate TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (ticketID) REFERENCES tickets(id) ON DELETE CASCADE
 );
  
 CREATE TABLE videos (
@@ -165,7 +178,8 @@ CREATE TABLE videos (
     relativePath TEXT NOT NULL,
     mimeType TEXT NOT NULL,
     sizeBytes INTEGER NOT NULL,
-    uploadDate TEXT DEFAULT (datetime('now'))
+    uploadDate TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (ticketID) REFERENCES tickets(id) ON DELETE CASCADE
 );
  
 CREATE TABLE signatures (
@@ -174,7 +188,8 @@ CREATE TABLE signatures (
     filename TEXT NOT NULL,
     originalName TEXT NOT NULL,
     relativePath TEXT NOT NULL,
-    uploadDate TEXT DEFAULT (datetime('now'))
+    uploadDate TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (ticketID) REFERENCES tickets(id) ON DELETE CASCADE
 );
  
 -- "uploads/ filenamefromdb" + ".png"

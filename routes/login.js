@@ -2,8 +2,16 @@ require("dotenv").config();
 const express = require("express");
 const crypto = require('crypto');
 const router = express.Router();
-const { sendMail } = require('../middleware/mail');
+const { sendMail, escapeHtml } = require('../middleware/mail');
 const { isAdmin } = require('../helpers/admins');
+
+// Email validation helper
+function isValidEmail(email) {
+    if (!email || typeof email !== 'string') return false;
+    // Basic RFC 5322 simplified regex for email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(String(email).toLowerCase().trim());
+}
 
 // Local login route for testing without Azure AD
 
@@ -15,6 +23,11 @@ router.post("/signup", (req, res) => {
     const { email, password } = req.body || {};
     const role = isAdmin(email) ? 'admin' : 'customer';
     const db = req.app.locals.db;
+
+    // Validate email format
+    if (!isValidEmail(email)) {
+        return res.status(400).send('Please provide a valid email address');
+    }
 
     if (!password || typeof password !== 'string' || password.length < 6) {
         return res.status(400).send('Password must be at least 6 characters');
@@ -48,7 +61,10 @@ router.get("/loginPage", (req, res) => {
 router.post("/loginPage", (req, res) => {
     const { email, password } = req.body;
     const db = req.app.locals.db;
+    
+    // Validate input
     if (!password || !email) return res.status(400).send('Email and password are required');
+    if (!isValidEmail(email)) return res.status(400).send('Please provide a valid email address');
 
     db.get('SELECT id, stat, password AS storedPassword FROM users WHERE email = ? LIMIT 1', [email], (err, row) => {
         if (err) {
@@ -117,7 +133,9 @@ router.post("/loginPage", (req, res) => {
     router.post('/request-reset', (req, res) => {
         const { email } = req.body || {};
         const db = req.app.locals.db;
-        if (!email || !db) return res.redirect('/loginPage');
+        
+        // Validate input
+        if (!email || !db || !isValidEmail(email)) return res.redirect('/loginPage');
 
         db.get('SELECT id FROM users WHERE LOWER(email) = ? LIMIT 1', [String(email).toLowerCase()], (err, row) => {
             // always redirect to login page to avoid leaking which emails exist
@@ -132,10 +150,12 @@ router.post("/loginPage", (req, res) => {
                 }
 
                 const base = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
-                const resetLink = `${base.replace(/\/$/, '')}/reset-password?token=${token}`;
+                const resetLink = `${base.replace(/\/$/, '')}/reset-password?token=${encodeURIComponent(token)}`;
+                // Escape email address for safety in email body (defense in depth)
+                const escapedEmail = escapeHtml(String(email).toLowerCase());
                 const html = `
-                    <p>You requested a password reset. Click the link below to reset your password.</p>
-                    <p><a href="${resetLink}">Reset your password</a></p>
+                    <p>You requested a password reset for ${escapedEmail}. Click the link below to reset your password.</p>
+                    <p><a href="${escapeHtml(resetLink)}">Reset your password</a></p>
                     <p>If you did not request this, you can ignore this email.</p>
                 `;
                 try { sendMail(email, 'Password reset', html); } catch (e) { console.error('sendMail error', e); }

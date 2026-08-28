@@ -1347,27 +1347,48 @@ document.addEventListener('DOMContentLoaded', function () {
         console.error('Failed to serialize repairs:', err);
       }
 
-      if (tryingToComplete && typeof window.generatePagePdf === 'function') {
-        try {
-          const ticketId = form.querySelector('[name="ticketId"]')?.value || 'page';
-          const pdf = await window.generatePagePdf(ticketId, false, true);
-          if (!pdf) throw new Error('PDF generation returned no document');
-          const formData = new FormData(form);
-          formData.append('completionPdf', pdf, `ticket-${ticketId}.pdf`);
-          const response = await fetch(form.action || '/mechanic', {
-            method: 'POST',
-            body: formData
-          });
-          if (!response.ok) throw new Error(`Ticket save failed: ${response.status}`);
-          window.location.assign(response.url || `/mechanic?id=${encodeURIComponent(ticketId)}`);
-        } catch (err) {
-          console.error('Completed ticket PDF submission failed:', err);
-          alert('The completed ticket could not be saved with its PDF. Please try again.');
+      // Submit form via fetch to handle responses properly
+      try {
+        const formData = new FormData(form);
+        const ticketId = form.querySelector('[name="ticketId"]')?.value;
+        
+        // If completing, generate and attach PDF
+        if (tryingToComplete && typeof window.generatePagePdf === 'function') {
+          try {
+            const pdf = await window.generatePagePdf(ticketId || 'page', false, true);
+            if (pdf) {
+              formData.append('completionPdf', pdf, `ticket-${ticketId || 'page'}.pdf`);
+            }
+          } catch (pdfErr) {
+            console.warn('PDF generation failed, continuing without PDF:', pdfErr);
+          }
         }
-        return true;
+        
+        const response = await fetch(form.action || '/mechanic', {
+          method: 'POST',
+          body: formData
+        });
+        
+        if (response.status === 409) {
+          // Conflict: duplicate ticket number
+          const message = await response.text();
+          showErrors([message || 'Ticket number already taken']);
+          return false;
+        }
+        
+        if (!response.ok) {
+          const errMsg = await response.text();
+          throw new Error(errMsg || `Ticket save failed: ${response.status}`);
+        }
+        
+        // Success: redirect
+        const redirectUrl = response.url || `/mechanic?id=${encodeURIComponent(ticketId || '')}`;
+        window.location.assign(redirectUrl);
+      } catch (err) {
+        console.error('Ticket submission failed:', err);
+        showErrors([err.message || 'Failed to save ticket. Please try again.']);
+        return false;
       }
-
-      form.submit();
       return true;
     }
 
