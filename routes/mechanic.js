@@ -616,7 +616,7 @@ router.post('/mechanic', ensureLoggedIn, completionPdfUpload.single('completionP
             if (updErr) {
                 console.error('Failed to update ticket:', updErr);
                 if (updErr.code === 'SQLITE_CONSTRAINT') {
-                    return db.run('ROLLBACK', () => res.status(409).send('A ticket with this Repair Order already exists'));
+                    return db.run('ROLLBACK', () => res.status(409).send('Ticket number already taken'));
                 }
                 return db.run('ROLLBACK', () => res.status(500).send('Failed to update ticket: ' + (updErr.message || updErr)));
             }
@@ -640,7 +640,7 @@ router.post('/mechanic', ensureLoggedIn, completionPdfUpload.single('completionP
             if (existing) {
                 // duplicate exists and this is a new-ticket attempt -> inform user and stop
                 console.log(incomingTicketId)
-                return res.status(409).send('<script>alert("The RONum already exist"); window.history.back();</script>');
+                return res.status(409).send('Ticket number already taken');
             }
 
             return insertNewTicket();
@@ -658,7 +658,7 @@ router.post('/mechanic', ensureLoggedIn, completionPdfUpload.single('completionP
                 if (insErr) {
                     console.error('Failed to insert new ticket:', insErr);
                     if (insErr.code === 'SQLITE_CONSTRAINT') {
-                        return db.run('ROLLBACK', () => res.status(409).send('A ticket with this Repair Order already exists'));
+                        return db.run('ROLLBACK', () => res.status(409).send('Ticket number already taken'));
                     }
                     return db.run('ROLLBACK', () => res.status(500).send('Failed to create ticket: ' + (insErr.message || insErr)));
                 }
@@ -693,7 +693,7 @@ router.post('/mechanic', ensureLoggedIn, completionPdfUpload.single('completionP
                     return res.status(500).send('DB error');
                 }
                 if (found && found.id !== Number(incomingTicketId)) {
-                    return res.status(409).send('<script>alert("The RONum already exist"); window.history.back();</script>');
+                    return res.status(409).send('Ticket number already taken');
                 }
                 return performUpdate(incomingTicketId);
             });
@@ -1441,8 +1441,8 @@ router.post('/mechanic/emissions', ensureLoggedIn, (req, res) => {
     });
 });
 
-// video upload route 
-router.post('/upload-video', videoUpload.single('video'), (req, res) => {
+// video upload route (protected with auth)
+router.post('/upload-video', ensureLoggedIn, videoUpload.single('video'), (req, res) => {
     const db = req.app.locals.db;
     if (!db) {
         if (req.file) fs.unlink(req.file.path, () => { });
@@ -1474,8 +1474,8 @@ router.post('/upload-video', videoUpload.single('video'), (req, res) => {
     });
 });
 
-// image upload route
-router.post('/upload-image', imageUpload.array('image'), (req, res) => {
+// image upload route (protected with auth)
+router.post('/upload-image', ensureLoggedIn, imageUpload.array('image'), (req, res) => {
     const db = req.app.locals.db;
     if (!db) {
         if (req.file) fs.unlink(req.file.path, () => { });
@@ -1523,7 +1523,7 @@ router.post('/upload-image', imageUpload.array('image'), (req, res) => {
     });
 });
 
-router.post('/ticket-check', (req, res) => {     
+router.post('/ticket-check', ensureLoggedIn, (req, res) => {     
     const db = req.app && req.app.locals && req.app.locals.db;
     if (!db) return res.status(500).json({ success: false, message: 'Database not available' });
 
