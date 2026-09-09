@@ -3329,7 +3329,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 <<<<<<< HEAD
-<<<<<<< HEAD
 
   // ---------- Video (single file allowed) ----------
   if (videoinput) {
@@ -3496,9 +3495,6 @@ document.addEventListener('DOMContentLoaded', () => {
   } catch (e) { /* ignore helper binding errors */ }
 });
 >>>>>>> parent of 2e7df19 (Merge pull request #262 from 27klarosa/main)
-=======
-})
->>>>>>> parent of 10286ae (relatively better)
 =======
 })
 >>>>>>> parent of 10286ae (relatively better)
