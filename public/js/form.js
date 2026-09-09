@@ -3148,37 +3148,3 @@ document.addEventListener('DOMContentLoaded', () => {
 })();
 
 // --- video and image loader (fixed & improved) ---
-document.addEventListener('DOMContentLoaded', () => {
-  const videoUploadZone = document.getElementById('video-upload-zone');
-  const imageUploadZone = document.getElementById('image-upload-zone');
-  const videoinput = document.getElementById('video-file');
-  const imageinput = document.getElementById('image-file');
-  const videoPreviewContainer = document.getElementById('video-preview');
-  const imagePreviewContainer = document.getElementById('image-preview');
-
-  // helper to move file input before a button then remove zone
-  function relocateInputAndRemoveZone(inputEl, uploadBtnId, zoneEl) {
-    try {
-      const uploadBtn = document.getElementById(uploadBtnId);
-      // move the input next to the upload button so its files survive DOM changes
-      if (inputEl && uploadBtn && inputEl.parentNode !== uploadBtn.parentNode) {
-        uploadBtn.parentNode.insertBefore(inputEl, uploadBtn);
-        inputEl.style.display = 'none';
-      }
-
-      if (zoneEl && zoneEl.parentNode) {
-        // If the upload button is inside the zone we're about to remove,
-        // move the upload button out first so it doesn't get removed.
-        try {
-          if (uploadBtn && zoneEl.contains(uploadBtn)) {
-            zoneEl.parentNode.insertBefore(uploadBtn, zoneEl.nextSibling);
-          }
-        } catch (e) { /* ignore move failure */ }
-
-        zoneEl.parentNode.removeChild(zoneEl);
-      }
-    } catch (e) { console.warn('relocateInputAndRemoveZone failed', e); }
-  }
-
-  
-});
