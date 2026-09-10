@@ -1,5 +1,7 @@
 console.log('form.js loaded');
 document.addEventListener('DOMContentLoaded', function () {
+  const MAX_VIDEO_SIZE = 250 * 1024 * 1024;
+  const VIDEO_SIZE_ERROR = 'File size is too large. Please break the video down into smaller bits and upload them separately. Videos must be 250 MB or smaller.';
   // guard to avoid double initialization if other scripts also run
   if (window.customAccordionInitialized) {
     console.log('customAccordion already initialized, skipping duplicate init.');
@@ -352,7 +354,7 @@ document.addEventListener('DOMContentLoaded', function () {
             // ensure any server-rendered or newly-added video previews have remove (×) handlers
             try { if (typeof window.ensureVideoRemoveButtons === 'function') window.ensureVideoRemoveButtons(); } catch (e) { }
           } else {
-            alert('Upload failed: ' + (data && data.message ? data.message : 'Unknown'));
+            alert('Upload failed: ' + (json && json.message ? json.message : 'Unknown'));
             uploadBtn.disabled = false;
             uploadBtn.style.opacity = '1';
             uploadBtn.textContent = 'Upload';
@@ -607,15 +609,6 @@ document.addEventListener('DOMContentLoaded', function () {
       } catch (e) { }
       try { fileInput.value = ''; fileInput.disabled = true; } catch (e) { }
       try { uploadBtn.disabled = true; uploadBtn.style.opacity = '0.5'; uploadBtn.textContent = 'Uploaded'; } catch (e) { }
-
-      // also disable any video upload controls (if present on page) when images are locked / viewing saved ticket
-      try {
-        //change later
-        const vidInput = document.getElementById('video-file');
-        const vidBtn = document.getElementById('upload-btn');
-        if (vidInput) vidInput.disabled = true;
-        if (vidBtn) { vidBtn.disabled = true; vidBtn.style.opacity = '0.5'; }
-      } catch (e) { /* ignore */ }
     }
 
     // expose helper to global so populateFromServerTicket and other loaders can apply server images
@@ -720,6 +713,9 @@ document.addEventListener('DOMContentLoaded', function () {
         .then(res => res.json())
         .then((data) => {
           if (data && data.success) {
+
+
+            //here
             alert('Images uploaded successfully!');
             // lock the preview so user cannot remove/upload more images
             imagesLocked = true;
