@@ -383,7 +383,6 @@ document.addEventListener('DOMContentLoaded', function () {
     fileInput.multiple = true;
 
     let selectedFiles = []; // array of File
-    let imagesLocked = false; // when true, no further add/remove allowed
     const MAX_BYTES = 5 * 1024 * 1024; // 5MB per file
     const MAX_FILES = 10;
 
@@ -410,29 +409,30 @@ document.addEventListener('DOMContentLoaded', function () {
         img.style.objectFit = 'cover';
         img.style.display = 'block';
         img.alt = file.name || '';
+        const isServerImage = !!(file && file.src);
 
-        // remove button overlay
-        const removeBtn = document.createElement('button');
-        removeBtn.type = 'button';
-        removeBtn.className = 'thumb-remove';
-        removeBtn.textContent = '×';
-        removeBtn.title = 'Remove';
-        removeBtn.style.position = 'absolute';
-        removeBtn.style.top = '2px';
-        removeBtn.style.right = '2px';
-        removeBtn.style.background = 'rgba(0,0,0,0.6)';
-        removeBtn.style.color = '#fff';
-        removeBtn.style.border = 'none';
-        removeBtn.style.borderRadius = '12px';
-        removeBtn.style.width = '24px';
-        removeBtn.style.height = '24px';
-        removeBtn.style.cursor = 'pointer';
-        removeBtn.style.lineHeight = '20px';
-        removeBtn.style.padding = '0';
-        removeBtn.style.fontSize = '16px';
-
-        // if locked, hide remove control
-        if (imagesLocked) removeBtn.style.display = 'none';
+        // remove button overlay for new local files only
+        let removeBtn = null;
+        if (!isServerImage) {
+          removeBtn = document.createElement('button');
+          removeBtn.type = 'button';
+          removeBtn.className = 'thumb-remove';
+          removeBtn.textContent = '×';
+          removeBtn.title = 'Remove';
+          removeBtn.style.position = 'absolute';
+          removeBtn.style.top = '2px';
+          removeBtn.style.right = '2px';
+          removeBtn.style.background = 'rgba(0,0,0,0.6)';
+          removeBtn.style.color = '#fff';
+          removeBtn.style.border = 'none';
+          removeBtn.style.borderRadius = '12px';
+          removeBtn.style.width = '24px';
+          removeBtn.style.height = '24px';
+          removeBtn.style.cursor = 'pointer';
+          removeBtn.style.lineHeight = '20px';
+          removeBtn.style.padding = '0';
+          removeBtn.style.fontSize = '16px';
+        }
 
         // file object (File) -> read; if object has src property (server images), use it
         // attach diagnostics so we can see whether the image actually loads/draws
@@ -478,29 +478,30 @@ document.addEventListener('DOMContentLoaded', function () {
           } catch (e) { img.alt = 'image'; console.error('preview: failed to set src from fallback', e); }
         }
 
-        removeBtn.addEventListener('click', function (e) {
-          e.stopPropagation();
-          if (imagesLocked) return;
-          // remove by matching name+size if available, otherwise by index
-          const key = file && file.name && file.size ? (file.name + '|' + file.size) : null;
-          if (key) {
-            selectedFiles = selectedFiles.filter(f => (f.name + '|' + (f.size || 0)) !== key);
-          } else {
-            selectedFiles.splice(idx, 1);
-          }
-          // keep the input.files in sync when possible (so any other preview logic that uses fileInput.files stays accurate)
-          try {
-            const dt = new DataTransfer();
-            selectedFiles.forEach(f => { if (f instanceof File) dt.items.add(f); });
-            fileInput.files = dt.files;
-          } catch (e) { /* ignore if platform doesn't allow programmatic FileList changes */ }
+        if (removeBtn) {
+          removeBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            // remove by matching name+size if available, otherwise by index
+            const key = file && file.name && file.size ? (file.name + '|' + file.size) : null;
+            if (key) {
+              selectedFiles = selectedFiles.filter(f => (f.name + '|' + (f.size || 0)) !== key);
+            } else {
+              selectedFiles.splice(idx, 1);
+            }
+            // keep the input.files in sync when possible (so any other preview logic that uses fileInput.files stays accurate)
+            try {
+              const dt = new DataTransfer();
+              selectedFiles.forEach(f => { if (f instanceof File) dt.items.add(f); });
+              fileInput.files = dt.files;
+            } catch (e) { /* ignore if platform doesn't allow programmatic FileList changes */ }
 
-          updateControls();
-          showPreview(selectedFiles);
-        });
+            updateControls();
+            showPreview(selectedFiles);
+          });
+        }
 
         wrapper.appendChild(img);
-        wrapper.appendChild(removeBtn);
+        if (removeBtn) wrapper.appendChild(removeBtn);
         list.appendChild(wrapper);
       });
 
@@ -509,17 +510,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function updateControls() {
       const p = zone.querySelector('p');
-      if (p) p.textContent = imagesLocked ? `Images uploaded` : `Selected ${selectedFiles.length} image(s)`;
+      if (p) p.textContent = `Selected ${selectedFiles.length} image(s)`;
       if (selectedFiles.length === 0) {
         uploadBtn.disabled = true;
         uploadBtn.style.opacity = '0.5';
       } else {
-        uploadBtn.disabled = imagesLocked;
-        uploadBtn.style.opacity = imagesLocked ? '0.5' : '1';
+        uploadBtn.disabled = false;
+        uploadBtn.style.opacity = '1';
       }
 
-      // when imagesLocked, disable file input to prevent changes
-      try { fileInput.disabled = imagesLocked; } catch (e) { }
+      try { fileInput.disabled = false; } catch (e) { }
     }
 
     // Expose a helper to apply server-provided images (URLs or {src,filename})
@@ -530,7 +530,6 @@ document.addEventListener('DOMContentLoaded', function () {
         if (typeof it === 'string') return { src: it, name: `image-${i}`, size: 0 };
         return { src: it.src || it.url || it.path || '', name: it.filename || it.name || `image-${i}`, size: it.size || 0 };
       }).filter(f => f.src);
-      imagesLocked = true;
 
       // ensure we have a visible preview container -- prefer existing previewEl, otherwise make one under the zone
       const container = document.getElementById('image-preview')
@@ -587,15 +586,11 @@ document.addEventListener('DOMContentLoaded', function () {
       updateControls();
 
       // helper: remove video "remove" buttons robustly (matches class/title/aria-label/text variants)
-      // visually lock zone and remove file input ability
       try {
         zone.style.backgroundColor = '#d4edda';
         zone.style.borderColor = '#c3e6cb';
       } catch (e) { }
       try {
-        // remove any visible remove buttons (showPreview already hides them when imagesLocked true)
-        if (previewEl) previewEl.querySelectorAll('.thumb-remove').forEach(b => b.remove());
-
         /* remove any video "remove" buttons too (server-rendered or preview previews) */
         try {
           const vContainer = document.getElementById('video-preview');
@@ -607,8 +602,8 @@ document.addEventListener('DOMContentLoaded', function () {
           }
         } catch (e) { /* ignore */ }
       } catch (e) { }
-      try { fileInput.value = ''; fileInput.disabled = true; } catch (e) { }
-      try { uploadBtn.disabled = true; uploadBtn.style.opacity = '0.5'; uploadBtn.textContent = 'Uploaded'; } catch (e) { }
+      try { fileInput.value = ''; fileInput.disabled = false; } catch (e) { }
+      try { uploadBtn.disabled = false; uploadBtn.style.opacity = '1'; uploadBtn.textContent = 'Upload'; } catch (e) { }
     }
 
     // expose helper to global so populateFromServerTicket and other loaders can apply server images
@@ -618,18 +613,16 @@ document.addEventListener('DOMContentLoaded', function () {
     } catch (e) { console.warn('setupImageUpload: failed to bind window.applyUploadedImages', e); }
 
     if (trigger) {
-      trigger.addEventListener('click', function (e) { e.preventDefault(); if (!imagesLocked) fileInput.click(); });
+      trigger.addEventListener('click', function (e) { e.preventDefault(); fileInput.click(); });
     }
 
     zone.addEventListener('click', function (e) {
-      if (imagesLocked) return;
       if (e.target !== trigger && e.target !== uploadBtn) fileInput.click();
     });
 
-    zone.addEventListener('dragover', function (e) { if (!imagesLocked) { e.preventDefault(); zone.classList.add('dragover'); } });
-    zone.addEventListener('dragleave', function (e) { if (!imagesLocked) { e.preventDefault(); zone.classList.remove('dragover'); } });
+    zone.addEventListener('dragover', function (e) { e.preventDefault(); zone.classList.add('dragover'); });
+    zone.addEventListener('dragleave', function (e) { e.preventDefault(); zone.classList.remove('dragover'); });
     zone.addEventListener('drop', function (e) {
-      if (imagesLocked) return;
       e.preventDefault(); zone.classList.remove('dragover');
       const fileList = e.dataTransfer && e.dataTransfer.files;
       if (fileList && fileList.length) {
@@ -640,13 +633,11 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     fileInput.addEventListener('change', function (e) {
-      if (imagesLocked) return;
       const fileList = e.target.files;
       if (fileList && fileList.length) handleFilesChosen(Array.from(fileList));
     });
 
     function handleFilesChosen(filesArr) {
-      if (imagesLocked) return;
       // merge and dedupe by name+size to avoid duplicates
       const combined = selectedFiles.concat(filesArr);
       const dedup = [];
@@ -679,7 +670,6 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     uploadBtn.addEventListener('click', function () {
-      if (imagesLocked) return;
       if (!selectedFiles || selectedFiles.length === 0) { alert('Please select one or more images first.'); return; }
 
       // prefer current input.files if present (keeps behavior consistent when other preview/remove code updated input.files)
@@ -717,11 +707,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
             //here
             alert('Images uploaded successfully!');
-            // lock the preview so user cannot remove/upload more images
-            imagesLocked = true;
-            // hide all remove buttons and style zone to indicate locked state
-            if (previewEl) previewEl.querySelectorAll('.thumb-remove').forEach(b => b.remove());
-
             // robust removal for any video "remove" buttons (matches title/aria/text/class variants)
             try {
               const vCont = document.getElementById('video-preview');
@@ -736,11 +721,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
               }
             } catch (e) { /* ignore */ }
-            zone.style.backgroundColor = '#d4edda';
-            zone.style.borderColor = '#c3e6cb';
-            // disable inputs and upload button
-            try { fileInput.value = ''; fileInput.disabled = true; } catch (e) { }
-            uploadBtn.disabled = true; uploadBtn.style.opacity = '0.5'; uploadBtn.textContent = 'Uploaded';
+            // keep inputs active so user can choose files again
+            try { fileInput.value = ''; fileInput.disabled = false; } catch (e) { }
+            uploadBtn.disabled = false;
+            uploadBtn.style.opacity = '1';
+            uploadBtn.textContent = 'Upload';
             // update status text
             updateControls();
           } else {
