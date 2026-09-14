@@ -145,8 +145,6 @@ CREATE TABLE emissions (
     inspections TEXT NOT NULL,
     emissionsDue TEXT NOT NULL,
     nextOilChange TEXT NOT NULL,
-    inspectedBy TEXT NOT NULL,
-    reInspectedBy TEXT NOT NULL,
     comments TEXT,
     FOREIGN KEY (ticketID) REFERENCES tickets(id) ON DELETE CASCADE
 );
