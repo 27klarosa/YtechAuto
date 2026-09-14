@@ -2025,8 +2025,6 @@ document.addEventListener('DOMContentLoaded', function () {
                       inspections: ['inspections', 'inspection', 'inspected'],
                       emissionsDue: ['emissionsdue', 'emissions_due', 'emissionsdue', 'emissiondue', 'emission_due', 'emission due'],
                       nextOilChange: ['nextoilchange', 'nextOilChange', 'next_oil_change', 'nextoilchange', 'next oil change', 'next oil', 'nextoil'],
-                      inspectedBy: ['inspectedby', 'inspectedBy', 'inspected_by'],
-                      reInspectedBy: ['reinspectedby', 'reInspectedBy', 're_inspected_by']
                     };
                     Object.keys(mapKeys).forEach(k => {
                       const aliases = mapKeys[k];
@@ -2084,8 +2082,6 @@ document.addEventListener('DOMContentLoaded', function () {
                       inspections: ['inspections', 'inspection', 'inspected'],
                       emissionsDue: ['emissionsdue', 'emissions_due', 'emissionsdue'],
                       nextOilChange: ['nextoilchange', 'nextOilChange', 'next_oil_change', 'nextOilChange'],
-                      inspectedBy: ['inspectedby', 'inspectedBy', 'inspected_by'],
-                      reInspectedBy: ['reinspectedby', 'reInspectedBy', 're_inspected_by', 'reInspectedBy'],
                       warnings: ['warnings', 'warnings'],
                       comments: ['comments', 'comment']
                     };
@@ -2830,8 +2826,6 @@ document.addEventListener('DOMContentLoaded', function () {
             else if (label.includes('state') || label.includes('inspection')) emissionsInfo.inspections = val;
             else if (label.includes('emission') && label.includes('due')) emissionsInfo.emissionsDue = val;
             else if (label.includes('next oil') || label.includes('next oil change')) emissionsInfo.nextOilChange = val;
-            else if (label.includes('inspected by') && !label.includes('re-')) emissionsInfo.inspectedBy = val;
-            else if (label.includes('re-inspected') || label.includes('re inspected')) emissionsInfo.reInspectedBy = val;
           });
         } catch (e) { /* ignore */ }
 
