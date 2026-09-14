@@ -2741,49 +2741,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (idx === -1 || !row.cells[idx]) return '';
                 const cell = row.cells[idx];
                 const input = cell.querySelector('select, input, textarea');
-                if (input) {
-                  // try direct assign
-                  input.value = val;
-                  // if select didn't match, try fuzzy match on options
-                  if (input.tagName && input.tagName.toLowerCase() === 'select') {
-                    const norm = s => (s || '').toString().toLowerCase().trim();
-                    if (norm(input.value) !== norm(val)) {
-                      const opt = Array.from(input.options).find(o => norm(o.text) === norm(val) || norm(o.value) === norm(val));
-                      if (opt) input.value = opt.value;
-                    }
-                  }
-                  input.dispatchEvent(new Event('change'));
-                } else {
-                  // no input; leave text alone (do not overwrite plain text dashes); try to find a select elsewhere in the row that corresponds to this header
-                  try {
-                    const headerCells = Array.from(sec.querySelectorAll('thead th')).map(h => (h.textContent || '').toLowerCase());
-                    // find select in same row whose header includes the column name
-                    const sel = Array.from(rowDom.querySelectorAll('select')).find(s => {
-                      try {
-                        const selIdx = Array.from(rowDom.cells).indexOf(s.closest('td'));
-                        const hdr = headerCells[selIdx] || '';
-                        return hdr.includes(col);
-                      } catch (e) { return false; }
-                    });
-                    if (sel) {
-                      try {
-                        sel.value = val;
-                        const norm = s => (s || '').toString().toLowerCase().trim();
-                        if (norm(sel.value) !== norm(val)) {
-                          const opt = Array.from(sel.options).find(o => norm(o.text) === norm(val) || norm(o.value) === norm(val));
-                          if (opt) sel.value = opt.value;
-                        }
-                        sel.dispatchEvent(new Event('change'));
-                      } catch (e) { }
-                    }
-                  } catch (e) { /* ignore fallback */ }
-                }
+                return input ? input.value : (cell.textContent || '').trim();
               };
 
-              setCellVal(specIdx, r.Spec || r.spec || '');
-              setCellVal(actualIdx, r.actual || r.Actual || r.value || '');
-              setCellVal(statusIdx, r.status || r.Status || '');
-              setCellVal(commentsIdx, r.comments || r.Notes || r.notes || '');
+              items.push({
+                item: itemLabel,
+                Spec: getCell(specIdx),
+                actual: getCell(actualIdx)
+              });
             } catch (e) { /* ignore row */ }
           });
         }
