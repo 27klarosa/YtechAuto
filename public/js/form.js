@@ -936,17 +936,31 @@ document.addEventListener('DOMContentLoaded', function () {
       const hiddenIn = document.getElementById('timeIn');
       const hiddenOut = document.getElementById('timeOut');
 
-      if (!inHour || !inMin || !inAmPm || !outHour || !outMin || !outAmPm) {
+      const hasTimeIn = !!(inHour && inMin && inAmPm);
+      const hasTimeOut = !!(outHour && outMin && outAmPm);
+
+      if (hasTimeIn) {
+        const inStr = `${inHour}:${inMin} ${inAmPm}`;
+        if (hiddenIn) hiddenIn.value = inStr;
+      } else if (hiddenIn) {
+        hiddenIn.value = '';
+      }
+
+      if (hasTimeOut) {
+        const outStr = `${outHour}:${outMin} ${outAmPm}`;
+        if (hiddenOut) hiddenOut.value = outStr;
+      } else if (hiddenOut) {
+        hiddenOut.value = '';
+      }
+
+      // Time In can be saved on its own; calculate duration only after Time Out is set.
+      if (!hasTimeIn || !hasTimeOut) {
         if (totTimeField) totTimeField.value = '';
-        if (hiddenIn) hiddenIn.value = '';
-        if (hiddenOut) hiddenOut.value = '';
         return;
       }
 
       const inStr = `${inHour}:${inMin} ${inAmPm}`;
       const outStr = `${outHour}:${outMin} ${outAmPm}`;
-      if (hiddenIn) hiddenIn.value = inStr;
-      if (hiddenOut) hiddenOut.value = outStr;
 
       let tIn = timeToMinutes(inStr);
       let tOut = timeToMinutes(outStr);
@@ -1140,6 +1154,9 @@ document.addEventListener('DOMContentLoaded', function () {
       const timeOutEl = document.getElementById('timeOut');
       const custNameEl = document.getElementById('custName');
       const custAddressEl = document.getElementById('custAddress');
+      const custPhoneEl = document.getElementById('custPhone');
+      const custEmailEl = document.getElementById('custEmail');
+      const concernEl = document.getElementById('concern');
       const diagnosisEl = document.getElementById('diagnosis');
       const taxEl = document.getElementById('tax');
       const totEstimateEl = document.getElementById('totEstimate');
@@ -1189,11 +1206,23 @@ document.addEventListener('DOMContentLoaded', function () {
       const technician = technicianEl ? technicianEl.value.trim() : '';
       if (!technician) { errors.push('Technician is required.'); markInvalid(technicianEl); }
 
+      const timeIn = timeInEl ? timeInEl.value.trim() : '';
+      if (!timeIn) { errors.push('Time In is required.'); markInvalid(timeInEl); }
+
       const custName = custNameEl ? custNameEl.value.trim() : '';
       if (!custName) { errors.push('Customer name is required.'); markInvalid(custNameEl); }
 
       const custAddress = custAddressEl ? custAddressEl.value.trim() : '';
       if (!custAddress) { errors.push('Customer address is required.'); markInvalid(custAddressEl); }
+
+      const custPhone = custPhoneEl ? custPhoneEl.value.trim() : '';
+      if (!custPhone) { errors.push('Customer phone is required.'); markInvalid(custPhoneEl); }
+
+      const custEmail = custEmailEl ? custEmailEl.value.trim() : '';
+      if (!custEmail) { errors.push('Customer email is required.'); markInvalid(custEmailEl); }
+
+      const concern = concernEl ? concernEl.value.trim() : '';
+      if (!concern) { errors.push('Concern is required.'); markInvalid(concernEl); }
 
       const diagnosis = diagnosisEl ? diagnosisEl.value.trim() : '';
       if (!diagnosis) { errors.push('Diagnosis is required. Put N/A if none.'); markInvalid(diagnosisEl); }
