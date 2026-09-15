@@ -33,7 +33,7 @@ router.post('/mechanic/completeTicket', ensureLoggedIn, (req, res) => {
         if (findErr) return res.status(500).json({ error: 'Failed to load ticket' });
         if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
 
-        const requiredFields = ['repairOrderNumber', 'date', 'techName', 'timeIn', 'customerName', 'customerAddress', 'customerPhone', 'customerEmail', 'concern', 'diagnosis'];
+        const requiredFields = ['date', 'techName', 'timeIn', 'customerName', 'customerAddress', 'customerPhone', 'customerEmail', 'concern'];
         const missingField = requiredFields.find(field => !String(ticket[field] || '').trim());
         if (missingField) return res.status(400).json({ error: `${missingField} is required` });
 

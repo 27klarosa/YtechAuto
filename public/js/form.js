@@ -1187,10 +1187,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
       // basic required checks
       const roNum = roNumEl ? roNumEl.value.trim() : '';
-      if (tryingToCompleteTop && !roNum) {
-        errors.push('Repair Order or Task Number is required to complete the ticket.');
-        markInvalid(roNumEl);
-      }
       if (roNum) {
         // allow alphanumeric repair order identifiers (letters, numbers, hyphen, underscore and spaces)
         const validRo = /^[A-Za-z0-9\-_ ]+$/;
@@ -1225,7 +1221,6 @@ document.addEventListener('DOMContentLoaded', function () {
       if (!concern) { errors.push('Concern is required.'); markInvalid(concernEl); }
 
       const diagnosis = diagnosisEl ? diagnosisEl.value.trim() : '';
-      if (!diagnosis) { errors.push('Diagnosis is required. Put N/A if none.'); markInvalid(diagnosisEl); }
 
       if (taxEl) {
         const t = taxEl.value.trim();
@@ -1318,7 +1313,7 @@ document.addEventListener('DOMContentLoaded', function () {
               // skip file inputs and buttons
               if (el.type === 'file' || el.type === 'button' || el.type === 'submit') return;
               // skip known hidden helpers
-              const skipNames = ['repairs', 'tags', 'signature', 'ticketStatus', 'subTotParts', 'subTotLabor', 'tax', 'totEstimate', 'timeIn', 'timeOut', 'timeInHour', 'timeInMinute', 'timeInAmPm', 'timeOutHour', 'timeOutMinute', 'timeOutAmPm', 'totTime'];
+              const skipNames = ['repairs', 'tags', 'signature', 'ticketStatus', 'roNum', 'diagnosis', 'subTotParts', 'subTotLabor', 'tax', 'totEstimate', 'timeIn', 'timeOut', 'timeInHour', 'timeInMinute', 'timeInAmPm', 'timeOutHour', 'timeOutMinute', 'timeOutAmPm', 'totTime'];
               if (el.name && skipNames.includes(el.name)) return;
               if (el.id && skipNames.includes(el.id)) return;
 
