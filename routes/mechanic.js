@@ -380,9 +380,6 @@ router.post('/mechanic', ensureLoggedIn, completionPdfUpload.single('completionP
     }
     console.log('incomingTicketId:', incomingTicketId);
 
-    if (isCompleting && !roNum) {
-        return res.status(400).send('Repair Order or Task Number is required to complete the ticket');
-    }
     if (isCompleting) {
         const requiredFields = [
             ['roDate', roDate, 'Date'],
@@ -392,8 +389,7 @@ router.post('/mechanic', ensureLoggedIn, completionPdfUpload.single('completionP
             ['custAddress', custAdd, 'Customer address'],
             ['custPhone', custPhone, 'Customer phone'],
             ['custEmail', custEmail, 'Customer email'],
-            ['concern', concern, 'Concern'],
-            ['diagnosis', diagnosis, 'Diagnosis']
+            ['concern', concern, 'Concern']
         ];
         const missingField = requiredFields.find(([, value]) => !String(value).trim());
         if (missingField) {
@@ -402,7 +398,7 @@ router.post('/mechanic', ensureLoggedIn, completionPdfUpload.single('completionP
         if (custEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(custEmail).trim())) {
             return res.status(400).send('A valid customer email is required to complete the ticket');
         }
-        if (!/^[A-Za-z0-9\-_ ]+$/.test(roNum)) {
+        if (roNum && !/^[A-Za-z0-9\-_ ]+$/.test(roNum)) {
             return res.status(400).send('Repair Order must contain only letters, numbers, hyphen, underscore or spaces');
         }
         if (body.signature && typeof body.signature !== 'string') {
