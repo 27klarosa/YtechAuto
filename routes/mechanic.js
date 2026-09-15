@@ -387,8 +387,12 @@ router.post('/mechanic', ensureLoggedIn, completionPdfUpload.single('completionP
         const requiredFields = [
             ['roDate', roDate, 'Date'],
             ['technician', technician, 'Technician'],
+            ['timeIn', timeArrive, 'Time In'],
             ['custName', custName, 'Customer name'],
             ['custAddress', custAdd, 'Customer address'],
+            ['custPhone', custPhone, 'Customer phone'],
+            ['custEmail', custEmail, 'Customer email'],
+            ['concern', concern, 'Concern'],
             ['diagnosis', diagnosis, 'Diagnosis']
         ];
         const missingField = requiredFields.find(([, value]) => !String(value).trim());
