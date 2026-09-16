@@ -327,7 +327,7 @@ document.addEventListener('DOMContentLoaded', function () {
         formData.append('id', ticketId);
       }
 
-      uploadBtn.textContent = 'Uploading...';
+      uploadBtn.textContent = 'Uploaded';
       uploadBtn.disabled = true;
 
       fetch('/upload-video', {
