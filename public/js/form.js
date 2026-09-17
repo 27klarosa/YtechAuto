@@ -2292,6 +2292,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 })();
 // --- PDF page downloads ---
+//change this to othe pdf email
 (function bindPagePdfDownloads() {
   if (window.__PDF_BINDINGS_LOADED__) return;
   window.__PDF_BINDINGS_LOADED__ = true;
@@ -2330,6 +2331,7 @@ document.addEventListener('DOMContentLoaded', function () {
             clonedDocument.querySelectorAll('section').forEach((section) => {
               const heading = section.querySelector('h2')?.textContent.trim().toLowerCase();
               if (heading === 'upload video' || heading === 'upload image') section.remove();
+              //if ()
             });
             clonedDocument.querySelectorAll('#downloadMechPage, #downloadPage').forEach((element) => element.remove());
           } : undefined
