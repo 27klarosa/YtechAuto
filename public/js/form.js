@@ -239,8 +239,8 @@ document.addEventListener('DOMContentLoaded', function () {
         removeBtn.style.cursor = 'pointer';
         removeBtn.style.lineHeight = '20px';
         removeBtn.style.padding = '0';
-        removeBtn.style.fontSize = '16px';   
-        
+        removeBtn.style.fontSize = '16px';
+
         removeBtn.addEventListener('click', function (e) {
           e.stopPropagation();
           try {
@@ -2331,7 +2331,117 @@ document.addEventListener('DOMContentLoaded', function () {
             clonedDocument.querySelectorAll('section').forEach((section) => {
               const heading = section.querySelector('h2')?.textContent.trim().toLowerCase();
               if (heading === 'upload video' || heading === 'upload image') section.remove();
-              //if ()
+
+              console.log('Categorizing items for PDF generation...');
+              const categorizeBrake = (val) => {
+                const n = parseFloat(String(val || '').replace(/[^0-9.\-]/g, ''));
+                if (Number.isNaN(n)) return null;
+                if (n >= 1 && n <= 2) return 'bad';
+                if (n >= 3 && n <= 4) return 'monitor';
+                if (n >= 5 && n <= 12) return 'good';
+                return null;
+              };
+              const categorizeByStatus = (s) => {
+                if (!s) return null;
+                switch (String(s).trim().toLowerCase()) {
+                  case 'green': return 'good';
+                  case 'yellow': return 'monitor';
+                  case 'red': return 'bad';
+                  default: return null;
+                }
+              };
+              const mapSteeringStatus = (s) => {
+                if (!s) return null;
+                switch (String(s).trim().toLowerCase()) {
+                  case 'ok': return 'good';
+                  case 'monitor': return 'monitor';
+                  case 'replace': return 'bad';
+                  default: return null;
+                }
+              };
+
+              const monitorItems = [];
+              const badItems = [];
+
+              // courtesyTableItems (join courtesyTable -> ticketID)
+              try {
+                const courtesyRows = clonedDocument.section.querySelector('h2')?.textContent.trim().toLowerCase() === 'courtesy check' ? clonedDocument.querySelectorAll('section') : [];
+                courtesyRows.forEach(r => {
+                  const cat = categorizeByStatus(r.status);
+                  const label = r.item + (r.notes ? ` — ${r.notes}` : '');
+                  if (cat === 'monitor') monitorItems.push(label);
+                  else if (cat === 'bad') badItems.push(label);
+                });
+              } catch (e) {
+                console.error('Failed fetching courtesy items:', e);
+              }
+
+              // emissionsTable (join emissions -> ticketID)
+              try {
+                const emisRows = clonedDocument.querySelector('emissions / electrical lighting');
+                emisRows.forEach(r => {
+                  const cat = categorizeByStatus(r.status);
+                  if (cat === 'monitor') monitorItems.push(r.item);
+                  else if (cat === 'bad') badItems.push(r.item);
+                });
+              } catch (e) {
+                console.error('Failed fetching emissions items:', e);
+              }
+
+              // brakesTable (join brakes -> ticketID) — use "actual" numeric ranges
+              try {
+                const brakesRows = clonedDocument.querySelector('brakes (visual inspection)');
+                  brakesRows.forEach(r => {
+                    const cat = categorizeBrake(r.actual);
+                    if (cat === 'monitor') monitorItems.push(`${r.item} (${r.actual})`);
+                    else if (cat === 'bad') badItems.push(`${r.item} (${r.actual})`);
+                  });
+              } catch (e) {
+                console.error('Failed fetching brakes items:', e);
+              }
+
+              // steeringSuspensionTable (join steeringSuspension -> ticketID)
+              try {
+                const steerRows = clonedDocument.querySelector('steering & suspension / driveline');
+                  steerRows.forEach(r => {
+                    [['left', 'left'], ['right', 'right'], ['front', 'front'], ['rear', 'rear']].forEach(([col, label]) => {
+                      const val = r[col];
+                      const cat = mapSteeringStatus(val);
+                      if (!cat) return;
+                      const entry = `${r.item} (${label}: ${val})`;
+                      if (cat === 'monitor') monitorItems.push(entry);
+                      else if (cat === 'bad') badItems.push(entry);
+                    });
+                  });
+              } catch (e) {
+                console.error('Failed fetching steering suspension items:', e);
+              }
+
+              // Display categorized items in PDF
+              if (monitorItems.length || badItems.length) {
+                const summaryDiv = document.createElement('div');
+                summaryDiv.style.marginTop = '20px';
+                summaryDiv.style.padding = '10px';
+                summaryDiv.style.border = '1px solid #333';
+
+                if (badItems.length) {
+                  const badSection = document.createElement('div');
+                  badSection.innerHTML = `<h3 style="color:red;">Items Requiring Attention:</h3><ul>${badItems.map(i => `<li>${i}</li>`).join('')}</ul>`;
+                  summaryDiv.appendChild(badSection);
+                }
+
+                if (monitorItems.length) {
+                  const monitorSection = document.createElement('div');
+                  monitorSection.innerHTML = `<h3 style="color:orange;">Items to Monitor:</h3><ul>${monitorItems.map(i => `<li>${i}</li>`).join('')}</ul>`;
+                  summaryDiv.appendChild(monitorSection);
+                }
+
+                clonedDocument.querySelector('main').appendChild(summaryDiv);
+              }
+              console.log('PDF generation: categorized items added to summary section.');
+
+              if (heading === 'vehicle inspection - digital courtesy check') section.remove();
+
             });
             clonedDocument.querySelectorAll('#downloadMechPage, #downloadPage').forEach((element) => element.remove());
           } : undefined
