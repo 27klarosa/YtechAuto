@@ -4,7 +4,7 @@ const path = require('path');
 const router = express.Router();
 const fs = require('fs');
 const { execFile } = require('child_process');
-const { sendMail } = require('../middleware/mail');
+const { sendMail, escapeHtml } = require('../middleware/mail');
 const { ensureLoggedIn } = require('../middleware/auth');
 
 const videoDir = path.join(__dirname, '..', 'upload', 'videos');
@@ -42,14 +42,18 @@ function compressVideo(inputPath, outputPath, callback) {
     ], { timeout: 30 * 60 * 1000, maxBuffer: 10 * 1024 * 1024 }, callback);
 }
 
-async function emailCompletedTicket(db, ticketId, pdfBuffer) {
+async function emailCompletedTicket(db, ticketId, request, pdfBuffer) {
     const ticket = await new Promise((resolve, reject) => db.get('SELECT * FROM tickets WHERE id = ?', [ticketId], (err, row) => err ? reject(err) : resolve(row)));
     if (!ticket || !ticket.customerEmail || !pdfBuffer) return;
+
+    const configuredBaseUrl = process.env.APP_URL || process.env.BASE_URL;
+    const requestBaseUrl = request ? `${request.protocol}://${request.get('host')}` : '';
+    const customerUrl = new URL(`/customer?ticketId=${encodeURIComponent(ticket.id)}`, configuredBaseUrl || requestBaseUrl).toString();
     await sendMail(
         ticket.customerEmail,
         `Completed repair ticket`,
-        `<p>Your Automotive repair ticket is complete. The completed ticket is attached as a PDF. This is from the Auto Repair Ticket System of the York County School of Technology </p>`,
-        [{ filename: `ticket-${ticket.id}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }]
+        `<p>Your Automotive repair ticket is complete. The customer version is attached as a PDF.</p><p>You can also <a href="${escapeHtml(customerUrl)}">view your completed customer ticket online</a>.</p><p>This is from the Auto Repair Ticket System of the York County School of Technology.</p>`,
+        [{ filename: `customer-ticket-${ticket.id}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }]
     );
 }
 
@@ -596,7 +600,7 @@ router.post('/mechanic', ensureLoggedIn, completionPdfUpload.single('completionP
         });
     };
 
-    // finalize save actions: save repairs/signature, email completed tickets, then redirect
+    // finalize save actions: save repairs/signature, then redirect
     const finalizeSave = (targetId) => {
         const failSave = (message, error) => {
             if (error) console.error(message, error);
@@ -604,13 +608,6 @@ router.post('/mechanic', ensureLoggedIn, completionPdfUpload.single('completionP
         };
 
         const completeResponse = async () => {
-            if (isCompleting) {
-                try {
-                    await emailCompletedTicket(db, targetId, req.file && req.file.buffer);
-                } catch (emailErr) {
-                    console.error('Failed to email completed ticket:', emailErr);
-                }
-            }
             return res.redirect('/mechanic?id=' + targetId);
         };
     
@@ -740,6 +737,26 @@ router.post('/mechanic', ensureLoggedIn, completionPdfUpload.single('completionP
         tryInsertNew();
     }
 
+});
+
+router.post('/mechanic/email-completed-ticket', ensureLoggedIn, completionPdfUpload.single('completionPdf'), async (req, res) => {
+    const db = req.app.locals.db;
+    const ticketId = Number(req.body && req.body.ticketId);
+    if (!db) return res.status(500).send('Database not available');
+    if (!Number.isInteger(ticketId) || ticketId <= 0) return res.status(400).send('A valid ticketId is required');
+    if (!req.file || !req.file.buffer) return res.status(400).send('A customer ticket PDF is required');
+
+    db.get('SELECT id FROM tickets WHERE id = ? AND stat = ?', [ticketId, 'complete'], async (findErr, ticket) => {
+        if (findErr) return res.status(500).send('Failed to verify completed ticket');
+        if (!ticket) return res.status(404).send('Completed ticket not found');
+        try {
+            await emailCompletedTicket(db, ticketId, req, req.file.buffer);
+            return res.sendStatus(204);
+        } catch (emailErr) {
+            console.error('Failed to email completed ticket:', emailErr);
+            return res.status(500).send('Failed to email completed ticket');
+        }
+    });
 });
 
 router.post('/mechanic/vehicle-info', ensureLoggedIn, (req, res) => {

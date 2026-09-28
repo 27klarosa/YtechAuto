@@ -95,7 +95,7 @@
             </table>
           </div>
           
-          <div class="form-grid" style="margin-top:1rem; max-width:400px">
+          <div class="form-grid customer-totals" style="margin-top:1rem; max-width:400px">
             <div class="read-only-value">
               <div class="read-only-label">Subtotal (Parts)</div>
               <div>$<%= totals.partsSubtotal %></div>
@@ -214,9 +214,9 @@
         } catch (e) { console.warn('customer.ejs: diagnostic injection failed', e); }
       </script>
 
-      <div >
+      <% if (!printMode) { %><div >
             <a id="downloadPage" href="#" data-ticket-id="<%= ticket && ticket.id ? ticket.id : '' %>">Download Page As PDF</a>
-           </div>
+           </div><% } %>
      <% } else { %>
       <section class="section">
         <h2>Ticket Not Found</h2>
