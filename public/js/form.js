@@ -1453,18 +1453,6 @@ document.addEventListener('DOMContentLoaded', function () {
         const formData = new FormData(form);
         const ticketId = form.querySelector('[name="ticketId"]')?.value;
 
-        // If completing, generate and attach PDF
-        if (tryingToComplete && typeof window.generatePagePdf === 'function') {
-          try {
-            const pdf = await window.generatePagePdf(ticketId || 'page', false, true);
-            if (pdf) {
-              formData.append('completionPdf', pdf, `ticket-${ticketId || 'page'}.pdf`);
-            }
-          } catch (pdfErr) {
-            console.warn('PDF generation failed, continuing without PDF:', pdfErr);
-          }
-        }
-
         const response = await fetch(form.action || '/mechanic', {
           method: 'POST',
           body: formData
@@ -1480,6 +1468,23 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!response.ok) {
           const errMsg = await response.text();
           throw new Error(errMsg || `Ticket save failed: ${response.status}`);
+        }
+
+        if (tryingToComplete && typeof window.generateCustomerPagePdf === 'function') {
+          const savedTicketId = ticketId || new URL(response.url, window.location.origin).searchParams.get('id');
+          if (!savedTicketId) throw new Error('Completed ticket ID was not returned');
+
+          const pdf = await window.generateCustomerPagePdf(savedTicketId);
+          if (!pdf) throw new Error('Customer page PDF could not be generated');
+
+          const emailData = new FormData();
+          emailData.append('ticketId', savedTicketId);
+          emailData.append('completionPdf', pdf, `customer-ticket-${savedTicketId}.pdf`);
+          const emailResponse = await fetch('/mechanic/email-completed-ticket', {
+            method: 'POST',
+            body: emailData
+          });
+          if (!emailResponse.ok) throw new Error(await emailResponse.text() || 'Completed ticket email failed');
         }
 
         // Success: redirect
@@ -2363,7 +2368,44 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
 
+  async function generateCustomerPagePdf(ticketId) {
+    await ensureHtml2Pdf();
+    const response = await fetch(`/customer?ticketId=${encodeURIComponent(ticketId)}&print=1`, { credentials: 'same-origin' });
+    if (!response.ok) throw new Error(`Customer page could not be loaded: ${response.status}`);
+
+    const renderContainer = document.createElement('div');
+    renderContainer.style.cssText = 'position:absolute;left:-10000px;top:0;width:794px;background:#fff;';
+    document.body.appendChild(renderContainer);
+    try {
+      const html = (await response.text()).replace(/<script[\s\S]*?<\/script>/gi, '');
+      const parsedDocument = new DOMParser().parseFromString(html, 'text/html');
+      const customerMain = parsedDocument.querySelector('main.main-content');
+      if (!customerMain) throw new Error('Customer page content was not found');
+
+      const target = customerMain.cloneNode(true);
+      renderContainer.appendChild(target);
+      await Promise.all(Array.from(target.querySelectorAll('img')).map(image => image.complete
+        ? Promise.resolve()
+        : new Promise(resolve => { image.addEventListener('load', resolve, { once: true }); image.addEventListener('error', resolve, { once: true }); })));
+
+      return await window.html2pdf().set({
+        margin: 10,
+        filename: `customer-ticket-${ticketId}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, logging: false },
+        pagebreak: {
+          mode: ['css', 'legacy'],
+          avoid: ['.video-section', '.customer-totals', 'table tr', 'figure']
+        },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      }).from(target).outputPdf('blob');
+    } finally {
+      renderContainer.remove();
+    }
+  }
+
   window.generatePagePdf = generatePdf;
+  window.generateCustomerPagePdf = generateCustomerPagePdf;
 
   function bindId(id) {
     const button = document.getElementById(id);
