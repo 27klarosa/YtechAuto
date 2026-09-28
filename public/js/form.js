@@ -2065,7 +2065,6 @@ document.addEventListener('DOMContentLoaded', function () {
                       }
                     });
 
-
                     // populate parent comments (full-width)
                     try {
                       const parentComments = parent.comments || parent.emissionsComments || parent.comments || '';
@@ -2293,6 +2292,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 })();
 // --- PDF page downloads ---
+//change this to othe pdf email
 (function bindPagePdfDownloads() {
   if (window.__PDF_BINDINGS_LOADED__) return;
   window.__PDF_BINDINGS_LOADED__ = true;
@@ -2363,88 +2363,56 @@ document.addEventListener('DOMContentLoaded', function () {
               const monitorItems = [];
               const badItems = [];
 
-              // courtesyTableItems
+              // courtesyTableItems (join courtesyTable -> ticketID)
               try {
-                const courtesySection = clonedDocument.getElementById('courtesy-check');
-                console.log('Courtesy section found:', !!courtesySection);
-                if (courtesySection) {
-                  const rows = courtesySection.querySelectorAll('table tbody tr');
-                  console.log('Courtesy rows count:', rows.length);
-                  rows.forEach((row, idx) => {
-                    const cells = Array.from(row.cells || []);
-                    const item = (cells[0]?.textContent || '').trim();
-                    const status = (cells[1]?.querySelector('select')?.value || cells[1]?.textContent || '').trim();
-                    const notes = (cells[2]?.querySelector('input, textarea')?.value || cells[2]?.textContent || '').trim();
-                    if (!item) return;
-                    console.log(`Courtesy row ${idx}:`, { item, status, notes });
-                    const cat = categorizeByStatus(status);
-                    console.log(`  → category: ${cat}`);
-                    const label = item + (notes ? ` — ${notes}` : '');
-                    if (cat === 'monitor') monitorItems.push(label);
-                    else if (cat === 'bad') badItems.push(label);
-                  });
-                }
+                const courtesyRows = clonedDocument.section.querySelector('h2')?.textContent.trim().toLowerCase() === 'courtesy check' ? clonedDocument.querySelectorAll('section') : [];
+                courtesyRows.forEach(r => {
+                  const cat = categorizeByStatus(r.status);
+                  const label = r.item + (r.notes ? ` — ${r.notes}` : '');
+                  if (cat === 'monitor') monitorItems.push(label);
+                  else if (cat === 'bad') badItems.push(label);
+                });
               } catch (e) {
                 console.error('Failed fetching courtesy items:', e);
               }
 
-              // emissionsTable
+              // emissionsTable (join emissions -> ticketID)
               try {
-                const emissionsSection = clonedDocument.getElementById('emissions');
-                if (emissionsSection) {
-                  const rows = emissionsSection.querySelectorAll('table tbody tr');
-                  rows.forEach(row => {
-                    const cells = Array.from(row.cells || []);
-                    const item = (cells[0]?.textContent || '').trim();
-                    const status = (cells[1]?.querySelector('select')?.value || cells[1]?.textContent || '').trim();
-                    if (!item) return;
-                    const cat = categorizeByStatus(status);
-                    if (cat === 'monitor') monitorItems.push(item);
-                    else if (cat === 'bad') badItems.push(item);
-                  });
-                }
+                const emisRows = clonedDocument.querySelector('emissions / electrical lighting');
+                emisRows.forEach(r => {
+                  const cat = categorizeByStatus(r.status);
+                  if (cat === 'monitor') monitorItems.push(r.item);
+                  else if (cat === 'bad') badItems.push(r.item);
+                });
               } catch (e) {
                 console.error('Failed fetching emissions items:', e);
               }
 
-              // brakesTable
+              // brakesTable (join brakes -> ticketID) — use "actual" numeric ranges
               try {
-                const brakesSection = clonedDocument.getElementById('brakes');
-                if (brakesSection) {
-                  const rows = brakesSection.querySelectorAll('table tbody tr');
-                  rows.forEach(row => {
-                    const cells = Array.from(row.cells || []);
-                    const item = (cells[0]?.textContent || '').trim();
-                    const actual = (cells[2]?.querySelector('select, input')?.value || cells[2]?.textContent || '').trim();
-                    if (!item) return;
-                    const cat = categorizeBrake(actual);
-                    if (cat === 'monitor') monitorItems.push(`${item} (${actual})`);
-                    else if (cat === 'bad') badItems.push(`${item} (${actual})`);
+                const brakesRows = clonedDocument.querySelector('brakes (visual inspection)');
+                  brakesRows.forEach(r => {
+                    const cat = categorizeBrake(r.actual);
+                    if (cat === 'monitor') monitorItems.push(`${r.item} (${r.actual})`);
+                    else if (cat === 'bad') badItems.push(`${r.item} (${r.actual})`);
                   });
-                }
               } catch (e) {
                 console.error('Failed fetching brakes items:', e);
               }
 
-              // steeringSuspensionTable
+              // steeringSuspensionTable (join steeringSuspension -> ticketID)
               try {
-                const steeringSection = clonedDocument.getElementById('steering');
-                if (steeringSection) {
-                  const rows = steeringSection.querySelectorAll('table tbody tr');
-                  rows.forEach(row => {
-                    const cells = Array.from(row.cells || []);
-                    const item = (cells[0]?.textContent || '').trim();
-                    if (!item) return;
-                    [['left', 1], ['right', 2], ['front', 3], ['rear', 4]].forEach(([label, idx]) => {
-                      const value = (cells[idx]?.querySelector('select, input')?.value || cells[idx]?.textContent || '').trim();
-                      const cat = mapSteeringStatus(value);
+                const steerRows = clonedDocument.querySelector('steering & suspension / driveline');
+                  steerRows.forEach(r => {
+                    [['left', 'left'], ['right', 'right'], ['front', 'front'], ['rear', 'rear']].forEach(([col, label]) => {
+                      const val = r[col];
+                      const cat = mapSteeringStatus(val);
                       if (!cat) return;
-                      const entry = `${item} (${label}: ${value})`;
+                      const entry = `${r.item} (${label}: ${val})`;
                       if (cat === 'monitor') monitorItems.push(entry);
                       else if (cat === 'bad') badItems.push(entry);
                     });
                   });
-                }
               } catch (e) {
                 console.error('Failed fetching steering suspension items:', e);
               }
@@ -2452,7 +2420,6 @@ document.addEventListener('DOMContentLoaded', function () {
               // Display categorized items in PDF
               if (monitorItems.length || badItems.length) {
                 const summaryDiv = document.createElement('div');
-                console.log('Summary div created');
                 summaryDiv.style.marginTop = '20px';
                 summaryDiv.style.padding = '10px';
                 summaryDiv.style.border = '1px solid #333';
@@ -2469,12 +2436,7 @@ document.addEventListener('DOMContentLoaded', function () {
                   summaryDiv.appendChild(monitorSection);
                 }
 
-                const main = clonedDocument.querySelector('main');
-                console.log('Main element found:', !!main);
-                if (main) {
-                  main.appendChild(summaryDiv);
-                  console.log('Summary div appended to main');
-                }
+                clonedDocument.querySelector('main').appendChild(summaryDiv);
               }
               console.log('PDF generation: categorized items added to summary section.');
 
@@ -3228,7 +3190,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function loadSavedSignatureForTicket(ticketId) {
       if (!ticketId) { console.log('loadSavedSignatureForTicket: no ticketId'); return false; }
 
-      // quick check: server-injected ticket object may already contain signature data
+      // quick check: server-injected ticket object may already contain signature data/path
       try {
         const st = window.__SERVER_TICKET__ || null;
         if (st && (String(st.id) === String(ticketId))) {
