@@ -3,12 +3,23 @@ const multer = require('multer');
 const path = require('path');
 const router = express.Router();
 const fs = require('fs');
-const { sendMail } = require('../middleware/mail');
+const { execFile } = require('child_process');
+const { sendMail, escapeHtml } = require('../middleware/mail');
 const { ensureLoggedIn } = require('../middleware/auth');
 
 const videoDir = path.join(__dirname, '..', 'upload', 'videos');
 const imageDir = path.join(__dirname, '..', 'upload', 'images');
 const signatureDir = path.join(__dirname, '..', 'upload', 'signatures');
+const ffmpegPath = process.env.FFMPEG_PATH || 'ffmpeg';
+console.log(`Video compression configured with FFmpeg: ${ffmpegPath}`);
+execFile(ffmpegPath, ['-version'], { timeout: 10000 }, (error, stdout, stderr) => {
+    if (error) {
+        console.error('FFmpeg is not executable:', { path: ffmpegPath, message: error.message, stderr: stderr || '' });
+        return;
+    }
+    const version = String(stdout || '').split('\n')[0].trim();
+    console.log(`FFmpeg executable verified: ${version || ffmpegPath}`);
+});
 const completionPdfUpload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 10 * 1024 * 1024 }
@@ -17,14 +28,32 @@ fs.mkdirSync(videoDir, { recursive: true });
 fs.mkdirSync(imageDir, { recursive: true });
 fs.mkdirSync(signatureDir, { recursive: true });
 
-async function emailCompletedTicket(db, ticketId, pdfBuffer) {
+function compressVideo(inputPath, outputPath, callback) {
+    execFile(ffmpegPath, [
+        '-y',
+        '-i', inputPath,
+        '-c:v', 'libx264',
+        '-crf', '23',
+        '-preset', 'medium',
+        '-c:a', 'aac',
+        '-b:a', '128k',
+        '-movflags', '+faststart',
+        outputPath
+    ], { timeout: 30 * 60 * 1000, maxBuffer: 10 * 1024 * 1024 }, callback);
+}
+
+async function emailCompletedTicket(db, ticketId, request, pdfBuffer) {
     const ticket = await new Promise((resolve, reject) => db.get('SELECT * FROM tickets WHERE id = ?', [ticketId], (err, row) => err ? reject(err) : resolve(row)));
     if (!ticket || !ticket.customerEmail || !pdfBuffer) return;
+
+    const configuredBaseUrl = process.env.APP_URL || process.env.BASE_URL;
+    const requestBaseUrl = request ? `${request.protocol}://${request.get('host')}` : '';
+    const customerUrl = new URL(`/customer?ticketId=${encodeURIComponent(ticket.id)}`, configuredBaseUrl || requestBaseUrl).toString();
     await sendMail(
         ticket.customerEmail,
         `Completed repair ticket`,
-        `<p>Your Automotive repair ticket is complete. The completed ticket is attached as a PDF. This is from the Auto Repair Ticket System of the York County School of Technology </p>`,
-        [{ filename: `ticket-${ticket.id}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }]
+        `<p>Your Automotive repair ticket is complete. The customer version is attached as a PDF.</p><p>You can also <a href="${escapeHtml(customerUrl)}">view your completed customer ticket online</a>.</p><p>This is from the Auto Repair Ticket System of the York County School of Technology.</p>`,
+        [{ filename: `customer-ticket-${ticket.id}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }]
     );
 }
 
@@ -571,7 +600,7 @@ router.post('/mechanic', ensureLoggedIn, completionPdfUpload.single('completionP
         });
     };
 
-    // finalize save actions: save repairs/signature, email completed tickets, then redirect
+    // finalize save actions: save repairs/signature, then redirect
     const finalizeSave = (targetId) => {
         const failSave = (message, error) => {
             if (error) console.error(message, error);
@@ -579,13 +608,6 @@ router.post('/mechanic', ensureLoggedIn, completionPdfUpload.single('completionP
         };
 
         const completeResponse = async () => {
-            if (isCompleting) {
-                try {
-                    await emailCompletedTicket(db, targetId, req.file && req.file.buffer);
-                } catch (emailErr) {
-                    console.error('Failed to email completed ticket:', emailErr);
-                }
-            }
             return res.redirect('/mechanic?id=' + targetId);
         };
     
@@ -715,6 +737,26 @@ router.post('/mechanic', ensureLoggedIn, completionPdfUpload.single('completionP
         tryInsertNew();
     }
 
+});
+
+router.post('/mechanic/email-completed-ticket', ensureLoggedIn, completionPdfUpload.single('completionPdf'), async (req, res) => {
+    const db = req.app.locals.db;
+    const ticketId = Number(req.body && req.body.ticketId);
+    if (!db) return res.status(500).send('Database not available');
+    if (!Number.isInteger(ticketId) || ticketId <= 0) return res.status(400).send('A valid ticketId is required');
+    if (!req.file || !req.file.buffer) return res.status(400).send('A customer ticket PDF is required');
+
+    db.get('SELECT id FROM tickets WHERE id = ? AND stat = ?', [ticketId, 'complete'], async (findErr, ticket) => {
+        if (findErr) return res.status(500).send('Failed to verify completed ticket');
+        if (!ticket) return res.status(404).send('Completed ticket not found');
+        try {
+            await emailCompletedTicket(db, ticketId, req, req.file.buffer);
+            return res.sendStatus(204);
+        } catch (emailErr) {
+            console.error('Failed to email completed ticket:', emailErr);
+            return res.status(500).send('Failed to email completed ticket');
+        }
+    });
 });
 
 router.post('/mechanic/vehicle-info', ensureLoggedIn, (req, res) => {
@@ -1448,9 +1490,17 @@ router.post('/mechanic/emissions', ensureLoggedIn, (req, res) => {
 });
 
 // video upload route (protected with auth)
-router.post('/upload-video', ensureLoggedIn, (req, res, next) => {
+router.post('/upload-video', (req, res, next) => {
+    console.log('Video upload request received');
+    ensureLoggedIn(req, res, next);
+}, (req, res, next) => {
+    if (!req.user) return;
     videoUpload.single('video')(req, res, (err) => {
-        if (!err) return next();
+        if (!err) {
+            console.log(`Video upload received: ${req.file ? `${req.file.originalname} (${req.file.size} bytes)` : 'no file'}`);
+            return next();
+        }
+        console.error('Video upload parsing failed:', err);
         if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
             return res.status(413).json({
                 success: false,
@@ -1468,34 +1518,115 @@ router.post('/upload-video', ensureLoggedIn, (req, res, next) => {
     if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
 
     const file = req.file;
-    const relativePath = path.relative(path.join(__dirname, '..'), file.path).split(path.sep).join('/');
-
-    // accept several common field names from the client (ticketID, ticketId, id)
-    const ticketIdValue = (req.body && (req.body.ticketID || req.body.ticketId || req.body.id)) || null;
-    const insertSql = `INSERT INTO videos (ticketID, filename, originalName, relativePath, mimeType, sizeBytes, uploadDate)
-                     VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`;
-    const params = [ticketIdValue, file.filename, file.originalname, relativePath, file.mimetype, file.size];
-
-    db.run(insertSql, params, function (err) {
-        if (err) {
-            console.error('DB insert failed, removing uploaded file:', err);
-            // remove the saved file to avoid orphan
-            fs.unlink(file.path, (unlinkErr) => {
-                if (unlinkErr) console.error('Failed to unlink file after DB error:', unlinkErr);
-                return res.status(500).json({ success: false, message: 'Database error' });
+    let requestFinished = false;
+    let compressedPath;
+    const removeUploadedFiles = () => {
+        [file.path, compressedPath].filter(Boolean).forEach((filePath) => {
+            fs.unlink(filePath, (unlinkErr) => {
+                if (unlinkErr && unlinkErr.code !== 'ENOENT') {
+                    console.error('Failed to remove temporary video:', unlinkErr);
+                }
             });
-            return;
+        });
+    };
+    const sendJson = (status, payload) => {
+        if (requestFinished || res.headersSent) return;
+        requestFinished = true;
+        return res.status(status).json(payload);
+    };
+    req.on('aborted', () => {
+        requestFinished = true;
+        removeUploadedFiles();
+        console.warn('Video upload request was aborted by the client');
+    });
+    res.on('close', () => {
+        if (!res.writableFinished) {
+            requestFinished = true;
+            removeUploadedFiles();
+        }
+    });
+
+    let compressedFilename = `video-compressed-${Date.now()}-${Math.round(Math.random() * 1E9)}.mp4`;
+    let videoMimeType = 'video/mp4';
+    compressedPath = path.join(videoDir, compressedFilename);
+    console.log(`Starting video compression: ${file.path} -> ${compressedPath}`);
+
+    const finishVideoUpload = () => {
+        fs.stat(compressedPath, (statError, compressedStats) => {
+            if (requestFinished) return;
+            if (statError || !compressedStats.size) {
+                console.error('Video file was not created:', statError || 'empty output');
+                removeUploadedFiles();
+                return sendJson(500, { success: false, message: 'Video upload did not produce a valid file.' });
+            }
+
+            const relativePath = path.relative(path.join(__dirname, '..'), compressedPath).split(path.sep).join('/');
+
+            // accept several common field names from the client (ticketID, ticketId, id)
+            const ticketIdValue = (req.body && (req.body.ticketID || req.body.ticketId || req.body.id)) || null;
+            const insertSql = `INSERT INTO videos (ticketID, filename, originalName, relativePath, mimeType, sizeBytes, uploadDate)
+                         VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`;
+            const params = [ticketIdValue, compressedFilename, file.originalname, relativePath, videoMimeType, compressedStats.size];
+
+            db.run(insertSql, params, function (err) {
+                fs.unlink(file.path, (unlinkErr) => {
+                    if (unlinkErr && unlinkErr.code !== 'ENOENT') console.error('Failed to remove original uploaded video:', unlinkErr);
+                });
+                if (err) {
+                    console.error('DB insert failed, removing video:', err);
+                    removeUploadedFiles();
+                    return sendJson(500, { success: false, message: 'Database error' });
+                }
+
+                console.log(`Video upload completed: ${compressedFilename} (${compressedStats.size} bytes)`);
+                return sendJson(200, { success: true, id: this.lastID, path: relativePath, filename: compressedFilename });
+            });
+        });
+    };
+
+    compressVideo(file.path, compressedPath, (compressionError, stdout, stderr) => {
+        if (requestFinished) return;
+        if (compressionError) {
+            console.error('Video compression failed:', {
+                message: compressionError.message,
+                code: compressionError.code,
+                signal: compressionError.signal,
+                stderr: stderr || '',
+                stdout: stdout || ''
+            });
+            if (compressionError.code === 'ENOENT') {
+                compressedFilename = `video-${Date.now()}-${Math.round(Math.random() * 1E9)}${path.extname(file.originalname || '').toLowerCase() || '.mp4'}`;
+                compressedPath = path.join(videoDir, compressedFilename);
+                videoMimeType = file.mimetype || 'application/octet-stream';
+                return fs.rename(file.path, compressedPath, (renameError) => {
+                    if (renameError) {
+                        console.error('Failed to store original video:', renameError);
+                        return sendJson(500, { success: false, message: 'Video upload failed while FFmpeg was unavailable.' });
+                    }
+                    return finishVideoUpload();
+                });
+            }
+            removeUploadedFiles();
+            return sendJson(500, { success: false, message: 'Video compression failed. Please try again.' });
         }
 
-        res.json({ success: true, id: this.lastID, path: relativePath });
+        return finishVideoUpload();
     });
 });
 
 // image upload route (protected with auth)
-router.post('/upload-image', ensureLoggedIn, imageUpload.array('image'), (req, res) => {
+router.post('/upload-image', ensureLoggedIn, (req, res, next) => {
+    imageUpload.array('image')(req, res, (err) => {
+        if (!err) return next();
+        if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+            return res.status(413).json({ success: false, message: 'One or more images are too large. Each image must be 100 MB or smaller.' });
+        }
+        return res.status(400).json({ success: false, message: err.message || 'Image upload failed' });
+    });
+}, (req, res) => {
     const db = req.app.locals.db;
     if (!db) {
-        if (req.file) fs.unlink(req.file.path, () => { });
+        (req.files || []).forEach(file => fs.unlink(file.path, () => { }));
         return res.status(500).json({ success: false, message: 'Database not available' });
     }
     if (!req.files || req.files.length === 0) return res.status(400).json({ success: false, message: 'No files uploaded' });
@@ -1534,7 +1665,8 @@ router.post('/upload-image', ensureLoggedIn, imageUpload.array('image'), (req, r
 
             pending -= 1;
             if (pending === 0) {
-                return res.json({ success: true, files: results });
+                const uploaded = results.some(result => result.success);
+                return res.status(uploaded ? 200 : 500).json({ success: uploaded, files: results });
             }
         });
     });

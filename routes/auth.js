@@ -17,6 +17,10 @@ const config = {
 const msalClient = new ConfidentialClientApplication(config);
 
 router.get("/login", (req, res) => {
+    if (String(process.env.AUTH_MODE || 'microsoft').toLowerCase() === 'local') {
+        return res.redirect('/loginPage');
+    }
+
     const authUrlParams = {
         scopes: ["user.read"],
         redirectUri: process.env.REDIRECT_URI,

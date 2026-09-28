@@ -176,6 +176,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!videoUploadZone || !videoFileInput || !uploadBtn) return;
 
     let selectedFile = null;
+    let previewUrls = [];
 
     function isVideoFile(f) {
       if (!f) return false;
@@ -193,6 +194,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function renderVideoPreviews(fileList) {
       if (!videoPreviewContainer) return;
+      previewUrls.forEach(url => {
+        try { URL.revokeObjectURL(url); } catch (_) { }
+      });
+      previewUrls = [];
       videoPreviewContainer.innerHTML = '';
 
       const files = Array.from(fileList || []);
@@ -219,8 +224,8 @@ document.addEventListener('DOMContentLoaded', function () {
         v.style.height = '100%';
         v.style.objectFit = 'cover';
         const url = URL.createObjectURL(file);
+        previewUrls.push(url);
         v.src = url;
-        v.addEventListener('loadeddata', () => { try { URL.revokeObjectURL(url); } catch (_) { } });
 
         const removeBtn = document.createElement('button');
         removeBtn.type = 'button';
@@ -264,6 +269,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const dt = new DataTransfer();
             newFiles.forEach(f => dt.items.add(f));
             videoFileInput.files = dt.files;
+            selectedFile = videoFileInput.files[0] || null;
 
             // re-render previews and update zone text
             renderVideoPreviews(videoFileInput.files);
@@ -303,8 +309,9 @@ document.addEventListener('DOMContentLoaded', function () {
       renderVideoPreviews(videoFileInput.files)
     });
 
-    // upload to server; after successful upload, mark videoUploaded if the uploaded file was a video
+    // upload to server; each successful upload is stored as a separate video row
     uploadBtn.addEventListener('click', function () {
+      selectedFile = videoFileInput.files[0] || null;
       if (!selectedFile) {
         alert('Please select a file first.');
         return;
@@ -346,11 +353,12 @@ document.addEventListener('DOMContentLoaded', function () {
             if (p) p.textContent = 'File uploaded';
             videoUploadZone.style.backgroundColor = '#d4edda';
             videoUploadZone.style.borderColor = '#c3e6cb';
-            // if uploaded file was a video, mark so no more videos can be uploaded
-            if (isVideoFile(selectedFile)) videoUploaded = true;
-            // clear current selection but keep ability to choose other files
+            // clear current selection and keep the upload controls available
             try { videoFileInput.value = ''; } catch (e) { }
             selectedFile = null;
+            uploadBtn.disabled = true;
+            uploadBtn.style.opacity = '0.5';
+            uploadBtn.textContent = 'Upload';
             // ensure any server-rendered or newly-added video previews have remove (×) handlers
             try { if (typeof window.ensureVideoRemoveButtons === 'function') window.ensureVideoRemoveButtons(); } catch (e) { }
           } else {
@@ -1339,6 +1347,10 @@ document.addEventListener('DOMContentLoaded', function () {
               // skip inputs that are part of the repairs table (we validate repairs separately)
               if (el.closest && el.closest('#repairs-table')) return;
 
+              // Rotor/drum measurements are optional for a ticket.
+              const brakeRowLabel = el.closest('#brakes tbody tr')?.cells?.[0]?.textContent || '';
+              if (/^rotor\/drum\s/i.test(brakeRowLabel.trim())) return;
+
               // For selects, ensure a non-empty value
               if (el.tagName.toLowerCase() === 'select') {
                 if (!el.value || String(el.value).trim() === '') {
@@ -1441,18 +1453,6 @@ document.addEventListener('DOMContentLoaded', function () {
         const formData = new FormData(form);
         const ticketId = form.querySelector('[name="ticketId"]')?.value;
 
-        // If completing, generate and attach PDF
-        if (tryingToComplete && typeof window.generatePagePdf === 'function') {
-          try {
-            const pdf = await window.generatePagePdf(ticketId || 'page', false, true);
-            if (pdf) {
-              formData.append('completionPdf', pdf, `ticket-${ticketId || 'page'}.pdf`);
-            }
-          } catch (pdfErr) {
-            console.warn('PDF generation failed, continuing without PDF:', pdfErr);
-          }
-        }
-
         const response = await fetch(form.action || '/mechanic', {
           method: 'POST',
           body: formData
@@ -1468,6 +1468,23 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!response.ok) {
           const errMsg = await response.text();
           throw new Error(errMsg || `Ticket save failed: ${response.status}`);
+        }
+
+        if (tryingToComplete && typeof window.generateCustomerPagePdf === 'function') {
+          const savedTicketId = ticketId || new URL(response.url, window.location.origin).searchParams.get('id');
+          if (!savedTicketId) throw new Error('Completed ticket ID was not returned');
+
+          const pdf = await window.generateCustomerPagePdf(savedTicketId);
+          if (!pdf) throw new Error('Customer page PDF could not be generated');
+
+          const emailData = new FormData();
+          emailData.append('ticketId', savedTicketId);
+          emailData.append('completionPdf', pdf, `customer-ticket-${savedTicketId}.pdf`);
+          const emailResponse = await fetch('/mechanic/email-completed-ticket', {
+            method: 'POST',
+            body: emailData
+          });
+          if (!emailResponse.ok) throw new Error(await emailResponse.text() || 'Completed ticket email failed');
         }
 
         // Success: redirect
@@ -2342,7 +2359,7 @@ document.addEventListener('DOMContentLoaded', function () {
         link.href = URL.createObjectURL(pdf);
         link.download = filename;
         link.click();
-        setTimeout(() => URL.revokeObjectURL(link.href), 0);
+        setTimeout(() => URL.revokeObjectURL(link.href), 60000);
       }
       return pdf;
     } catch (error) {
@@ -2351,7 +2368,44 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
 
+  async function generateCustomerPagePdf(ticketId) {
+    await ensureHtml2Pdf();
+    const response = await fetch(`/customer?ticketId=${encodeURIComponent(ticketId)}&print=1`, { credentials: 'same-origin' });
+    if (!response.ok) throw new Error(`Customer page could not be loaded: ${response.status}`);
+
+    const renderContainer = document.createElement('div');
+    renderContainer.style.cssText = 'position:absolute;left:-10000px;top:0;width:794px;background:#fff;';
+    document.body.appendChild(renderContainer);
+    try {
+      const html = (await response.text()).replace(/<script[\s\S]*?<\/script>/gi, '');
+      const parsedDocument = new DOMParser().parseFromString(html, 'text/html');
+      const customerMain = parsedDocument.querySelector('main.main-content');
+      if (!customerMain) throw new Error('Customer page content was not found');
+
+      const target = customerMain.cloneNode(true);
+      renderContainer.appendChild(target);
+      await Promise.all(Array.from(target.querySelectorAll('img')).map(image => image.complete
+        ? Promise.resolve()
+        : new Promise(resolve => { image.addEventListener('load', resolve, { once: true }); image.addEventListener('error', resolve, { once: true }); })));
+
+      return await window.html2pdf().set({
+        margin: 10,
+        filename: `customer-ticket-${ticketId}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, logging: false },
+        pagebreak: {
+          mode: ['css', 'legacy'],
+          avoid: ['.video-section', '.customer-totals', 'table tr', 'figure']
+        },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      }).from(target).outputPdf('blob');
+    } finally {
+      renderContainer.remove();
+    }
+  }
+
   window.generatePagePdf = generatePdf;
+  window.generateCustomerPagePdf = generateCustomerPagePdf;
 
   function bindId(id) {
     const button = document.getElementById(id);

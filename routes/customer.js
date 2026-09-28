@@ -29,8 +29,14 @@ router.get('/customer', ensureLoggedIn, (req, res) => {
             console.log(`Looking for ticket ${ticketId} for user ${email}`);
 
             // Get specific ticket for this user
-            db.get('SELECT * FROM tickets WHERE id = ? AND LOWER(customerEmail) = ? AND stat = ?',
-                [ticketId, email, 'complete'], (err, ticket) => {
+            // The print request is made by the authenticated mechanic workflow.
+            // Keep the normal customer route restricted to the ticket owner's email.
+            const isStaffPrint = req.query.print === '1';
+            const ticketSql = isStaffPrint
+                ? 'SELECT * FROM tickets WHERE id = ? AND stat = ?'
+                : 'SELECT * FROM tickets WHERE id = ? AND LOWER(customerEmail) = ? AND stat = ?';
+            const ticketParams = isStaffPrint ? [ticketId, 'complete'] : [ticketId, email, 'complete'];
+            db.get(ticketSql, ticketParams, (err, ticket) => {
                     if (err) {
                         console.error('Database error:', err.message);
                         return res.status(500).send('Database error');
@@ -319,7 +325,8 @@ router.get('/customer', ensureLoggedIn, (req, res) => {
                                         laborSubtotal: laborSubtotal.toFixed(2),
                                         tax: tax.toFixed(2),
                                         total: total.toFixed(2)
-                                    }
+                                    },
+                                    printMode: isStaffPrint
                                 });
                             } catch (e) {
                                 console.error('Error assembling inspection data:', e);
@@ -337,7 +344,8 @@ router.get('/customer', ensureLoggedIn, (req, res) => {
                                         laborSubtotal: laborSubtotal.toFixed(2),
                                         tax: tax.toFixed(2),
                                         total: total.toFixed(2)
-                                    }
+                                    },
+                                    printMode: isStaffPrint
                                 });
                             }
                         })();

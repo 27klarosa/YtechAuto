@@ -1,9 +1,9 @@
 //importer
-require('dotenv').config();
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const app = express();
 const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 const jwt = require('jsonwebtoken');
 const session = require('express-session');
 const multer = require('multer');
@@ -63,6 +63,7 @@ initializeDatabase()
         app.locals.db = db;
         server.listen(PORT, () => {
             console.log(`Example app listening on port http://localhost:${PORT}`);
+            console.log(`FFmpeg configured as: ${process.env.FFMPEG_PATH || 'ffmpeg from PATH'}`);
         });
     })
     .catch((err) => {
