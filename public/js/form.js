@@ -2451,33 +2451,30 @@ document.addEventListener('DOMContentLoaded', function () {
 
               // Display categorized items in PDF
               if (monitorItems.length || badItems.length) {
-                const summaryDiv = clonedDocument.createElement('div');
+                const summaryDiv = document.createElement('div');
                 console.log('Summary div created');
                 summaryDiv.style.marginTop = '20px';
                 summaryDiv.style.padding = '10px';
                 summaryDiv.style.border = '1px solid #333';
 
                 if (badItems.length) {
-                  const badSection = clonedDocument.createElement('div');
+                  const badSection = document.createElement('div');
                   badSection.innerHTML = `<h3 style="color:red;">Items Requiring Attention:</h3><ul>${badItems.map(i => `<li>${i}</li>`).join('')}</ul>`;
                   summaryDiv.appendChild(badSection);
                 }
 
                 if (monitorItems.length) {
-                  const monitorSection = clonedDocument.createElement('div');
+                  const monitorSection = document.createElement('div');
                   monitorSection.innerHTML = `<h3 style="color:orange;">Items to Monitor:</h3><ul>${monitorItems.map(i => `<li>${i}</li>`).join('')}</ul>`;
                   summaryDiv.appendChild(monitorSection);
                 }
 
                 const main = clonedDocument.querySelector('main');
                 console.log('Main element found:', !!main);
-                main.appendChild(summaryDiv);
-                console.log('Summary div appended to main');
-                console.log('Summary div HTML:', summaryDiv.innerHTML);
-                console.log('Bad items count:', badItems.length);
-                console.log('Monitor items count:', monitorItems.length);
-                console.log('Summary div appended to main');
-
+                if (main) {
+                  main.appendChild(summaryDiv);
+                  console.log('Summary div appended to main');
+                }
               }
               console.log('PDF generation: categorized items added to summary section.');
 
